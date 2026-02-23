@@ -5,7 +5,7 @@ import NotificationBell from "@/components/NotificationBell";
 import HelpButton from "@/components/HelpButton";
 import {
   LayoutDashboard, Users, Truck, Building2, FileText,
-  DollarSign, ShoppingCart, LogOut, Menu, X, ChevronDown, Crown
+  DollarSign, ShoppingCart, LogOut, Menu, X, ChevronDown, Crown, UserCircle
 } from "lucide-react";
 
 const navItems = [
@@ -16,6 +16,7 @@ const navItems = [
   { to: "/budgets", label: "Orçamentos", icon: FileText },
   { to: "/quotations", label: "Cotações", icon: ShoppingCart },
   { to: "/financial", label: "Financeiro", icon: DollarSign },
+  { to: "/profile", label: "Meu Perfil", icon: UserCircle },
   { to: "/plans", label: "Meu Plano", icon: Crown },
 ];
 
