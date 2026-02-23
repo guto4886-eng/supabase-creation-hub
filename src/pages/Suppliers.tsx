@@ -14,5 +14,5 @@ const fields: FieldDef[] = [
 ];
 
 export default function Suppliers() {
-  return <CrudPage table="suppliers" queryKey="suppliers" title="Fornecedores" fields={fields} hasActive />;
+  return <CrudPage table="suppliers" queryKey="suppliers" title="Fornecedores" fields={fields} hasActive hasAttachments />;
 }

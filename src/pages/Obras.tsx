@@ -20,5 +20,5 @@ const fields: FieldDef[] = [
 ];
 
 export default function Obras() {
-  return <CrudPage table="obras" queryKey="obras" title="Obras" fields={fields} defaultValues={{ status: "planejamento" }} hasActive />;
+  return <CrudPage table="obras" queryKey="obras" title="Obras" fields={fields} defaultValues={{ status: "planejamento" }} hasActive hasAttachments />;
 }
