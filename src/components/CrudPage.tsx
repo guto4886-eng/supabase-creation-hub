@@ -7,6 +7,7 @@ import { Plus, Pencil, Trash2, X, Search, Download, ChevronLeft, ChevronRight } 
 import { exportToCSV } from "@/utils/exportCsv";
 import { fetchCep } from "@/utils/cep";
 import { maskCpfCnpj, validateCpfCnpj } from "@/utils/cpfCnpj";
+import Attachments from "@/components/Attachments";
 
 export interface FieldDef {
   name: string;
@@ -24,11 +25,12 @@ interface Props {
   fields: FieldDef[];
   defaultValues?: Record<string, any>;
   hasActive?: boolean;
+  hasAttachments?: boolean;
 }
 
 const PAGE_SIZE = 15;
 
-export default function CrudPage({ table, queryKey, title, fields, defaultValues = {}, hasActive = false }: Props) {
+export default function CrudPage({ table, queryKey, title, fields, defaultValues = {}, hasActive = false, hasAttachments = false }: Props) {
   const { user } = useAuth();
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
@@ -346,6 +348,11 @@ export default function CrudPage({ table, queryKey, title, fields, defaultValues
                 </button>
               </div>
             </form>
+            {hasAttachments && editing && (
+              <div className="px-5 pb-5 border-t border-border pt-4">
+                <Attachments entityType={table} entityId={editing.id} />
+              </div>
+            )}
           </div>
         </div>
       )}

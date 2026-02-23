@@ -13,5 +13,5 @@ const fields: FieldDef[] = [
 ];
 
 export default function Clients() {
-  return <CrudPage table="clients" queryKey="clients" title="Clientes" fields={fields} hasActive />;
+  return <CrudPage table="clients" queryKey="clients" title="Clientes" fields={fields} hasActive hasAttachments />;
 }
