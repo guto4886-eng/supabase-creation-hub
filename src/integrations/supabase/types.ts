@@ -148,10 +148,13 @@ export type Database = {
         Row: {
           active: boolean
           address: string | null
+          address_number: string | null
           birth_date: string | null
           category: string | null
+          cellphone: string | null
           cep: string | null
           city: string | null
+          complement: string | null
           created_at: string
           document: string | null
           email: string | null
@@ -159,9 +162,11 @@ export type Database = {
           marital_status: string | null
           name: string
           nationality: string | null
+          neighborhood: string | null
           notes: string | null
           person_type: string | null
           phone: string | null
+          profession: string | null
           rg: string | null
           state: string | null
           updated_at: string
@@ -170,10 +175,13 @@ export type Database = {
         Insert: {
           active?: boolean
           address?: string | null
+          address_number?: string | null
           birth_date?: string | null
           category?: string | null
+          cellphone?: string | null
           cep?: string | null
           city?: string | null
+          complement?: string | null
           created_at?: string
           document?: string | null
           email?: string | null
@@ -181,9 +189,11 @@ export type Database = {
           marital_status?: string | null
           name: string
           nationality?: string | null
+          neighborhood?: string | null
           notes?: string | null
           person_type?: string | null
           phone?: string | null
+          profession?: string | null
           rg?: string | null
           state?: string | null
           updated_at?: string
@@ -192,10 +202,13 @@ export type Database = {
         Update: {
           active?: boolean
           address?: string | null
+          address_number?: string | null
           birth_date?: string | null
           category?: string | null
+          cellphone?: string | null
           cep?: string | null
           city?: string | null
+          complement?: string | null
           created_at?: string
           document?: string | null
           email?: string | null
@@ -203,9 +216,11 @@ export type Database = {
           marital_status?: string | null
           name?: string
           nationality?: string | null
+          neighborhood?: string | null
           notes?: string | null
           person_type?: string | null
           phone?: string | null
+          profession?: string | null
           rg?: string | null
           state?: string | null
           updated_at?: string

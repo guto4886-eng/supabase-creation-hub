@@ -42,12 +42,17 @@ const fields: FieldDef[] = [
     ],
     hideInTable: true,
   },
+  { name: "profession", label: "Profissão", hideInTable: true },
   { name: "email", label: "Email", type: "email" },
   { name: "phone", label: "Telefone", type: "tel" },
+  { name: "cellphone", label: "Celular", type: "tel", hideInTable: true },
   { name: "cep", label: "CEP", type: "cep", hideInTable: true },
+  { name: "address", label: "Logradouro", hideInTable: true },
+  { name: "address_number", label: "Número", hideInTable: true },
+  { name: "neighborhood", label: "Bairro", hideInTable: true },
+  { name: "complement", label: "Complemento", hideInTable: true },
   { name: "city", label: "Cidade" },
   { name: "state", label: "UF" },
-  { name: "address", label: "Endereço", hideInTable: true },
   { name: "notes", label: "Observações", type: "textarea", hideInTable: true },
 ];
 
