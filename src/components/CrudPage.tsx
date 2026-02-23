@@ -6,11 +6,12 @@ import { toast } from "sonner";
 import { Plus, Pencil, Trash2, X, Search, Download, ChevronLeft, ChevronRight } from "lucide-react";
 import { exportToCSV } from "@/utils/exportCsv";
 import { fetchCep } from "@/utils/cep";
+import { maskCpfCnpj, validateCpfCnpj } from "@/utils/cpfCnpj";
 
 export interface FieldDef {
   name: string;
   label: string;
-  type?: "text" | "email" | "tel" | "number" | "date" | "textarea" | "select" | "cep";
+  type?: "text" | "email" | "tel" | "number" | "date" | "textarea" | "select" | "cep" | "cpfcnpj";
   options?: { value: string; label: string }[];
   required?: boolean;
   hideInTable?: boolean;
@@ -190,6 +191,33 @@ export default function CrudPage({ table, queryKey, title, fields, defaultValues
             <div className="absolute right-3 top-2.5">
               <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full" />
             </div>
+          )}
+        </div>
+      );
+    }
+    if (f.type === "cpfcnpj") {
+      const val = form[f.name] ?? "";
+      const digits = val.replace(/\D/g, "");
+      const isComplete = digits.length === 11 || digits.length === 14;
+      const { valid } = isComplete ? validateCpfCnpj(val) : { valid: true };
+      return (
+        <div>
+          <input
+            type="text"
+            value={val}
+            onChange={(e) => {
+              const masked = maskCpfCnpj(e.target.value);
+              setForm((p) => ({ ...p, [f.name]: masked }));
+            }}
+            placeholder="CPF ou CNPJ"
+            className={`w-full px-3 py-2 rounded-lg border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring ${
+              isComplete && !valid ? "border-destructive" : "border-input"
+            }`}
+          />
+          {isComplete && !valid && (
+            <p className="text-xs text-destructive mt-1">
+              {digits.length === 11 ? "CPF" : "CNPJ"} inválido
+            </p>
           )}
         </div>
       );

@@ -2,7 +2,7 @@ import CrudPage, { FieldDef } from "@/components/CrudPage";
 
 const fields: FieldDef[] = [
   { name: "name", label: "Nome", required: true },
-  { name: "document", label: "CPF/CNPJ" },
+  { name: "document", label: "CPF/CNPJ", type: "cpfcnpj" },
   { name: "email", label: "Email", type: "email" },
   { name: "phone", label: "Telefone", type: "tel" },
   { name: "cep", label: "CEP", type: "cep", hideInTable: true },
