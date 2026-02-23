@@ -3,11 +3,12 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, X, Search, Download, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Pencil, Trash2, X, Search, Download, ChevronLeft, ChevronRight, Upload } from "lucide-react";
 import { exportToCSV } from "@/utils/exportCsv";
 import { fetchCep } from "@/utils/cep";
 import { maskCpfCnpj, validateCpfCnpj } from "@/utils/cpfCnpj";
 import Attachments from "@/components/Attachments";
+import CsvImport from "@/components/CsvImport";
 
 export interface FieldDef {
   name: string;
@@ -18,6 +19,12 @@ export interface FieldDef {
   hideInTable?: boolean;
 }
 
+export interface ExtraTab {
+  key: string;
+  label: string;
+  render: (item: any) => React.ReactNode;
+}
+
 interface Props {
   table: string;
   queryKey: string;
@@ -26,11 +33,13 @@ interface Props {
   defaultValues?: Record<string, any>;
   hasActive?: boolean;
   hasAttachments?: boolean;
+  hasImport?: boolean;
+  extraTabs?: ExtraTab[];
 }
 
 const PAGE_SIZE = 15;
 
-export default function CrudPage({ table, queryKey, title, fields, defaultValues = {}, hasActive = false, hasAttachments = false }: Props) {
+export default function CrudPage({ table, queryKey, title, fields, defaultValues = {}, hasActive = false, hasAttachments = false, hasImport = false, extraTabs = [] }: Props) {
   const { user } = useAuth();
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
@@ -39,6 +48,8 @@ export default function CrudPage({ table, queryKey, title, fields, defaultValues
   const [form, setForm] = useState<Record<string, any>>({});
   const [page, setPage] = useState(0);
   const [cepLoading, setCepLoading] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState("dados");
 
   const { data: items = [], isLoading } = useQuery({
     queryKey: [queryKey],
@@ -96,6 +107,7 @@ export default function CrudPage({ table, queryKey, title, fields, defaultValues
     const initial: Record<string, any> = {};
     fields.forEach((f) => (initial[f.name] = defaultValues[f.name] ?? ""));
     setForm(initial);
+    setActiveTab("dados");
     setFormOpen(true);
   };
 
@@ -104,6 +116,7 @@ export default function CrudPage({ table, queryKey, title, fields, defaultValues
     const initial: Record<string, any> = {};
     fields.forEach((f) => (initial[f.name] = item[f.name] ?? ""));
     setForm(initial);
+    setActiveTab("dados");
     setFormOpen(true);
   };
 
@@ -111,6 +124,7 @@ export default function CrudPage({ table, queryKey, title, fields, defaultValues
     setFormOpen(false);
     setEditing(null);
     setForm({});
+    setActiveTab("dados");
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -236,11 +250,25 @@ export default function CrudPage({ table, queryKey, title, fields, defaultValues
     );
   };
 
+  const allTabs = [
+    { key: "dados", label: "Dados" },
+    ...(hasAttachments && editing ? [{ key: "anexos", label: "Anexos" }] : []),
+    ...(editing ? extraTabs.map((t) => ({ key: t.key, label: t.label })) : []),
+  ];
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <h2 className="text-2xl font-bold text-foreground">{title}</h2>
         <div className="flex items-center gap-2">
+          {hasImport && (
+            <button
+              onClick={() => setImportOpen(true)}
+              className="flex items-center gap-2 px-4 py-2.5 border border-border text-foreground rounded-lg text-sm font-medium hover:bg-muted transition-colors"
+            >
+              <Upload className="h-4 w-4" /> Importar
+            </button>
+          )}
           {filtered.length > 0 && (
             <button
               onClick={() => exportToCSV(filtered, tableFields, queryKey)}
@@ -334,32 +362,74 @@ export default function CrudPage({ table, queryKey, title, fields, defaultValues
       {/* Modal */}
       {formOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={closeForm}>
-          <div className="bg-card border border-border rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-card border border-border rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between p-5 border-b border-border">
               <h3 className="text-lg font-semibold text-card-foreground">{editing ? "Editar" : "Novo"} {title.replace(/s$/, "")}</h3>
               <button onClick={closeForm} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
             </div>
-            <form onSubmit={handleSubmit} className="p-5 space-y-4">
-              {fields.map((f) => (
-                <div key={f.name}>
-                  <label className="block text-sm font-medium text-card-foreground mb-1">{f.label}</label>
-                  {renderInput(f)}
-                </div>
-              ))}
-              <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={closeForm} className="px-4 py-2 rounded-lg border border-border text-foreground hover:bg-muted">Cancelar</button>
-                <button type="submit" disabled={saveMutation.isPending} className="px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 disabled:opacity-50">
-                  {saveMutation.isPending ? "Salvando..." : "Salvar"}
-                </button>
+
+            {/* Tabs */}
+            {allTabs.length > 1 && (
+              <div className="flex border-b border-border px-5 gap-1">
+                {allTabs.map((t) => (
+                  <button
+                    key={t.key}
+                    onClick={() => setActiveTab(t.key)}
+                    className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
+                      activeTab === t.key
+                        ? "border-primary text-primary"
+                        : "border-transparent text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
               </div>
-            </form>
-            {hasAttachments && editing && (
-              <div className="px-5 pb-5 border-t border-border pt-4">
+            )}
+
+            {/* Tab content */}
+            {activeTab === "dados" && (
+              <form onSubmit={handleSubmit} className="p-5 space-y-4">
+                {fields.map((f) => (
+                  <div key={f.name}>
+                    <label className="block text-sm font-medium text-card-foreground mb-1">{f.label}</label>
+                    {renderInput(f)}
+                  </div>
+                ))}
+                <div className="flex justify-end gap-3 pt-2">
+                  <button type="button" onClick={closeForm} className="px-4 py-2 rounded-lg border border-border text-foreground hover:bg-muted">Cancelar</button>
+                  <button type="submit" disabled={saveMutation.isPending} className="px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 disabled:opacity-50">
+                    {saveMutation.isPending ? "Salvando..." : "Salvar"}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {activeTab === "anexos" && hasAttachments && editing && (
+              <div className="p-5">
                 <Attachments entityType={table} entityId={editing.id} />
               </div>
             )}
+
+            {extraTabs.map((t) =>
+              activeTab === t.key && editing ? (
+                <div key={t.key} className="p-5">
+                  {t.render(editing)}
+                </div>
+              ) : null
+            )}
           </div>
         </div>
+      )}
+
+      {/* Import Modal */}
+      {importOpen && (
+        <CsvImport
+          table={table}
+          queryKey={queryKey}
+          fields={fields}
+          onClose={() => setImportOpen(false)}
+        />
       )}
     </div>
   );
