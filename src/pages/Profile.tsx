@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import { User, Save, Camera, Lock, Bell } from "lucide-react";
+import { User, Save, Camera, Lock, Bell, Eye, EyeOff, Check, X as XIcon } from "lucide-react";
 import ImageCropper from "@/components/ImageCropper";
 
 interface Profile {
@@ -30,7 +30,19 @@ export default function ProfilePage() {
   const [passwordOpen, setPasswordOpen] = useState(false);
   const [passwordForm, setPasswordForm] = useState({ password: "", confirm: "" });
   const [changingPassword, setChangingPassword] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [cropperSrc, setCropperSrc] = useState<string | null>(null);
+
+  const passwordCriteria = {
+    length: passwordForm.password.length >= 8,
+    uppercase: /[A-Z]/.test(passwordForm.password) && /[a-z]/.test(passwordForm.password),
+    number: /[0-9]/.test(passwordForm.password),
+    special: /[!@#$%^&*(),.?":{}|<>]/.test(passwordForm.password),
+  };
+  const criteriaMet = Object.values(passwordCriteria).filter(Boolean).length;
+  const strengthPercent = (criteriaMet / 4) * 100;
+  const strengthColor = criteriaMet <= 1 ? "bg-destructive" : criteriaMet <= 2 ? "bg-orange-500" : criteriaMet <= 3 ? "bg-yellow-500" : "bg-green-500";
 
   const { data: profile, isLoading } = useQuery({
     queryKey: ["profile", user?.id],
@@ -165,8 +177,8 @@ export default function ProfilePage() {
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (passwordForm.password.length < 6) {
-      toast.error("A senha deve ter pelo menos 6 caracteres");
+    if (!Object.values(passwordCriteria).every(Boolean)) {
+      toast.error("A senha não atende aos critérios mínimos");
       return;
     }
     if (passwordForm.password !== passwordForm.confirm) {
@@ -272,28 +284,59 @@ export default function ProfilePage() {
           <form onSubmit={handleChangePassword} className="space-y-3 border border-border rounded-lg p-4 bg-muted/30">
             <div>
               <label className="block text-xs font-medium text-foreground mb-1">Nova senha</label>
-              <input
-                type="password"
-                value={passwordForm.password}
-                onChange={(e) => setPasswordForm((p) => ({ ...p, password: e.target.value }))}
-                required
-                minLength={6}
-                placeholder="Mínimo 6 caracteres"
-                className={inputClass + " text-sm"}
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={passwordForm.password}
+                  onChange={(e) => setPasswordForm((p) => ({ ...p, password: e.target.value }))}
+                  required
+                  placeholder="Mínimo 8 caracteres"
+                  className={inputClass + " text-sm pr-9"}
+                />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
             </div>
             <div>
               <label className="block text-xs font-medium text-foreground mb-1">Confirmar senha</label>
-              <input
-                type="password"
-                value={passwordForm.confirm}
-                onChange={(e) => setPasswordForm((p) => ({ ...p, confirm: e.target.value }))}
-                required
-                minLength={6}
-                placeholder="Repita a senha"
-                className={inputClass + " text-sm"}
-              />
+              <div className="relative">
+                <input
+                  type={showConfirm ? "text" : "password"}
+                  value={passwordForm.confirm}
+                  onChange={(e) => setPasswordForm((p) => ({ ...p, confirm: e.target.value }))}
+                  required
+                  placeholder="Repita a senha"
+                  className={inputClass + " text-sm pr-9"}
+                />
+                <button type="button" onClick={() => setShowConfirm(!showConfirm)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                  {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
             </div>
+
+            {/* Strength bar */}
+            {passwordForm.password.length > 0 && (
+              <div className="space-y-2">
+                <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+                  <div className={`h-full transition-all duration-300 rounded-full ${strengthColor}`} style={{ width: `${strengthPercent}%` }} />
+                </div>
+                <ul className="grid grid-cols-2 gap-1 text-xs">
+                  {([
+                    [passwordCriteria.length, "8 caracteres, no mínimo"],
+                    [passwordCriteria.uppercase, "Letras minúsculas e maiúsculas"],
+                    [passwordCriteria.number, "Números (0-9)"],
+                    [passwordCriteria.special, "Símbolos (!@#$%^&*)"],
+                  ] as [boolean, string][]).map(([met, label]) => (
+                    <li key={label} className={`flex items-center gap-1 ${met ? "text-green-600" : "text-muted-foreground"}`}>
+                      {met ? <Check className="h-3 w-3" /> : <XIcon className="h-3 w-3" />}
+                      {label}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             <div className="flex justify-end gap-2">
               <button type="button" onClick={() => setPasswordOpen(false)} className="px-3 py-1.5 rounded-lg border border-border text-xs hover:bg-muted">
                 Cancelar
