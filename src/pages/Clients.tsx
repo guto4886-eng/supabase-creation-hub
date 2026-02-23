@@ -1,4 +1,7 @@
 import CrudPage, { FieldDef } from "@/components/CrudPage";
+import ClientContacts from "@/components/ClientContacts";
+import ClientMessages from "@/components/ClientMessages";
+import ClientPortalPermissions from "@/components/ClientPortalPermissions";
 
 const fields: FieldDef[] = [
   { name: "name", label: "Nome", required: true },
@@ -56,6 +59,35 @@ const fields: FieldDef[] = [
   { name: "notes", label: "Observações", type: "textarea", hideInTable: true },
 ];
 
+const extraTabs = [
+  {
+    key: "contacts",
+    label: "Contatos",
+    render: (item: any) => <ClientContacts clientId={item.id} />,
+  },
+  {
+    key: "messages",
+    label: "Atendimento",
+    render: (item: any) => <ClientMessages clientId={item.id} />,
+  },
+  {
+    key: "portal",
+    label: "Portal",
+    render: (item: any) => <ClientPortalPermissions clientId={item.id} />,
+  },
+];
+
 export default function Clients() {
-  return <CrudPage table="clients" queryKey="clients" title="Clientes" fields={fields} hasActive hasAttachments />;
+  return (
+    <CrudPage
+      table="clients"
+      queryKey="clients"
+      title="Clientes"
+      fields={fields}
+      hasActive
+      hasAttachments
+      hasImport
+      extraTabs={extraTabs}
+    />
+  );
 }
