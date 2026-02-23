@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from "react";
 import Cropper, { ReactCropperElement } from "react-cropper";
-import "cropperjs/dist/cropper.css";
+import "react-cropper/node_modules/cropperjs/dist/cropper.css";
 import { X, Check } from "lucide-react";
 
 interface Props {
