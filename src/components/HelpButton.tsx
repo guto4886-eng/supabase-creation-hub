@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { HelpCircle, X, ExternalLink, MessageCircle, BookOpen, Mail } from "lucide-react";
+import { HelpCircle, X, ExternalLink, MessageCircle, BookOpen, Search } from "lucide-react";
 
 const helpLinks = [
   { icon: BookOpen, label: "Central de Ajuda", url: "https://ajuda.obraprima.eng.br/kb", external: true },
@@ -9,15 +9,42 @@ const helpLinks = [
 
 export default function HelpButton() {
   const [open, setOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const handleSearch = () => {
+    const q = searchQuery.trim();
+    if (q.length < 3) return;
+    window.open(`https://ajuda.obraprima.eng.br/kb?q=${encodeURIComponent(q)}`, "_blank");
+    setSearchQuery("");
+    setOpen(false);
+  };
 
   return (
     <div className="fixed bottom-6 right-6 z-50">
       {open && (
-        <div className="absolute bottom-14 right-0 w-64 bg-card border border-border rounded-xl shadow-lg overflow-hidden mb-2">
+        <div className="absolute bottom-14 right-0 w-72 bg-card border border-border rounded-xl shadow-lg overflow-hidden mb-2">
           <div className="px-4 py-3 border-b border-border bg-primary/5">
             <p className="text-sm font-semibold text-card-foreground">Posso ajudar?</p>
-            <p className="text-xs text-muted-foreground">Escolha uma opção abaixo</p>
+            <p className="text-xs text-muted-foreground">Pesquise ou escolha uma opção</p>
           </div>
+
+          {/* Search */}
+          <div className="px-4 py-2 border-b border-border">
+            <div className="relative">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                placeholder="Digite sua dúvida..."
+                className="w-full pl-3 pr-8 py-2 text-sm rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+              <button onClick={handleSearch} className="absolute right-2 top-2 text-muted-foreground hover:text-foreground">
+                <Search className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+
           <div className="py-1">
             {helpLinks.map((link) => (
               <a
