@@ -123,6 +123,12 @@ export default function Auth() {
             </button>
           </form>
 
+          {isLogin && (
+            <p className="text-center">
+              <a href="/reset-password" className="text-sm text-primary hover:underline">Esqueci minha senha</a>
+            </p>
+          )}
+
           <p className="text-center text-muted-foreground">
             {isLogin ? "Não tem conta?" : "Já tem conta?"}{" "}
             <button onClick={() => setIsLogin(!isLogin)} className="text-primary font-medium hover:underline">
