@@ -148,14 +148,21 @@ export type Database = {
         Row: {
           active: boolean
           address: string | null
+          birth_date: string | null
+          category: string | null
+          cep: string | null
           city: string | null
           created_at: string
           document: string | null
           email: string | null
           id: string
+          marital_status: string | null
           name: string
+          nationality: string | null
           notes: string | null
+          person_type: string | null
           phone: string | null
+          rg: string | null
           state: string | null
           updated_at: string
           user_id: string
@@ -163,14 +170,21 @@ export type Database = {
         Insert: {
           active?: boolean
           address?: string | null
+          birth_date?: string | null
+          category?: string | null
+          cep?: string | null
           city?: string | null
           created_at?: string
           document?: string | null
           email?: string | null
           id?: string
+          marital_status?: string | null
           name: string
+          nationality?: string | null
           notes?: string | null
+          person_type?: string | null
           phone?: string | null
+          rg?: string | null
           state?: string | null
           updated_at?: string
           user_id: string
@@ -178,14 +192,21 @@ export type Database = {
         Update: {
           active?: boolean
           address?: string | null
+          birth_date?: string | null
+          category?: string | null
+          cep?: string | null
           city?: string | null
           created_at?: string
           document?: string | null
           email?: string | null
           id?: string
+          marital_status?: string | null
           name?: string
+          nationality?: string | null
           notes?: string | null
+          person_type?: string | null
           phone?: string | null
+          rg?: string | null
           state?: string | null
           updated_at?: string
           user_id?: string
