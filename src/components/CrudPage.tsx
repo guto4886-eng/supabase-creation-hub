@@ -296,9 +296,14 @@ export default function CrudPage({ table, queryKey, title, fields, defaultValues
                         </button>
                       </td>
                     )}
-                    {tableFields.map((f) => (
-                      <td key={f.name} className="px-4 py-3 text-foreground">{String(item[f.name] ?? "—")}</td>
-                    ))}
+                    {tableFields.map((f) => {
+                      let display = item[f.name] ?? "—";
+                      if (f.type === "select" && f.options && item[f.name]) {
+                        const opt = f.options.find((o) => o.value === item[f.name]);
+                        display = opt ? opt.label : item[f.name];
+                      }
+                      return <td key={f.name} className="px-4 py-3 text-foreground">{String(display)}</td>;
+                    })}
                     <td className="px-4 py-3">
                       <div className="flex gap-1">
                         <button onClick={() => openEdit(item)} className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground"><Pencil className="h-4 w-4" /></button>
