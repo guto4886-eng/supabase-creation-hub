@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation, Outlet } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import NotificationBell from "@/components/NotificationBell";
 import {
   LayoutDashboard, Users, Truck, Building2, FileText,
   DollarSign, ShoppingCart, LogOut, Menu, X, ChevronDown
@@ -82,9 +83,10 @@ export default function Layout() {
           <button onClick={() => setSidebarOpen(true)} className="lg:hidden text-foreground">
             <Menu className="h-5 w-5" />
           </button>
-          <h1 className="text-lg font-semibold text-foreground">
+          <h1 className="text-lg font-semibold text-foreground flex-1">
             {navItems.find((n) => n.to === location.pathname)?.label ?? "Obra Prima"}
           </h1>
+          <NotificationBell />
         </header>
         <div className="p-4 lg:p-6">
           <Outlet />
