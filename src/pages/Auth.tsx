@@ -12,6 +12,9 @@ export default function Auth() {
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [forgotOpen, setForgotOpen] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotSubmitting, setForgotSubmitting] = useState(false);
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-background"><div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" /></div>;
   if (user) return <Navigate to="/" replace />;
@@ -123,10 +126,50 @@ export default function Auth() {
             </button>
           </form>
 
-          {isLogin && (
+          {isLogin && !forgotOpen && (
             <p className="text-center">
-              <a href="/reset-password" className="text-sm text-primary hover:underline">Esqueci minha senha</a>
+              <button onClick={() => { setForgotOpen(true); setForgotEmail(email); }} className="text-sm text-primary hover:underline">
+                Esqueci minha senha
+              </button>
             </p>
+          )}
+
+          {forgotOpen && (
+            <div className="space-y-3 border border-border rounded-lg p-4 bg-muted/30">
+              <p className="text-sm font-medium text-foreground">Recuperar senha</p>
+              <p className="text-xs text-muted-foreground">Informe seu e-mail para receber o link de recuperação.</p>
+              <input
+                type="email"
+                placeholder="Seu e-mail"
+                value={forgotEmail}
+                onChange={(e) => setForgotEmail(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+              <div className="flex gap-2 justify-end">
+                <button onClick={() => setForgotOpen(false)} className="px-3 py-1.5 rounded-lg border border-border text-xs hover:bg-muted">
+                  Cancelar
+                </button>
+                <button
+                  disabled={forgotSubmitting || !forgotEmail}
+                  onClick={async () => {
+                    setForgotSubmitting(true);
+                    const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail, {
+                      redirectTo: `${window.location.origin}/reset-password`,
+                    });
+                    setForgotSubmitting(false);
+                    if (error) {
+                      toast.error(error.message);
+                    } else {
+                      toast.success("Link de recuperação enviado! Verifique seu e-mail.");
+                      setForgotOpen(false);
+                    }
+                  }}
+                  className="px-3 py-1.5 bg-primary text-primary-foreground rounded-lg text-xs font-medium hover:opacity-90 disabled:opacity-50"
+                >
+                  {forgotSubmitting ? "Enviando..." : "Enviar link"}
+                </button>
+              </div>
+            </div>
           )}
 
           <p className="text-center text-muted-foreground">
