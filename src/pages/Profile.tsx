@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { User, Save, Camera, Lock, Bell } from "lucide-react";
+import ImageCropper from "@/components/ImageCropper";
 
 interface Profile {
   id: string;
@@ -29,6 +30,7 @@ export default function ProfilePage() {
   const [passwordOpen, setPasswordOpen] = useState(false);
   const [passwordForm, setPasswordForm] = useState({ password: "", confirm: "" });
   const [changingPassword, setChangingPassword] = useState(false);
+  const [cropperSrc, setCropperSrc] = useState<string | null>(null);
 
   const { data: profile, isLoading } = useQuery({
     queryKey: ["profile", user?.id],
@@ -108,16 +110,23 @@ export default function ProfilePage() {
     onError: (e: any) => toast.error(e.message),
   });
 
-  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !user) return;
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setCropperSrc(reader.result as string);
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
 
-    const ext = file.name.split(".").pop();
-    const path = `${user.id}/avatar.${ext}`;
+  const handleCroppedAvatar = async (blob: Blob) => {
+    if (!user) return;
+    setCropperSrc(null);
 
+    const path = `${user.id}/avatar.jpg`;
     const { error: uploadError } = await supabase.storage
       .from("attachments")
-      .upload(path, file, { upsert: true });
+      .upload(path, blob, { upsert: true, contentType: "image/jpeg" });
 
     if (uploadError) {
       toast.error("Erro ao enviar avatar");
@@ -192,7 +201,7 @@ export default function ProfilePage() {
           </div>
           <label className="absolute bottom-0 right-0 h-7 w-7 bg-primary text-primary-foreground rounded-full flex items-center justify-center cursor-pointer hover:opacity-90 shadow-sm">
             <Camera className="h-3.5 w-3.5" />
-            <input type="file" accept="image/*" onChange={handleAvatarUpload} className="hidden" />
+            <input type="file" accept="image/*" onChange={handleAvatarSelect} className="hidden" />
           </label>
         </div>
         <div>
@@ -308,6 +317,16 @@ export default function ProfilePage() {
           {saveMutation.isPending ? "Salvando..." : "Salvar"}
         </button>
       </div>
+
+      {/* Image Cropper */}
+      {cropperSrc && (
+        <ImageCropper
+          imageSrc={cropperSrc}
+          aspectRatio={1}
+          onCrop={handleCroppedAvatar}
+          onClose={() => setCropperSrc(null)}
+        />
+      )}
     </div>
   );
 }
