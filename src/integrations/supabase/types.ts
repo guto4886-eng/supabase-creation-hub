@@ -14,16 +14,482 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      budget_items: {
+        Row: {
+          budget_id: string
+          category: string | null
+          created_at: string
+          description: string
+          id: string
+          quantity: number | null
+          sort_order: number | null
+          total_price: number | null
+          unit: string | null
+          unit_price: number | null
+        }
+        Insert: {
+          budget_id: string
+          category?: string | null
+          created_at?: string
+          description: string
+          id?: string
+          quantity?: number | null
+          sort_order?: number | null
+          total_price?: number | null
+          unit?: string | null
+          unit_price?: number | null
+        }
+        Update: {
+          budget_id?: string
+          category?: string | null
+          created_at?: string
+          description?: string
+          id?: string
+          quantity?: number | null
+          sort_order?: number | null
+          total_price?: number | null
+          unit?: string | null
+          unit_price?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_items_budget_id_fkey"
+            columns: ["budget_id"]
+            isOneToOne: false
+            referencedRelation: "budgets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      budgets: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          obra_id: string
+          status: string
+          total_value: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          obra_id: string
+          status?: string
+          total_value?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          obra_id?: string
+          status?: string
+          total_value?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budgets_obra_id_fkey"
+            columns: ["obra_id"]
+            isOneToOne: false
+            referencedRelation: "obras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      clients: {
+        Row: {
+          active: boolean
+          address: string | null
+          city: string | null
+          created_at: string
+          document: string | null
+          email: string | null
+          id: string
+          name: string
+          notes: string | null
+          phone: string | null
+          state: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          active?: boolean
+          address?: string | null
+          city?: string | null
+          created_at?: string
+          document?: string | null
+          email?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          phone?: string | null
+          state?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          active?: boolean
+          address?: string | null
+          city?: string | null
+          created_at?: string
+          document?: string | null
+          email?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          phone?: string | null
+          state?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      financial_docs: {
+        Row: {
+          category: string | null
+          created_at: string
+          description: string
+          due_date: string | null
+          id: string
+          notes: string | null
+          obra_id: string | null
+          payment_date: string | null
+          status: string
+          supplier_id: string | null
+          type: string
+          updated_at: string
+          user_id: string
+          value: number
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          description: string
+          due_date?: string | null
+          id?: string
+          notes?: string | null
+          obra_id?: string | null
+          payment_date?: string | null
+          status?: string
+          supplier_id?: string | null
+          type?: string
+          updated_at?: string
+          user_id: string
+          value?: number
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          description?: string
+          due_date?: string | null
+          id?: string
+          notes?: string | null
+          obra_id?: string | null
+          payment_date?: string | null
+          status?: string
+          supplier_id?: string | null
+          type?: string
+          updated_at?: string
+          user_id?: string
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_docs_obra_id_fkey"
+            columns: ["obra_id"]
+            isOneToOne: false
+            referencedRelation: "obras"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "financial_docs_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      obras: {
+        Row: {
+          active: boolean
+          actual_end_date: string | null
+          address: string | null
+          city: string | null
+          client_id: string | null
+          created_at: string
+          description: string | null
+          expected_end_date: string | null
+          id: string
+          name: string
+          notes: string | null
+          start_date: string | null
+          state: string | null
+          status: string
+          total_budget: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          active?: boolean
+          actual_end_date?: string | null
+          address?: string | null
+          city?: string | null
+          client_id?: string | null
+          created_at?: string
+          description?: string | null
+          expected_end_date?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          start_date?: string | null
+          state?: string | null
+          status?: string
+          total_budget?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          active?: boolean
+          actual_end_date?: string | null
+          address?: string | null
+          city?: string | null
+          client_id?: string | null
+          created_at?: string
+          description?: string | null
+          expected_end_date?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          start_date?: string | null
+          state?: string | null
+          status?: string
+          total_budget?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "obras_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          full_name: string
+          id: string
+          phone: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          full_name?: string
+          id?: string
+          phone?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          full_name?: string
+          id?: string
+          phone?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      quotation_responses: {
+        Row: {
+          created_at: string
+          id: string
+          notes: string | null
+          quotation_id: string
+          selected: boolean
+          supplier_id: string
+          value: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          quotation_id: string
+          selected?: boolean
+          supplier_id: string
+          value?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          quotation_id?: string
+          selected?: boolean
+          supplier_id?: string
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quotation_responses_quotation_id_fkey"
+            columns: ["quotation_id"]
+            isOneToOne: false
+            referencedRelation: "quotations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quotation_responses_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quotations: {
+        Row: {
+          created_at: string
+          deadline: string | null
+          description: string | null
+          id: string
+          obra_id: string | null
+          status: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          deadline?: string | null
+          description?: string | null
+          id?: string
+          obra_id?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          deadline?: string | null
+          description?: string | null
+          id?: string
+          obra_id?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quotations_obra_id_fkey"
+            columns: ["obra_id"]
+            isOneToOne: false
+            referencedRelation: "obras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      suppliers: {
+        Row: {
+          active: boolean
+          address: string | null
+          category: string | null
+          city: string | null
+          created_at: string
+          document: string | null
+          email: string | null
+          id: string
+          name: string
+          notes: string | null
+          phone: string | null
+          state: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          active?: boolean
+          address?: string | null
+          category?: string | null
+          city?: string | null
+          created_at?: string
+          document?: string | null
+          email?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          phone?: string | null
+          state?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          active?: boolean
+          address?: string | null
+          category?: string | null
+          city?: string | null
+          created_at?: string
+          document?: string | null
+          email?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          phone?: string | null
+          state?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "manager" | "user"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +616,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "manager", "user"],
+    },
   },
 } as const
