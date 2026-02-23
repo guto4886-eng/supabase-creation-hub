@@ -8,6 +8,7 @@ const fields: FieldDef[] = [
     { value: "pausada", label: "Pausada" },
     { value: "concluida", label: "Concluída" },
   ] },
+  { name: "cep", label: "CEP", type: "cep", hideInTable: true },
   { name: "city", label: "Cidade" },
   { name: "state", label: "UF" },
   { name: "start_date", label: "Início", type: "date" },
@@ -19,5 +20,5 @@ const fields: FieldDef[] = [
 ];
 
 export default function Obras() {
-  return <CrudPage table="obras" queryKey="obras" title="Obras" fields={fields} defaultValues={{ status: "planejamento" }} />;
+  return <CrudPage table="obras" queryKey="obras" title="Obras" fields={fields} defaultValues={{ status: "planejamento" }} hasActive />;
 }

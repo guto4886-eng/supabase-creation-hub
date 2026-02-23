@@ -5,6 +5,7 @@ const fields: FieldDef[] = [
   { name: "document", label: "CPF/CNPJ" },
   { name: "email", label: "Email", type: "email" },
   { name: "phone", label: "Telefone", type: "tel" },
+  { name: "cep", label: "CEP", type: "cep", hideInTable: true },
   { name: "city", label: "Cidade" },
   { name: "state", label: "UF" },
   { name: "address", label: "Endereço", hideInTable: true },
@@ -12,5 +13,5 @@ const fields: FieldDef[] = [
 ];
 
 export default function Clients() {
-  return <CrudPage table="clients" queryKey="clients" title="Clientes" fields={fields} />;
+  return <CrudPage table="clients" queryKey="clients" title="Clientes" fields={fields} hasActive />;
 }

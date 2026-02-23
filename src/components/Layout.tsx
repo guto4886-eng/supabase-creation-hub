@@ -2,9 +2,10 @@ import { useState } from "react";
 import { Link, useLocation, Outlet } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import NotificationBell from "@/components/NotificationBell";
+import HelpButton from "@/components/HelpButton";
 import {
   LayoutDashboard, Users, Truck, Building2, FileText,
-  DollarSign, ShoppingCart, LogOut, Menu, X, ChevronDown
+  DollarSign, ShoppingCart, LogOut, Menu, X, ChevronDown, Crown
 } from "lucide-react";
 
 const navItems = [
@@ -15,6 +16,7 @@ const navItems = [
   { to: "/budgets", label: "Orçamentos", icon: FileText },
   { to: "/quotations", label: "Cotações", icon: ShoppingCart },
   { to: "/financial", label: "Financeiro", icon: DollarSign },
+  { to: "/plans", label: "Meu Plano", icon: Crown },
 ];
 
 export default function Layout() {
@@ -92,6 +94,7 @@ export default function Layout() {
           <Outlet />
         </div>
       </main>
+      <HelpButton />
     </div>
   );
 }

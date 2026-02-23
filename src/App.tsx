@@ -12,6 +12,7 @@ import Obras from "@/pages/Obras";
 import Budgets from "@/pages/Budgets";
 import Quotations from "@/pages/Quotations";
 import Financial from "@/pages/Financial";
+import Plans from "@/pages/Plans";
 
 const queryClient = new QueryClient();
 
@@ -39,6 +40,7 @@ function App() {
               <Route path="budgets" element={<Budgets />} />
               <Route path="quotations" element={<Quotations />} />
               <Route path="financial" element={<Financial />} />
+              <Route path="plans" element={<Plans />} />
             </Route>
           </Routes>
         </AuthProvider>
