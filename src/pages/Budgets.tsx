@@ -28,10 +28,23 @@ interface BudgetItem {
   sort_order: number | null;
 }
 
+const statusOptions = [
+  { value: "rascunho", label: "Rascunho" },
+  { value: "aprovado", label: "Aprovado" },
+  { value: "rejeitado", label: "Rejeitado" },
+];
+
 export default function Budgets() {
   const { user } = useAuth();
   const qc = useQueryClient();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  // Budget form
+  const [budgetFormOpen, setBudgetFormOpen] = useState(false);
+  const [editingBudget, setEditingBudget] = useState<Budget | null>(null);
+  const [budgetForm, setBudgetForm] = useState({ name: "", status: "rascunho", description: "", obra_id: "" });
+
+  // Item form
   const [editingItem, setEditingItem] = useState<BudgetItem | null>(null);
   const [addingTo, setAddingTo] = useState<string | null>(null);
   const [itemForm, setItemForm] = useState({ description: "", category: "", quantity: "1", unit: "un", unit_price: "0" });
@@ -54,6 +67,15 @@ export default function Budgets() {
     },
   });
 
+  const { data: obras = [] } = useQuery({
+    queryKey: ["obras_select"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("obras").select("id, name").order("name");
+      if (error) throw error;
+      return data as { id: string; name: string }[];
+    },
+  });
+
   const toggle = (id: string) => {
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -62,6 +84,61 @@ export default function Budgets() {
     });
   };
 
+  // Budget CRUD
+  const saveBudget = useMutation({
+    mutationFn: async () => {
+      const payload = {
+        name: budgetForm.name,
+        status: budgetForm.status,
+        description: budgetForm.description || null,
+        obra_id: budgetForm.obra_id,
+      };
+      if (editingBudget) {
+        const { error } = await supabase.from("budgets").update(payload).eq("id", editingBudget.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("budgets").insert({ ...payload, user_id: user!.id });
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["budgets"] });
+      toast.success(editingBudget ? "Orçamento atualizado!" : "Orçamento criado!");
+      closeBudgetForm();
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const deleteBudget = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("budgets").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["budgets"] });
+      toast.success("Orçamento removido!");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const openNewBudget = () => {
+    setEditingBudget(null);
+    setBudgetForm({ name: "", status: "rascunho", description: "", obra_id: "" });
+    setBudgetFormOpen(true);
+  };
+
+  const openEditBudget = (b: Budget) => {
+    setEditingBudget(b);
+    setBudgetForm({ name: b.name, status: b.status, description: b.description ?? "", obra_id: b.obra_id ?? "" });
+    setBudgetFormOpen(true);
+  };
+
+  const closeBudgetForm = () => {
+    setBudgetFormOpen(false);
+    setEditingBudget(null);
+  };
+
+  // Item CRUD
   const saveItem = useMutation({
     mutationFn: async () => {
       const payload = {
@@ -132,6 +209,8 @@ export default function Budgets() {
 
   const fmt = (v: number | null) => (v != null ? v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "—");
 
+  const getObraName = (id: string) => obras.find((o) => o.id === id)?.name ?? "—";
+
   const handleExport = () => {
     const rows = budgets.flatMap((b) => {
       const items = allItems.filter((i) => i.budget_id === b.id);
@@ -149,6 +228,8 @@ export default function Budgets() {
     ], "orcamentos");
   };
 
+  const inputClass = "w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring";
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-4 flex-wrap">
@@ -159,6 +240,9 @@ export default function Budgets() {
               <Download className="h-4 w-4" /> Exportar
             </button>
           )}
+          <button onClick={openNewBudget} className="flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90">
+            <Plus className="h-4 w-4" /> Novo Orçamento
+          </button>
         </div>
       </div>
 
@@ -173,23 +257,23 @@ export default function Budgets() {
             const isExpanded = expanded.has(budget.id);
             return (
               <div key={budget.id} className="border border-border rounded-xl overflow-hidden">
-                {/* Budget row */}
-                <div
-                  className="flex items-center gap-3 px-4 py-3 bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
-                  onClick={() => toggle(budget.id)}
-                >
+                <div className="flex items-center gap-3 px-4 py-3 bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => toggle(budget.id)}>
                   <span className="text-muted-foreground">
                     {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                   </span>
                   <span className="font-medium text-foreground flex-1">{budget.name}</span>
+                  <span className="text-xs text-muted-foreground">{getObraName(budget.obra_id)}</span>
                   <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColor[budget.status] || "bg-muted text-muted-foreground"}`}>
-                    {budget.status}
+                    {statusOptions.find((s) => s.value === budget.status)?.label ?? budget.status}
                   </span>
                   <span className="text-sm font-semibold text-foreground">{fmt(budget.total_value)}</span>
                   <span className="text-xs text-muted-foreground">{items.length} ite{items.length !== 1 ? "ns" : "m"}</span>
+                  <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+                    <button onClick={() => openEditBudget(budget)} className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground"><Pencil className="h-3.5 w-3.5" /></button>
+                    <button onClick={() => { if (confirm("Remover orçamento e todos os itens?")) deleteBudget.mutate(budget.id); }} className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"><Trash2 className="h-3.5 w-3.5" /></button>
+                  </div>
                 </div>
 
-                {/* Items tree */}
                 {isExpanded && (
                   <div className="border-t border-border">
                     {items.length === 0 ? (
@@ -228,10 +312,7 @@ export default function Budgets() {
                       </table>
                     )}
                     <div className="px-8 py-2 border-t border-border">
-                      <button
-                        onClick={() => openAddItem(budget.id)}
-                        className="flex items-center gap-1.5 text-xs text-primary hover:underline font-medium"
-                      >
+                      <button onClick={() => openAddItem(budget.id)} className="flex items-center gap-1.5 text-xs text-primary hover:underline font-medium">
                         <Plus className="h-3.5 w-3.5" /> Adicionar item
                       </button>
                     </div>
@@ -240,6 +321,47 @@ export default function Budgets() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Budget form modal */}
+      {budgetFormOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={closeBudgetForm}>
+          <div className="bg-card border border-border rounded-xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-5 border-b border-border">
+              <h3 className="text-lg font-semibold text-card-foreground">{editingBudget ? "Editar" : "Novo"} Orçamento</h3>
+              <button onClick={closeBudgetForm} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
+            </div>
+            <form onSubmit={(e) => { e.preventDefault(); saveBudget.mutate(); }} className="p-5 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-card-foreground mb-1">Nome *</label>
+                <input value={budgetForm.name} onChange={(e) => setBudgetForm((p) => ({ ...p, name: e.target.value }))} required className={inputClass} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-card-foreground mb-1">Obra *</label>
+                <select value={budgetForm.obra_id} onChange={(e) => setBudgetForm((p) => ({ ...p, obra_id: e.target.value }))} required className={inputClass}>
+                  <option value="">Selecione...</option>
+                  {obras.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-card-foreground mb-1">Status</label>
+                <select value={budgetForm.status} onChange={(e) => setBudgetForm((p) => ({ ...p, status: e.target.value }))} className={inputClass}>
+                  {statusOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-card-foreground mb-1">Descrição</label>
+                <textarea value={budgetForm.description} onChange={(e) => setBudgetForm((p) => ({ ...p, description: e.target.value }))} rows={3} className={inputClass} />
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={closeBudgetForm} className="px-4 py-2 rounded-lg border border-border text-foreground hover:bg-muted">Cancelar</button>
+                <button type="submit" disabled={saveBudget.isPending} className="px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 disabled:opacity-50">
+                  {saveBudget.isPending ? "Salvando..." : "Salvar"}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 
@@ -254,24 +376,24 @@ export default function Budgets() {
             <form onSubmit={(e) => { e.preventDefault(); saveItem.mutate(); }} className="p-5 space-y-3">
               <div>
                 <label className="block text-sm font-medium text-card-foreground mb-1">Descrição</label>
-                <input value={itemForm.description} onChange={(e) => setItemForm((p) => ({ ...p, description: e.target.value }))} required className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring" />
+                <input value={itemForm.description} onChange={(e) => setItemForm((p) => ({ ...p, description: e.target.value }))} required className={inputClass} />
               </div>
               <div>
                 <label className="block text-sm font-medium text-card-foreground mb-1">Categoria</label>
-                <input value={itemForm.category} onChange={(e) => setItemForm((p) => ({ ...p, category: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring" />
+                <input value={itemForm.category} onChange={(e) => setItemForm((p) => ({ ...p, category: e.target.value }))} className={inputClass} />
               </div>
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-card-foreground mb-1">Qtd</label>
-                  <input type="number" step="0.01" value={itemForm.quantity} onChange={(e) => setItemForm((p) => ({ ...p, quantity: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring" />
+                  <input type="number" step="0.01" value={itemForm.quantity} onChange={(e) => setItemForm((p) => ({ ...p, quantity: e.target.value }))} className={inputClass} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-card-foreground mb-1">Unidade</label>
-                  <input value={itemForm.unit} onChange={(e) => setItemForm((p) => ({ ...p, unit: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring" />
+                  <input value={itemForm.unit} onChange={(e) => setItemForm((p) => ({ ...p, unit: e.target.value }))} className={inputClass} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-card-foreground mb-1">Preço Unit.</label>
-                  <input type="number" step="0.01" value={itemForm.unit_price} onChange={(e) => setItemForm((p) => ({ ...p, unit_price: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring" />
+                  <input type="number" step="0.01" value={itemForm.unit_price} onChange={(e) => setItemForm((p) => ({ ...p, unit_price: e.target.value }))} className={inputClass} />
                 </div>
               </div>
               <div className="flex justify-end gap-3 pt-2">

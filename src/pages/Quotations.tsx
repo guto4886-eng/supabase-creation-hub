@@ -46,11 +46,20 @@ export default function Quotations() {
   // Quotation form
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Quotation | null>(null);
-  const [form, setForm] = useState({ title: "", status: "aberta", deadline: "", description: "" });
+  const [form, setForm] = useState({ title: "", status: "aberta", deadline: "", description: "", obra_id: "" });
 
   // Response form
   const [responseFormFor, setResponseFormFor] = useState<string | null>(null);
   const [responseForm, setResponseForm] = useState({ supplier_id: "", value: "0", notes: "" });
+
+  const { data: obras = [] } = useQuery({
+    queryKey: ["obras_select"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("obras").select("id, name").order("name");
+      if (error) throw error;
+      return data as { id: string; name: string }[];
+    },
+  });
 
   const { data: quotations = [], isLoading } = useQuery({
     queryKey: ["quotations"],
@@ -86,6 +95,7 @@ export default function Quotations() {
         status: form.status,
         deadline: form.deadline || null,
         description: form.description || null,
+        obra_id: form.obra_id || null,
       };
       if (editing) {
         const { error } = await supabase.from("quotations").update(payload).eq("id", editing.id);
@@ -169,13 +179,13 @@ export default function Quotations() {
 
   const openNew = () => {
     setEditing(null);
-    setForm({ title: "", status: "aberta", deadline: "", description: "" });
+    setForm({ title: "", status: "aberta", deadline: "", description: "", obra_id: "" });
     setFormOpen(true);
   };
 
   const openEdit = (q: Quotation) => {
     setEditing(q);
-    setForm({ title: q.title, status: q.status, deadline: q.deadline ?? "", description: q.description ?? "" });
+    setForm({ title: q.title, status: q.status, deadline: q.deadline ?? "", description: q.description ?? "", obra_id: q.obra_id ?? "" });
     setFormOpen(true);
   };
 
@@ -337,6 +347,13 @@ export default function Quotations() {
                 <label className="block text-sm font-medium text-card-foreground mb-1">Status</label>
                 <select value={form.status} onChange={(e) => setForm((p) => ({ ...p, status: e.target.value }))} className={inputClass}>
                   {statusOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-card-foreground mb-1">Obra</label>
+                <select value={form.obra_id} onChange={(e) => setForm((p) => ({ ...p, obra_id: e.target.value }))} className={inputClass}>
+                  <option value="">Nenhuma</option>
+                  {obras.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
                 </select>
               </div>
               <div>
