@@ -122,36 +122,45 @@ export default function ProfilePage() {
   const handleCroppedAvatar = async (blob: Blob) => {
     if (!user) return;
     setCropperSrc(null);
+    try {
+      const path = `${user.id}/avatar.jpg`;
+      const { error: uploadError } = await supabase.storage
+        .from("attachments")
+        .upload(path, blob, { upsert: true, contentType: "image/jpeg" });
 
-    const path = `${user.id}/avatar.jpg`;
-    const { error: uploadError } = await supabase.storage
-      .from("attachments")
-      .upload(path, blob, { upsert: true, contentType: "image/jpeg" });
+      if (uploadError) {
+        toast.error("Erro ao enviar avatar");
+        return;
+      }
 
-    if (uploadError) {
-      toast.error("Erro ao enviar avatar");
-      return;
+      const { data: publicUrl } = supabase.storage
+        .from("attachments")
+        .getPublicUrl(path);
+
+      if (profile) {
+        await supabase.from("profiles").update({ avatar_url: publicUrl.publicUrl }).eq("user_id", user.id);
+      } else {
+        await supabase.from("profiles").insert({ user_id: user.id, full_name: form.full_name || "", avatar_url: publicUrl.publicUrl });
+      }
+
+      qc.invalidateQueries({ queryKey: ["profile"] });
+      toast.success("Avatar atualizado!");
+    } catch (error) {
+      console.error("Erro ao salvar avatar:", error);
+      toast.error("Erro inesperado ao salvar avatar");
     }
-
-    const { data: publicUrl } = supabase.storage
-      .from("attachments")
-      .getPublicUrl(path);
-
-    if (profile) {
-      await supabase.from("profiles").update({ avatar_url: publicUrl.publicUrl }).eq("user_id", user.id);
-    } else {
-      await supabase.from("profiles").insert({ user_id: user.id, full_name: form.full_name || "", avatar_url: publicUrl.publicUrl });
-    }
-
-    qc.invalidateQueries({ queryKey: ["profile"] });
-    toast.success("Avatar atualizado!");
   };
 
   const handleRemoveAvatar = async () => {
     if (!user || !profile?.avatar_url) return;
-    await supabase.from("profiles").update({ avatar_url: null }).eq("user_id", user.id);
-    qc.invalidateQueries({ queryKey: ["profile"] });
-    toast.success("Avatar removido!");
+    try {
+      await supabase.from("profiles").update({ avatar_url: null }).eq("user_id", user.id);
+      qc.invalidateQueries({ queryKey: ["profile"] });
+      toast.success("Avatar removido!");
+    } catch (error) {
+      console.error("Erro ao remover avatar:", error);
+      toast.error("Erro inesperado");
+    }
   };
 
   const handleChangePassword = async (e: React.FormEvent) => {
@@ -165,14 +174,20 @@ export default function ProfilePage() {
       return;
     }
     setChangingPassword(true);
-    const { error } = await supabase.auth.updateUser({ password: passwordForm.password });
-    setChangingPassword(false);
-    if (error) {
-      toast.error(error.message);
-    } else {
-      toast.success("Senha alterada com sucesso!");
-      setPasswordOpen(false);
-      setPasswordForm({ password: "", confirm: "" });
+    try {
+      const { error } = await supabase.auth.updateUser({ password: passwordForm.password });
+      if (error) {
+        toast.error(error.message);
+      } else {
+        toast.success("Senha alterada com sucesso!");
+        setPasswordOpen(false);
+        setPasswordForm({ password: "", confirm: "" });
+      }
+    } catch (error) {
+      console.error("Erro ao alterar senha:", error);
+      toast.error("Erro inesperado ao alterar senha");
+    } finally {
+      setChangingPassword(false);
     }
   };
 
