@@ -1099,6 +1099,72 @@ export type Database = {
           },
         ]
       }
+      supplier_purchases: {
+        Row: {
+          created_at: string
+          description: string
+          id: string
+          invoice_number: string | null
+          notes: string | null
+          obra_id: string | null
+          payment_status: string | null
+          purchase_date: string | null
+          quantity: number | null
+          supplier_id: string
+          total_price: number | null
+          unit: string | null
+          unit_price: number | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          id?: string
+          invoice_number?: string | null
+          notes?: string | null
+          obra_id?: string | null
+          payment_status?: string | null
+          purchase_date?: string | null
+          quantity?: number | null
+          supplier_id: string
+          total_price?: number | null
+          unit?: string | null
+          unit_price?: number | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          id?: string
+          invoice_number?: string | null
+          notes?: string | null
+          obra_id?: string | null
+          payment_status?: string | null
+          purchase_date?: string | null
+          quantity?: number | null
+          supplier_id?: string
+          total_price?: number | null
+          unit?: string | null
+          unit_price?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supplier_purchases_obra_id_fkey"
+            columns: ["obra_id"]
+            isOneToOne: false
+            referencedRelation: "obras"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supplier_purchases_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       supplier_quality_ratings: {
         Row: {
           created_at: string
