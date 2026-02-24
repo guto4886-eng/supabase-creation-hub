@@ -986,7 +986,7 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                           const pct = grandTotal > 0 ? (total / grandTotal) * 100 : 0;
                           cumPhase += pct;
                           const cls = cumPhase <= 80 ? "A" : cumPhase <= 95 ? "B" : "C";
-                          const clsBg = cls === "A" ? "bg-red-600 text-white" : cls === "B" ? "bg-amber-500 text-white" : "bg-gray-400 text-white";
+                          const clsBg = cls === "A" ? "bg-green-600 text-white" : cls === "B" ? "bg-amber-500 text-white" : "bg-red-600 text-white";
                           const isOpen = expandedAbc === rootIdx;
                           const sortedSvc = [...services].sort((a, b) => (b.total_price || 0) - (a.total_price || 0));
                           const svcTotal = total;
@@ -1012,7 +1012,7 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                                 const sPct = svcTotal > 0 ? ((svc.total_price || 0) / svcTotal) * 100 : 0;
                                 cumSvc += sPct;
                                 const sCls = cumSvc <= 80 ? "A" : cumSvc <= 95 ? "B" : "C";
-                                const sClsBg = sCls === "A" ? "bg-red-500 text-white" : sCls === "B" ? "bg-amber-400 text-white" : "bg-gray-300 text-foreground";
+                                const sClsBg = sCls === "A" ? "bg-green-500 text-white" : sCls === "B" ? "bg-amber-400 text-white" : "bg-red-500 text-white";
                                 return (
                                   <tr key={svc.id} className="bg-muted/10">
                                     <td className="px-3 py-1.5 pl-8"><span className={`inline-flex items-center justify-center w-5 h-5 rounded text-[10px] font-bold ${sClsBg}`}>{sCls}</span></td>
