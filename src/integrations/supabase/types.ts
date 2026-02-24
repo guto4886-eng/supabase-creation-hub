@@ -499,63 +499,273 @@ export type Database = {
         }
         Relationships: []
       }
+      obra_admin_rates: {
+        Row: {
+          cost_type: string
+          created_at: string
+          fixed_value: number | null
+          id: string
+          obra_id: string
+          percentage: number | null
+          user_id: string
+        }
+        Insert: {
+          cost_type: string
+          created_at?: string
+          fixed_value?: number | null
+          id?: string
+          obra_id: string
+          percentage?: number | null
+          user_id: string
+        }
+        Update: {
+          cost_type?: string
+          created_at?: string
+          fixed_value?: number | null
+          id?: string
+          obra_id?: string
+          percentage?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "obra_admin_rates_obra_id_fkey"
+            columns: ["obra_id"]
+            isOneToOne: false
+            referencedRelation: "obras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      obra_contacts: {
+        Row: {
+          cellphone: string | null
+          created_at: string
+          email: string | null
+          id: string
+          name: string
+          notes: string | null
+          obra_id: string
+          origin: string | null
+          phone: string | null
+          user_id: string
+        }
+        Insert: {
+          cellphone?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          obra_id: string
+          origin?: string | null
+          phone?: string | null
+          user_id: string
+        }
+        Update: {
+          cellphone?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          obra_id?: string
+          origin?: string | null
+          phone?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "obra_contacts_obra_id_fkey"
+            columns: ["obra_id"]
+            isOneToOne: false
+            referencedRelation: "obras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      obra_daily_entries: {
+        Row: {
+          category: string | null
+          created_at: string
+          id: string
+          message: string
+          obra_id: string
+          user_id: string
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          id?: string
+          message: string
+          obra_id: string
+          user_id: string
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          id?: string
+          message?: string
+          obra_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "obra_daily_entries_obra_id_fkey"
+            columns: ["obra_id"]
+            isOneToOne: false
+            referencedRelation: "obras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       obras: {
         Row: {
           active: boolean
           actual_end_date: string | null
           address: string | null
+          address_number: string | null
+          area_m2: number | null
+          art_number: string | null
+          billing_address: string | null
+          billing_address_source: string | null
+          billing_cep: string | null
+          billing_city: string | null
+          billing_complement: string | null
+          billing_frequency: string | null
+          billing_neighborhood: string | null
+          billing_number: string | null
+          billing_state: string | null
+          billing_type: string | null
+          category: string | null
+          cep: string | null
           city: string | null
+          client_access: boolean | null
           client_id: string | null
+          cno: string | null
+          complement: string | null
           created_at: string
           description: string | null
+          document_type: string | null
+          duration: number | null
+          duration_unit: string | null
+          empreiteiro: string | null
           expected_end_date: string | null
           id: string
           name: string
+          neighborhood: string | null
           notes: string | null
+          planning_frequency: string | null
+          resp_obra: string | null
+          resp_tecnico: string | null
           start_date: string | null
           state: string | null
           status: string
+          stock_control: boolean | null
+          stock_type: string | null
           total_budget: number | null
+          tracking_method: string | null
           updated_at: string
           user_id: string
+          work_days: string[] | null
         }
         Insert: {
           active?: boolean
           actual_end_date?: string | null
           address?: string | null
+          address_number?: string | null
+          area_m2?: number | null
+          art_number?: string | null
+          billing_address?: string | null
+          billing_address_source?: string | null
+          billing_cep?: string | null
+          billing_city?: string | null
+          billing_complement?: string | null
+          billing_frequency?: string | null
+          billing_neighborhood?: string | null
+          billing_number?: string | null
+          billing_state?: string | null
+          billing_type?: string | null
+          category?: string | null
+          cep?: string | null
           city?: string | null
+          client_access?: boolean | null
           client_id?: string | null
+          cno?: string | null
+          complement?: string | null
           created_at?: string
           description?: string | null
+          document_type?: string | null
+          duration?: number | null
+          duration_unit?: string | null
+          empreiteiro?: string | null
           expected_end_date?: string | null
           id?: string
           name: string
+          neighborhood?: string | null
           notes?: string | null
+          planning_frequency?: string | null
+          resp_obra?: string | null
+          resp_tecnico?: string | null
           start_date?: string | null
           state?: string | null
           status?: string
+          stock_control?: boolean | null
+          stock_type?: string | null
           total_budget?: number | null
+          tracking_method?: string | null
           updated_at?: string
           user_id: string
+          work_days?: string[] | null
         }
         Update: {
           active?: boolean
           actual_end_date?: string | null
           address?: string | null
+          address_number?: string | null
+          area_m2?: number | null
+          art_number?: string | null
+          billing_address?: string | null
+          billing_address_source?: string | null
+          billing_cep?: string | null
+          billing_city?: string | null
+          billing_complement?: string | null
+          billing_frequency?: string | null
+          billing_neighborhood?: string | null
+          billing_number?: string | null
+          billing_state?: string | null
+          billing_type?: string | null
+          category?: string | null
+          cep?: string | null
           city?: string | null
+          client_access?: boolean | null
           client_id?: string | null
+          cno?: string | null
+          complement?: string | null
           created_at?: string
           description?: string | null
+          document_type?: string | null
+          duration?: number | null
+          duration_unit?: string | null
+          empreiteiro?: string | null
           expected_end_date?: string | null
           id?: string
           name?: string
+          neighborhood?: string | null
           notes?: string | null
+          planning_frequency?: string | null
+          resp_obra?: string | null
+          resp_tecnico?: string | null
           start_date?: string | null
           state?: string | null
           status?: string
+          stock_control?: boolean | null
+          stock_type?: string | null
           total_budget?: number | null
+          tracking_method?: string | null
           updated_at?: string
           user_id?: string
+          work_days?: string[] | null
         }
         Relationships: [
           {
