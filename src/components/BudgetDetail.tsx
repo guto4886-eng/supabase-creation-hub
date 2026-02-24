@@ -2,7 +2,8 @@ import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { X, Plus, Pencil, Trash2, FileText, ChevronDown, Settings } from "lucide-react";
+import { X, Plus, Pencil, Trash2, FileText, ChevronDown, Settings, Upload } from "lucide-react";
+import BudgetImportModal from "./BudgetImportModal";
 
 interface BudgetDetailProps {
   budgetId: string;
@@ -103,6 +104,8 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
   const [editingItem, setEditingItem] = useState<BudgetItem | null>(null);
   const [addingItem, setAddingItem] = useState(false);
   const [itemForm, setItemForm] = useState({ description: "", category: "", quantity: "1", unit: "un", unit_price: "0" });
+  const [showImport, setShowImport] = useState(false);
+  const [selectedPhase, setSelectedPhase] = useState<string | null>(null);
 
   // Fetch budget
   const { data: budget, isLoading: budgetLoading } = useQuery({
@@ -425,106 +428,197 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
             </div>
           )}
 
-          {activeTab === "valores_custo" && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h4 className="text-sm font-semibold text-foreground">Itens de custo</h4>
-                <button onClick={openAddItem} className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90">
-                  <Plus className="h-4 w-4" /> Adicionar item
-                </button>
-              </div>
-              {items.length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground">Nenhum item de custo cadastrado.</div>
-              ) : (
-                <div className="border border-border rounded-lg overflow-hidden">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="bg-muted/50">
-                        <th className="text-left px-3 py-2.5 font-medium text-muted-foreground">Descrição</th>
-                        <th className="text-left px-3 py-2.5 font-medium text-muted-foreground">Categoria</th>
-                        <th className="text-right px-3 py-2.5 font-medium text-muted-foreground">Qtd</th>
-                        <th className="text-left px-3 py-2.5 font-medium text-muted-foreground">Un</th>
-                        <th className="text-right px-3 py-2.5 font-medium text-muted-foreground">Preço Unit.</th>
-                        <th className="text-right px-3 py-2.5 font-medium text-muted-foreground">Total</th>
-                        <th className="w-20 px-3 py-2.5 text-center font-medium text-muted-foreground">Ações</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                      {items.map((item, idx) => (
-                        <tr key={item.id} className={`${idx % 2 === 0 ? "bg-background" : "bg-muted/20"} hover:bg-muted/40`}>
-                          <td className="px-3 py-2 text-foreground">{item.description}</td>
-                          <td className="px-3 py-2 text-muted-foreground">{item.category || "—"}</td>
-                          <td className="px-3 py-2 text-right text-foreground">{item.quantity ?? "—"}</td>
-                          <td className="px-3 py-2 text-muted-foreground">{item.unit || "—"}</td>
-                          <td className="px-3 py-2 text-right text-foreground">{fmt(item.unit_price)}</td>
-                          <td className="px-3 py-2 text-right font-medium text-foreground">{fmt(item.total_price)}</td>
-                          <td className="px-3 py-2">
-                            <div className="flex gap-1 justify-center">
-                              <button onClick={() => openEditItem(item)} className="p-1.5 rounded-md hover:bg-accent text-primary"><Pencil className="h-4 w-4" /></button>
-                              <button onClick={() => { if (confirm("Remover item?")) deleteItem.mutate(item.id); }} className="p-1.5 rounded-md hover:bg-destructive/10 text-destructive"><Trash2 className="h-4 w-4" /></button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                    <tfoot>
-                      <tr className="bg-muted/50 border-t border-border">
-                        <td colSpan={5} className="px-3 py-2.5 text-right font-semibold text-foreground">Total:</td>
-                        <td className="px-3 py-2.5 text-right font-bold text-foreground">{fmt(totalCusto)}</td>
-                        <td />
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              )}
-            </div>
-          )}
+          {activeTab === "valores_custo" && (() => {
+            const phases = [...new Set(items.map((i) => i.category || "Geral"))];
+            const activePhase = selectedPhase || phases[0] || "Geral";
+            const phaseItems = items.filter((i) => (i.category || "Geral") === activePhase);
+            const phaseTotal = phaseItems.reduce((s, i) => s + (i.total_price || 0), 0);
 
-          {activeTab === "valores_venda" && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h4 className="text-sm font-semibold text-foreground">Valores de venda</h4>
-              </div>
-              {items.length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground">Nenhum item cadastrado. Adicione itens na aba "Valores custo".</div>
-              ) : (
-                <div className="border border-border rounded-lg overflow-hidden">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="bg-muted/50">
-                        <th className="text-left px-3 py-2.5 font-medium text-muted-foreground">Descrição</th>
-                        <th className="text-right px-3 py-2.5 font-medium text-muted-foreground">Custo Unit.</th>
-                        <th className="text-right px-3 py-2.5 font-medium text-muted-foreground">Qtd</th>
-                        <th className="text-right px-3 py-2.5 font-medium text-muted-foreground">Custo Total</th>
-                        <th className="text-right px-3 py-2.5 font-medium text-muted-foreground">Venda Unit.</th>
-                        <th className="text-right px-3 py-2.5 font-medium text-muted-foreground">Venda Total</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                      {items.map((item, idx) => (
-                        <tr key={item.id} className={`${idx % 2 === 0 ? "bg-background" : "bg-muted/20"}`}>
-                          <td className="px-3 py-2 text-foreground">{item.description}</td>
-                          <td className="px-3 py-2 text-right text-foreground">{fmt(item.unit_price)}</td>
-                          <td className="px-3 py-2 text-right text-foreground">{item.quantity ?? "—"}</td>
-                          <td className="px-3 py-2 text-right text-foreground">{fmt(item.total_price)}</td>
-                          <td className="px-3 py-2 text-right text-muted-foreground">{fmt(item.unit_price)}</td>
-                          <td className="px-3 py-2 text-right text-muted-foreground">{fmt(item.total_price)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                    <tfoot>
-                      <tr className="bg-muted/50 border-t border-border">
-                        <td colSpan={3} className="px-3 py-2.5 text-right font-semibold text-foreground">Total:</td>
-                        <td className="px-3 py-2.5 text-right font-bold text-foreground">{fmt(totalCusto)}</td>
-                        <td />
-                        <td className="px-3 py-2.5 text-right font-bold text-foreground">{fmt(totalCusto)}</td>
-                      </tr>
-                    </tfoot>
-                  </table>
+            return (
+              <div className="flex gap-4 h-full">
+                {/* Phase sidebar */}
+                <div className="w-72 flex-shrink-0 border border-border rounded-lg overflow-hidden">
+                  <div className="bg-muted/50 px-3 py-2 flex items-center justify-between">
+                    <span className="text-xs font-semibold text-muted-foreground">Fase da obra</span>
+                    <span className="text-xs font-semibold text-muted-foreground">Total (R$)</span>
+                  </div>
+                  <div className="divide-y divide-border max-h-[60vh] overflow-y-auto">
+                    {phases.map((phase) => {
+                      const total = items.filter((i) => (i.category || "Geral") === phase).reduce((s, i) => s + (i.total_price || 0), 0);
+                      return (
+                        <button
+                          key={phase}
+                          onClick={() => setSelectedPhase(phase)}
+                          className={`w-full text-left px-3 py-2.5 text-xs flex justify-between items-center transition-colors ${
+                            activePhase === phase ? "bg-primary/10 text-primary font-semibold" : "text-foreground hover:bg-muted/50"
+                          }`}
+                        >
+                          <span className="truncate pr-2">{phase}</span>
+                          <span className="flex-shrink-0 font-medium">{total.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="bg-muted/50 px-3 py-2 border-t border-border">
+                    <div className="flex justify-between text-xs font-bold text-foreground">
+                      <span>Total da obra:</span>
+                      <span>{fmt(totalCusto)}</span>
+                    </div>
+                  </div>
                 </div>
-              )}
-            </div>
-          )}
+
+                {/* Phase items */}
+                <div className="flex-1 space-y-4 overflow-y-auto max-h-[60vh]">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-semibold text-foreground">{activePhase}</h4>
+                    <button onClick={() => { setItemForm({ description: "", category: activePhase, quantity: "1", unit: "un", unit_price: "0" }); setEditingItem(null); setAddingItem(true); }} className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-lg text-xs font-medium hover:opacity-90">
+                      <Plus className="h-3.5 w-3.5" /> Adicionar item
+                    </button>
+                  </div>
+
+                  {phaseItems.length === 0 ? (
+                    <div className="text-center py-12 text-muted-foreground text-sm">Nenhum item nesta fase.</div>
+                  ) : (
+                    <div className="space-y-3">
+                      {phaseItems.map((item) => (
+                        <div key={item.id} className="border border-border rounded-lg p-4 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-semibold text-foreground">{item.description}</span>
+                            <div className="flex gap-1">
+                              <button onClick={() => openEditItem(item)} className="p-1 rounded hover:bg-accent text-primary"><Pencil className="h-3.5 w-3.5" /></button>
+                              <button onClick={() => { if (confirm("Remover item?")) deleteItem.mutate(item.id); }} className="p-1 rounded hover:bg-destructive/10 text-destructive"><Trash2 className="h-3.5 w-3.5" /></button>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-6 text-sm">
+                            <div className="flex items-center gap-2">
+                              <span className="text-muted-foreground">Quantidade</span>
+                              <span className="font-medium text-foreground">{(item.quantity ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+                              <span className="text-muted-foreground uppercase text-xs">{item.unit || "un"}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-muted-foreground">Valor unitário:</span>
+                              <span className="font-semibold text-foreground">{fmt(item.unit_price)}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-muted-foreground">Valor total:</span>
+                              <span className="font-bold text-foreground">{fmt(item.total_price)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="bg-muted/30 border border-border rounded-lg p-3 flex justify-between">
+                    <span className="text-sm font-semibold text-foreground">Total da fase:</span>
+                    <span className="text-sm font-bold text-foreground">{fmt(phaseTotal)}</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {activeTab === "valores_venda" && (() => {
+            const phases = [...new Set(items.map((i) => i.category || "Geral"))];
+            const activePhase = selectedPhase || phases[0] || "Geral";
+            const phaseItems = items.filter((i) => (i.category || "Geral") === activePhase);
+            const totalVenda = items.reduce((s, i) => {
+              const bdi = (i as any).bdi || 0;
+              return s + (i.total_price || 0) * (1 + bdi / 100);
+            }, 0);
+
+            const updateBdi = async (itemId: string, bdiValue: number) => {
+              await supabase.from("budget_items").update({ bdi: bdiValue } as any).eq("id", itemId);
+              qc.invalidateQueries({ queryKey: ["budget_items", budgetId] });
+            };
+
+            return (
+              <div className="flex gap-4 h-full">
+                {/* Phase sidebar */}
+                <div className="w-72 flex-shrink-0 border border-border rounded-lg overflow-hidden">
+                  <div className="bg-muted/50 px-3 py-2 flex items-center justify-between">
+                    <span className="text-xs font-semibold text-muted-foreground">Fase da obra</span>
+                    <span className="text-xs font-semibold text-muted-foreground">Total (R$)</span>
+                  </div>
+                  <div className="divide-y divide-border max-h-[60vh] overflow-y-auto">
+                    {phases.map((phase) => {
+                      const total = items.filter((i) => (i.category || "Geral") === phase).reduce((s, i) => {
+                        const bdi = (i as any).bdi || 0;
+                        return s + (i.total_price || 0) * (1 + bdi / 100);
+                      }, 0);
+                      return (
+                        <button
+                          key={phase}
+                          onClick={() => setSelectedPhase(phase)}
+                          className={`w-full text-left px-3 py-2.5 text-xs flex justify-between items-center transition-colors ${
+                            activePhase === phase ? "bg-primary/10 text-primary font-semibold" : "text-foreground hover:bg-muted/50"
+                          }`}
+                        >
+                          <span className="truncate pr-2">{phase}</span>
+                          <span className="flex-shrink-0 font-medium">{total.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="bg-muted/50 px-3 py-2 border-t border-border">
+                    <div className="flex justify-between text-xs font-bold text-foreground">
+                      <span>Total venda:</span>
+                      <span>{fmt(totalVenda)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Phase items with BDI */}
+                <div className="flex-1 space-y-4 overflow-y-auto max-h-[60vh]">
+                  <h4 className="text-sm font-semibold text-foreground">{activePhase}</h4>
+                  {phaseItems.length === 0 ? (
+                    <div className="text-center py-12 text-muted-foreground text-sm">Nenhum item nesta fase.</div>
+                  ) : (
+                    <div className="space-y-3">
+                      {phaseItems.map((item) => {
+                        const bdi = (item as any).bdi || 0;
+                        const vendaUnit = (item.unit_price || 0) * (1 + bdi / 100);
+                        const vendaTotal = (item.total_price || 0) * (1 + bdi / 100);
+                        return (
+                          <div key={item.id} className="border border-border rounded-lg p-4 space-y-3">
+                            <span className="text-sm font-semibold text-foreground">{item.description}</span>
+                            <div className="flex items-center gap-6 text-sm flex-wrap">
+                              <div className="flex items-center gap-2">
+                                <span className="text-muted-foreground">Custo unit.:</span>
+                                <span className="text-foreground">{fmt(item.unit_price)}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-muted-foreground">Custo total:</span>
+                                <span className="text-foreground">{fmt(item.total_price)}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-muted-foreground">BDI (%):</span>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  defaultValue={bdi}
+                                  onBlur={(e) => updateBdi(item.id, parseFloat(e.target.value) || 0)}
+                                  className="w-20 px-2 py-1 rounded border border-input bg-background text-foreground text-sm text-right"
+                                />
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-muted-foreground">Venda unit.:</span>
+                                <span className="font-semibold text-foreground">{fmt(vendaUnit)}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-muted-foreground">Venda total:</span>
+                                <span className="font-bold text-primary">{fmt(vendaTotal)}</span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
 
           {activeTab === "insumos" && (
             <div className="space-y-4">
@@ -588,7 +682,13 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
               label="Ações"
               icon={Settings}
               items={ACOES}
-              onSelect={(item) => toast.info(`Ação "${item}" será implementada em breve.`)}
+              onSelect={(item) => {
+                if (item === "Importar orçamento") {
+                  setShowImport(true);
+                } else {
+                  toast.info(`Ação "${item}" será implementada em breve.`);
+                }
+              }}
             />
             <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg border border-border bg-background text-foreground hover:bg-muted text-sm">
               Fechar
@@ -617,7 +717,7 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                   <input value={itemForm.description} onChange={(e) => setItemForm((p) => ({ ...p, description: e.target.value }))} required className={inputClass} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-card-foreground mb-1">Categoria</label>
+                  <label className="block text-sm font-medium text-card-foreground mb-1">Fase da obra</label>
                   <input value={itemForm.category} onChange={(e) => setItemForm((p) => ({ ...p, category: e.target.value }))} className={inputClass} />
                 </div>
                 <div className="grid grid-cols-3 gap-3">
@@ -643,6 +743,11 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
               </form>
             </div>
           </div>
+        )}
+
+        {/* Import modal */}
+        {showImport && (
+          <BudgetImportModal budgetId={budgetId} onClose={() => setShowImport(false)} />
         )}
       </div>
     </div>
