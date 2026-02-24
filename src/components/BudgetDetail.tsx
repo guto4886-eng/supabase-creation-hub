@@ -27,6 +27,11 @@ const TABS = [
   { key: "valores_custo", label: "Valores custo" },
   { key: "valores_venda", label: "Valores venda" },
   { key: "insumos", label: "Insumos" },
+  { key: "curva_abc", label: "Curva ABC" },
+  { key: "cronograma", label: "Cronograma" },
+  { key: "planejamento", label: "Plan. Físico/Econômico" },
+  { key: "medicao", label: "Medição física" },
+  { key: "previsto_realizado", label: "Previsto x Realizado" },
 ];
 
 const statusOptions = [
@@ -841,6 +846,106 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                   </table>
                 </div>
               )}
+            </div>
+          )}
+
+          {activeTab === "curva_abc" && (() => {
+            const serviceItems = items
+              .filter((i) => (i.category || "").toLowerCase() === "serviço" || (i.category || "").toLowerCase() === "servico")
+              .filter((i) => (i.total_price || 0) > 0);
+            const sorted = [...serviceItems].sort((a, b) => (b.total_price || 0) - (a.total_price || 0));
+            const grandTotal = sorted.reduce((s, i) => s + (i.total_price || 0), 0);
+            let cumulative = 0;
+
+            return (
+              <div className="space-y-4">
+                <h4 className="text-sm font-semibold text-foreground">Curva ABC de Serviços</h4>
+                {sorted.length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground text-sm">Nenhum serviço com valor cadastrado.</div>
+                ) : (
+                  <div className="border border-border rounded-lg overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-muted/50">
+                          <th className="text-left px-3 py-2.5 font-medium text-muted-foreground">Classe</th>
+                          <th className="text-left px-3 py-2.5 font-medium text-muted-foreground">Descrição</th>
+                          <th className="text-right px-3 py-2.5 font-medium text-muted-foreground">Valor</th>
+                          <th className="text-right px-3 py-2.5 font-medium text-muted-foreground">% Individual</th>
+                          <th className="text-right px-3 py-2.5 font-medium text-muted-foreground">% Acumulado</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border">
+                        {sorted.map((item, idx) => {
+                          const pct = grandTotal > 0 ? ((item.total_price || 0) / grandTotal) * 100 : 0;
+                          cumulative += pct;
+                          const cls = cumulative <= 80 ? "A" : cumulative <= 95 ? "B" : "C";
+                          const clsColor = cls === "A" ? "text-red-600 font-bold" : cls === "B" ? "text-amber-600 font-semibold" : "text-muted-foreground";
+                          return (
+                            <tr key={item.id} className={idx % 2 === 0 ? "bg-background" : "bg-muted/20"}>
+                              <td className={`px-3 py-2 ${clsColor}`}>{cls}</td>
+                              <td className="px-3 py-2 text-foreground">{item.description}</td>
+                              <td className="px-3 py-2 text-right text-foreground tabular-nums">{fmt(item.total_price)}</td>
+                              <td className="px-3 py-2 text-right text-foreground tabular-nums">{pct.toFixed(2)}%</td>
+                              <td className="px-3 py-2 text-right text-foreground tabular-nums">{cumulative.toFixed(2)}%</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                      <tfoot>
+                        <tr className="bg-muted/50 border-t border-border">
+                          <td colSpan={2} className="px-3 py-2.5 text-right font-semibold text-foreground">Total:</td>
+                          <td className="px-3 py-2.5 text-right font-bold text-foreground">{fmt(grandTotal)}</td>
+                          <td colSpan={2} className="px-3 py-2.5 text-right font-bold text-foreground">100,00%</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+          {activeTab === "cronograma" && (
+            <div className="space-y-4">
+              <h4 className="text-sm font-semibold text-foreground">Cronograma da Obra</h4>
+              <div className="text-center py-16 text-muted-foreground border border-border rounded-lg bg-muted/10">
+                <Settings className="h-10 w-10 mx-auto mb-3 text-muted-foreground/50" />
+                <p className="text-sm">Módulo de cronograma em desenvolvimento.</p>
+                <p className="text-xs mt-1">Aqui será possível definir prazos por fase e acompanhar o andamento.</p>
+              </div>
+            </div>
+          )}
+
+          {activeTab === "planejamento" && (
+            <div className="space-y-4">
+              <h4 className="text-sm font-semibold text-foreground">Planejamento Físico/Econômico</h4>
+              <div className="text-center py-16 text-muted-foreground border border-border rounded-lg bg-muted/10">
+                <Settings className="h-10 w-10 mx-auto mb-3 text-muted-foreground/50" />
+                <p className="text-sm">Módulo de planejamento físico/econômico em desenvolvimento.</p>
+                <p className="text-xs mt-1">Aqui será possível planejar a distribuição de custos ao longo do tempo.</p>
+              </div>
+            </div>
+          )}
+
+          {activeTab === "medicao" && (
+            <div className="space-y-4">
+              <h4 className="text-sm font-semibold text-foreground">Medição Física</h4>
+              <div className="text-center py-16 text-muted-foreground border border-border rounded-lg bg-muted/10">
+                <Settings className="h-10 w-10 mx-auto mb-3 text-muted-foreground/50" />
+                <p className="text-sm">Módulo de medição física em desenvolvimento.</p>
+                <p className="text-xs mt-1">Aqui será possível registrar medições de avanço físico por serviço.</p>
+              </div>
+            </div>
+          )}
+
+          {activeTab === "previsto_realizado" && (
+            <div className="space-y-4">
+              <h4 className="text-sm font-semibold text-foreground">Previsto x Realizado</h4>
+              <div className="text-center py-16 text-muted-foreground border border-border rounded-lg bg-muted/10">
+                <Settings className="h-10 w-10 mx-auto mb-3 text-muted-foreground/50" />
+                <p className="text-sm">Módulo previsto x realizado em desenvolvimento.</p>
+                <p className="text-xs mt-1">Aqui será possível comparar valores previstos com os realizados.</p>
+              </div>
             </div>
           )}
         </div>
