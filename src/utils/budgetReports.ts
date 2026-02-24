@@ -159,42 +159,52 @@ async function reportOrcamentoCusto(data: ReportData) {
 async function reportOrcamentoVenda(data: ReportData) {
   const doc = new jsPDF({ orientation: "landscape" });
   const ci = await fetchCompanyInfo(data.userId);
-  const y = await addHeader(doc, ci, "Orçamento de Venda", data.budget.budget_code, data.obra?.name);
+  let startY = await addHeader(doc, ci, "Orçamento de Venda", data.budget.budget_code, data.obra?.name);
 
   const bdiDefault = 0;
-  autoTable(doc, {
-    startY: y,
-    head: [["#", "Descrição", "Fase", "Unid.", "Qtd.", "Preço Unit.", "BDI %", "Preço c/ BDI", "Total"]],
-    body: data.items.map((i, idx) => {
+  const phases = getPhases(data.items);
+
+  for (const phase of phases) {
+    const phaseItems = data.items.filter((i) => (i.category || "Sem fase") === phase);
+    const phaseTotal = phaseItems.reduce((s, i) => {
       const bdi = i.bdi ?? bdiDefault;
-      const priceWithBdi = (i.unit_price || 0) * (1 + bdi / 100);
-      const totalWithBdi = priceWithBdi * (i.quantity || 0);
-      return [
-        String(idx + 1),
-        i.description,
-        i.category || "—",
-        i.unit || "un",
-        fmtNum(i.quantity),
-        fmt(i.unit_price),
-        `${fmtNum(bdi)}%`,
-        fmt(priceWithBdi),
-        fmt(totalWithBdi),
-      ];
-    }),
-    styles: { fontSize: 7, cellPadding: 1.5 },
-    headStyles: { fillColor: [39, 174, 96], textColor: 255, fontStyle: "bold" },
-    alternateRowStyles: { fillColor: [245, 250, 245] },
-  });
+      return s + (i.unit_price || 0) * (1 + bdi / 100) * (i.quantity || 0);
+    }, 0);
+
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "bold");
+    doc.text(`${phase}  —  ${fmt(phaseTotal)}`, 14, startY);
+    startY += 2;
+
+    autoTable(doc, {
+      startY,
+      head: [["#", "Descrição", "Unid.", "Qtd.", "Preço Unit.", "BDI %", "Preço c/ BDI", "Total"]],
+      body: phaseItems.map((i, idx) => {
+        const bdi = i.bdi ?? bdiDefault;
+        const priceWithBdi = (i.unit_price || 0) * (1 + bdi / 100);
+        const totalWithBdi = priceWithBdi * (i.quantity || 0);
+        return [
+          String(idx + 1), i.description, i.unit || "un", fmtNum(i.quantity),
+          fmt(i.unit_price), `${fmtNum(bdi)}%`, fmt(priceWithBdi), fmt(totalWithBdi),
+        ];
+      }),
+      styles: { fontSize: 7, cellPadding: 1.5 },
+      headStyles: { fillColor: [39, 174, 96], textColor: 255, fontStyle: "bold" },
+      alternateRowStyles: { fillColor: [245, 250, 245] },
+      foot: [["", "", "", "", "", "", "SUBTOTAL:", fmt(phaseTotal)]],
+      footStyles: { fillColor: [230, 250, 230], fontStyle: "bold" },
+    });
+    startY = (doc as any).lastAutoTable.finalY + 6;
+  }
 
   const totalVenda = data.items.reduce((s, i) => {
     const bdi = i.bdi ?? bdiDefault;
     return s + (i.unit_price || 0) * (1 + bdi / 100) * (i.quantity || 0);
   }, 0);
 
-  const fy = (doc as any).lastAutoTable.finalY + 5;
   doc.setFontSize(11);
   doc.setFont("helvetica", "bold");
-  doc.text(`TOTAL VENDA: ${fmt(totalVenda)}`, 14, fy);
+  doc.text(`TOTAL VENDA: ${fmt(totalVenda)}`, 14, startY + 2);
 
   doc.save(`Orcamento_Venda_${data.budget.budget_code || data.budget.id}.pdf`);
 }
@@ -296,35 +306,48 @@ async function reportPrevistoRealizadoCusto(data: ReportData) {
 async function reportPrevistoRealizadoInsumos(data: ReportData) {
   const doc = new jsPDF({ orientation: "landscape" });
   const ci = await fetchCompanyInfo(data.userId);
-  const y = await addHeader(doc, ci, "Previsto x Realizado — Insumos", data.budget.budget_code, data.obra?.name);
+  let startY = await addHeader(doc, ci, "Previsto x Realizado — Insumos", data.budget.budget_code, data.obra?.name);
 
   const allMI = data.allMeasurementItems || [];
+  const phases = getPhases(data.items);
 
-  const body = data.items.map((item) => {
-    const previsto = item.quantity || 0;
-    const accPct = allMI.filter((mi: any) => mi.budget_item_id === item.id)
-      .reduce((a: number, mi: any) => a + (mi.measured_percentage || 0), 0);
-    const realizado = previsto * (accPct / 100);
-    const saldo = previsto - realizado;
-    return [
-      item.description,
-      item.category || "—",
-      item.unit || "un",
-      fmtNum(previsto),
-      fmtNum(realizado),
-      fmtNum(saldo),
-      fmtPct(previsto > 0 ? (realizado / previsto) * 100 : 0),
-    ];
-  });
+  for (const phase of phases) {
+    const phaseItems = data.items.filter((i) => (i.category || "Sem fase") === phase);
+    const phasePrevisto = phaseItems.reduce((s, i) => s + (i.quantity || 0), 0);
+    let phaseRealizado = 0;
+    phaseItems.forEach((item) => {
+      const accPct = allMI.filter((mi: any) => mi.budget_item_id === item.id)
+        .reduce((a: number, mi: any) => a + (mi.measured_percentage || 0), 0);
+      phaseRealizado += (item.quantity || 0) * (accPct / 100);
+    });
 
-  autoTable(doc, {
-    startY: y,
-    head: [["Insumo/Serviço", "Fase", "Unid.", "Previsto", "Realizado", "Saldo", "% Exec."]],
-    body,
-    styles: { fontSize: 7, cellPadding: 1.5 },
-    headStyles: { fillColor: [230, 126, 34], textColor: 255, fontStyle: "bold" },
-    alternateRowStyles: { fillColor: [255, 248, 240] },
-  });
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "bold");
+    doc.text(`${phase}  —  Prev: ${fmtNum(phasePrevisto)}  |  Real: ${fmtNum(phaseRealizado)}  |  Saldo: ${fmtNum(phasePrevisto - phaseRealizado)}`, 14, startY);
+    startY += 2;
+
+    const body = phaseItems.map((item) => {
+      const previsto = item.quantity || 0;
+      const accPct = allMI.filter((mi: any) => mi.budget_item_id === item.id)
+        .reduce((a: number, mi: any) => a + (mi.measured_percentage || 0), 0);
+      const realizado = previsto * (accPct / 100);
+      const saldo = previsto - realizado;
+      return [
+        item.description, item.unit || "un", fmtNum(previsto), fmtNum(realizado),
+        fmtNum(saldo), fmtPct(previsto > 0 ? (realizado / previsto) * 100 : 0),
+      ];
+    });
+
+    autoTable(doc, {
+      startY,
+      head: [["Insumo/Serviço", "Unid.", "Previsto", "Realizado", "Saldo", "% Exec."]],
+      body,
+      styles: { fontSize: 7, cellPadding: 1.5 },
+      headStyles: { fillColor: [230, 126, 34], textColor: 255, fontStyle: "bold" },
+      alternateRowStyles: { fillColor: [255, 248, 240] },
+    });
+    startY = (doc as any).lastAutoTable.finalY + 6;
+  }
 
   doc.save(`Previsto_Realizado_Insumos_${data.budget.budget_code || data.budget.id}.pdf`);
 }
@@ -333,31 +356,49 @@ async function reportPrevistoRealizadoInsumos(data: ReportData) {
 async function reportCurvaABC(data: ReportData) {
   const doc = new jsPDF({ orientation: "landscape" });
   const ci = await fetchCompanyInfo(data.userId);
-  const y = await addHeader(doc, ci, "Curva ABC", data.budget.budget_code, data.obra?.name);
+  let startY = await addHeader(doc, ci, "Curva ABC", data.budget.budget_code, data.obra?.name);
 
   const total = data.items.reduce((s, i) => s + (i.total_price || 0), 0);
-  const sorted = [...data.items].sort((a, b) => (b.total_price || 0) - (a.total_price || 0));
+  const phases = getPhases(data.items);
 
+  // Phase summary first
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "bold");
+  doc.text("Resumo por Fase", 14, startY);
+  startY += 2;
+
+  const phaseSummary = phases.map((phase) => {
+    const phaseItems = data.items.filter((i) => (i.category || "Sem fase") === phase);
+    const phaseTotal = phaseItems.reduce((s, i) => s + (i.total_price || 0), 0);
+    const pct = total > 0 ? (phaseTotal / total) * 100 : 0;
+    return [phase, String(phaseItems.length), fmt(phaseTotal), fmtPct(pct)];
+  });
+
+  autoTable(doc, {
+    startY,
+    head: [["Fase", "Itens", "Valor Total", "% do Total"]],
+    body: phaseSummary,
+    styles: { fontSize: 8, cellPadding: 2 },
+    headStyles: { fillColor: [192, 57, 43], textColor: 255, fontStyle: "bold" },
+    alternateRowStyles: { fillColor: [255, 245, 245] },
+  });
+  startY = (doc as any).lastAutoTable.finalY + 6;
+
+  // Detailed ABC
+  const sorted = [...data.items].sort((a, b) => (b.total_price || 0) - (a.total_price || 0));
   let accumulated = 0;
   const body = sorted.map((item, idx) => {
     const pct = total > 0 ? ((item.total_price || 0) / total) * 100 : 0;
     accumulated += pct;
     const cls = accumulated <= 80 ? "A" : accumulated <= 95 ? "B" : "C";
     return [
-      String(idx + 1),
-      item.description,
-      item.category || "—",
-      item.unit || "un",
-      fmtNum(item.quantity),
-      fmt(item.total_price),
-      fmtPct(pct),
-      fmtPct(accumulated),
-      cls,
+      String(idx + 1), item.description, item.category || "—", item.unit || "un",
+      fmtNum(item.quantity), fmt(item.total_price), fmtPct(pct), fmtPct(accumulated), cls,
     ];
   });
 
   autoTable(doc, {
-    startY: y,
+    startY,
     head: [["#", "Descrição", "Fase", "Unid.", "Qtd.", "Total (R$)", "% Ind.", "% Acum.", "Classe"]],
     body,
     styles: { fontSize: 7, cellPadding: 1.5 },
@@ -382,10 +423,10 @@ async function reportCurvaABC(data: ReportData) {
 async function reportFormularioOrcamento(data: ReportData) {
   const doc = new jsPDF();
   const ci = await fetchCompanyInfo(data.userId);
-  const y = await addHeader(doc, ci, "Formulário de Orçamento", data.budget.budget_code, data.obra?.name);
+  let cy = await addHeader(doc, ci, "Formulário de Orçamento", data.budget.budget_code, data.obra?.name);
 
   // Info section
-  let cy = y + 2;
+  cy += 2;
   doc.setFontSize(9);
   doc.setFont("helvetica", "normal");
   const infoLines = [
@@ -401,26 +442,45 @@ async function reportFormularioOrcamento(data: ReportData) {
   }
   cy += 3;
 
-  autoTable(doc, {
-    startY: cy,
-    head: [["#", "Descrição", "Fase", "Unid.", "Qtd.", "Preço Unit.", "Total"]],
-    body: data.items.map((i, idx) => [
-      String(idx + 1), i.description, i.category || "—", i.unit || "un",
-      fmtNum(i.quantity), fmt(i.unit_price), fmt(i.total_price),
-    ]),
-    foot: [["", "", "", "", "", "TOTAL:", fmt(data.items.reduce((s, i) => s + (i.total_price || 0), 0))]],
-    styles: { fontSize: 7, cellPadding: 1.5 },
-    headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: "bold" },
-    footStyles: { fillColor: [230, 230, 230], fontStyle: "bold" },
-    alternateRowStyles: { fillColor: [245, 245, 245] },
-  });
+  const phases = getPhases(data.items);
+
+  for (const phase of phases) {
+    const phaseItems = data.items.filter((i) => (i.category || "Sem fase") === phase);
+    const phaseTotal = phaseItems.reduce((s, i) => s + (i.total_price || 0), 0);
+
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "bold");
+    doc.text(`${phase}  —  ${fmt(phaseTotal)}`, 14, cy);
+    cy += 2;
+
+    autoTable(doc, {
+      startY: cy,
+      head: [["#", "Descrição", "Unid.", "Qtd.", "Preço Unit.", "Total"]],
+      body: phaseItems.map((i, idx) => [
+        String(idx + 1), i.description, i.unit || "un",
+        fmtNum(i.quantity), fmt(i.unit_price), fmt(i.total_price),
+      ]),
+      foot: [["", "", "", "", "SUBTOTAL:", fmt(phaseTotal)]],
+      styles: { fontSize: 7, cellPadding: 1.5 },
+      headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: "bold" },
+      footStyles: { fillColor: [230, 230, 230], fontStyle: "bold" },
+      alternateRowStyles: { fillColor: [245, 245, 245] },
+    });
+    cy = (doc as any).lastAutoTable.finalY + 6;
+  }
+
+  const total = data.items.reduce((s, i) => s + (i.total_price || 0), 0);
+  doc.setFontSize(11);
+  doc.setFont("helvetica", "bold");
+  doc.text(`TOTAL GERAL: ${fmt(total)}`, 14, cy + 2);
 
   // Signature area
-  const fy = (doc as any).lastAutoTable.finalY + 20;
+  const fy = cy + 22;
   doc.setDrawColor(100);
   doc.line(14, fy, 85, fy);
   doc.line(120, fy, 195, fy);
   doc.setFontSize(8);
+  doc.setFont("helvetica", "normal");
   doc.text("Responsável técnico", 30, fy + 4);
   doc.text("Cliente / Contratante", 140, fy + 4);
 
