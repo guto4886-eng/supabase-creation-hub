@@ -265,105 +265,106 @@ export default function Clients() {
   ];
 
   return (
-    <div className="flex h-[calc(100vh-73px)] overflow-hidden">
-      {/* Filter Panel */}
-      <div className={`relative flex-shrink-0 border-r border-border bg-card transition-all duration-300 ${filtersOpen ? "w-80" : "w-0 overflow-hidden"}`}>
-        <div className="flex flex-col h-full w-80">
-          <div className="p-4 border-b border-border">
-            <h2 className="text-lg font-bold text-primary uppercase flex items-center gap-2">
-              <Search className="h-5 w-5" />
-              Clientes
-            </h2>
-            <p className="text-xs text-muted-foreground mt-1">Faça sua pesquisa aqui</p>
-          </div>
+    <div className="flex h-[calc(100vh-73px)] overflow-hidden relative">
+      {/* Filter Panel + Toggle */}
+      <div className="flex flex-shrink-0">
+        <div className={`border-r border-border bg-card transition-all duration-300 overflow-hidden ${filtersOpen ? "w-80" : "w-0"}`}>
+          <div className="flex flex-col h-full w-80">
+            <div className="p-4 border-b border-border">
+              <h2 className="text-lg font-bold text-primary uppercase flex items-center gap-2">
+                <Search className="h-5 w-5" />
+                Clientes
+              </h2>
+              <p className="text-xs text-muted-foreground mt-1">Faça sua pesquisa aqui</p>
+            </div>
 
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            {/* Tipo */}
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">Tipo</label>
-              <div className="flex gap-4">
-                {([["f", "P. Física"], ["j", "P. Jurídica"], ["todos", "Todos"]] as const).map(([val, label]) => (
-                  <label key={val} className="flex items-center gap-1.5 text-sm text-foreground cursor-pointer">
-                    <input type="radio" name="filterType" checked={filterType === val} onChange={() => setFilterType(val)} className="accent-primary" />
-                    {label}
-                  </label>
-                ))}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {/* Tipo */}
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1.5">Tipo</label>
+                <div className="flex gap-4">
+                  {([["f", "P. Física"], ["j", "P. Jurídica"], ["todos", "Todos"]] as const).map(([val, label]) => (
+                    <label key={val} className="flex items-center gap-1.5 text-sm text-foreground cursor-pointer">
+                      <input type="radio" name="filterType" checked={filterType === val} onChange={() => setFilterType(val)} className="accent-primary" />
+                      {label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Nome */}
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Nome</label>
+                <input type="text" value={filterName} onChange={(e) => setFilterName(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
+              </div>
+
+              {/* Categoria */}
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Categoria</label>
+                <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm">
+                  <option value="">Selecione...</option>
+                  {CATEGORIAS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                </select>
+              </div>
+
+              {/* CPF/CNPJ */}
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">CPF/CNPJ</label>
+                <input type="text" value={filterDocument} onChange={(e) => setFilterDocument(maskCpfCnpj(e.target.value))} placeholder="CPF ou CNPJ" className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
+              </div>
+
+              {/* Estado */}
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Estado</label>
+                <select value={filterState} onChange={(e) => setFilterState(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm">
+                  <option value="">Selecione...</option>
+                  {ESTADOS.map((e) => <option key={e} value={e}>{e}</option>)}
+                </select>
+              </div>
+
+              {/* Cidade */}
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Cidade</label>
+                <input type="text" value={filterCity} onChange={(e) => setFilterCity(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
+              </div>
+
+              {/* Condição */}
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1.5">Condição</label>
+                <div className="flex gap-4">
+                  {([["ativo", "Ativo"], ["inativo", "Inativo"], ["ambos", "Ambos"]] as const).map(([val, label]) => (
+                    <label key={val} className="flex items-center gap-1.5 text-sm text-foreground cursor-pointer">
+                      <input type="radio" name="filterCondition" checked={filterCondition === val} onChange={() => setFilterCondition(val)} className="accent-primary" />
+                      {label}
+                    </label>
+                  ))}
+                </div>
               </div>
             </div>
 
-            {/* Nome */}
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Nome</label>
-              <input type="text" value={filterName} onChange={(e) => setFilterName(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
+            {/* Filter actions */}
+            <div className="p-4 border-t border-border flex gap-2">
+              <button onClick={handleClearFilters} className="flex-1 px-3 py-2.5 rounded-lg border border-border text-sm text-foreground hover:bg-muted transition-colors">
+                Limpar
+              </button>
+              <button onClick={handleSearch} className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity">
+                <Search className="h-4 w-4" /> Pesquisar
+              </button>
             </div>
-
-            {/* Categoria */}
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Categoria</label>
-              <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm">
-                <option value="">Selecione...</option>
-                {CATEGORIAS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-              </select>
-            </div>
-
-            {/* CPF/CNPJ */}
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">CPF/CNPJ</label>
-              <input type="text" value={filterDocument} onChange={(e) => setFilterDocument(maskCpfCnpj(e.target.value))} placeholder="CPF ou CNPJ" className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
-            </div>
-
-            {/* Estado */}
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Estado</label>
-              <select value={filterState} onChange={(e) => setFilterState(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm">
-                <option value="">Selecione...</option>
-                {ESTADOS.map((e) => <option key={e} value={e}>{e}</option>)}
-              </select>
-            </div>
-
-            {/* Cidade */}
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Cidade</label>
-              <input type="text" value={filterCity} onChange={(e) => setFilterCity(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
-            </div>
-
-            {/* Condição */}
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">Condição</label>
-              <div className="flex gap-4">
-                {([["ativo", "Ativo"], ["inativo", "Inativo"], ["ambos", "Ambos"]] as const).map(([val, label]) => (
-                  <label key={val} className="flex items-center gap-1.5 text-sm text-foreground cursor-pointer">
-                    <input type="radio" name="filterCondition" checked={filterCondition === val} onChange={() => setFilterCondition(val)} className="accent-primary" />
-                    {label}
-                  </label>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Filter actions */}
-          <div className="p-4 border-t border-border flex gap-2">
-            <button onClick={handleClearFilters} className="flex-1 px-3 py-2.5 rounded-lg border border-border text-sm text-foreground hover:bg-muted transition-colors">
-              Limpar
-            </button>
-            <button onClick={handleSearch} className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity">
-              <Search className="h-4 w-4" /> Pesquisar
-            </button>
           </div>
         </div>
-      </div>
 
-      {/* Toggle filter panel button */}
-      <button
-        onClick={() => setFiltersOpen(!filtersOpen)}
-        className="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-primary text-primary-foreground py-6 px-1 rounded-r-lg shadow-md hover:opacity-90 transition-opacity"
-        style={{ left: filtersOpen ? "calc(20rem - 1px)" : 0 }}
-        title={filtersOpen ? "Fechar filtros" : "Filtros de pesquisa"}
-      >
-        <span className="text-xs font-medium writing-mode-vertical" style={{ writingMode: "vertical-lr" }}>
-          {filtersOpen ? <PanelLeftClose className="h-4 w-4" /> : "FILTROS DE PESQUISA"}
-        </span>
-      </button>
+        {/* Toggle filter panel button - positioned right after the panel */}
+        <button
+          onClick={() => setFiltersOpen(!filtersOpen)}
+          className="flex-shrink-0 self-center bg-primary text-primary-foreground py-6 px-1 rounded-r-lg shadow-md hover:opacity-90 transition-opacity z-10"
+          title={filtersOpen ? "Fechar filtros" : "Filtros de pesquisa"}
+        >
+          <span className="text-xs font-medium" style={{ writingMode: "vertical-lr" }}>
+            {filtersOpen ? <PanelLeftClose className="h-4 w-4" /> : "FILTROS"}
+          </span>
+        </button>
+      </div>
 
       {/* Main content area */}
       <div className="flex-1 flex overflow-hidden">
