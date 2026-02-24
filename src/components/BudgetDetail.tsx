@@ -1189,6 +1189,7 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                               return sum + (svc.total_price || 0) * ((mi?.measured_percentage || 0) / 100);
                             }, 0);
                             const phasePct = total > 0 ? (measuredTotal / total) * 100 : 0;
+                            const saldo = total - measuredTotal;
                             const isSelected = selectedPhase === rootIdx;
                             return (
                               <button
@@ -1204,6 +1205,7 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                                 <div className="w-full h-1.5 bg-muted rounded-full mt-1 overflow-hidden">
                                   <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${Math.min(phasePct, 100)}%` }} />
                                 </div>
+                                <div className="text-[10px] text-muted-foreground mt-1">Saldo: {fmt(saldo)}</div>
                               </button>
                             );
                           })}
@@ -1227,6 +1229,7 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                                 const mi = measurementItems.find((m: any) => m.budget_item_id === svc.id) as any;
                                 const pct = mi?.measured_percentage || 0;
                                 const measuredValue = (svc.total_price || 0) * (pct / 100);
+                                const saldoSvc = (svc.total_price || 0) - measuredValue;
                                 const measuredAt = mi?.measured_at ? new Date(mi.measured_at).toLocaleDateString("pt-BR") : "—";
                                 const isEditable = activeMed?.status === "aberta" && mi;
                                 return (
@@ -1242,7 +1245,7 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                                       </div>
                                       <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Lançamento: {measuredAt}</span>
                                     </div>
-                                    <div className="grid grid-cols-3 gap-3">
+                                    <div className="grid grid-cols-4 gap-3">
                                       <div>
                                         <label className="block text-[10px] font-medium text-muted-foreground mb-0.5">% Medido</label>
                                         {isEditable ? (
@@ -1272,6 +1275,10 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                                         )}
                                       </div>
                                       <div>
+                                        <label className="block text-[10px] font-medium text-muted-foreground mb-0.5">Saldo Restante</label>
+                                        <span className={`text-sm tabular-nums font-medium ${saldoSvc > 0 ? "text-foreground" : saldoSvc === 0 ? "text-green-600" : "text-destructive"}`}>{fmt(saldoSvc)}</span>
+                                      </div>
+                                      <div>
                                         <label className="block text-[10px] font-medium text-muted-foreground mb-0.5">Progresso</label>
                                         <div className="flex items-center gap-2 mt-1">
                                           <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
@@ -1290,15 +1297,30 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                       </div>
                     </div>
 
-                    <div className="bg-muted/50 rounded-lg border border-border px-4 py-3 flex items-center justify-between">
-                      <span className="text-sm font-semibold text-foreground">Total Medido</span>
-                      <span className="text-sm font-bold text-foreground">
-                        {fmt(serviceItemsMed.reduce((sum, svc) => {
-                          const mi = measurementItems.find((m: any) => m.budget_item_id === svc.id) as any;
-                          return sum + (svc.total_price || 0) * ((mi?.measured_percentage || 0) / 100);
-                        }, 0))}
-                      </span>
-                    </div>
+                    {(() => {
+                      const totalOrcado = serviceItemsMed.reduce((s, svc) => s + (svc.total_price || 0), 0);
+                      const totalMedido = serviceItemsMed.reduce((sum, svc) => {
+                        const mi = measurementItems.find((m: any) => m.budget_item_id === svc.id) as any;
+                        return sum + (svc.total_price || 0) * ((mi?.measured_percentage || 0) / 100);
+                      }, 0);
+                      const totalSaldo = totalOrcado - totalMedido;
+                      return (
+                        <div className="bg-muted/50 rounded-lg border border-border px-4 py-3 grid grid-cols-3 gap-4 text-sm">
+                          <div>
+                            <span className="text-muted-foreground">Total Orçado: </span>
+                            <span className="font-bold text-foreground">{fmt(totalOrcado)}</span>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Total Medido: </span>
+                            <span className="font-bold text-primary">{fmt(totalMedido)}</span>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Saldo Restante: </span>
+                            <span className={`font-bold ${totalSaldo > 0 ? "text-foreground" : totalSaldo === 0 ? "text-green-600" : "text-destructive"}`}>{fmt(totalSaldo)}</span>
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 )}
               </div>
