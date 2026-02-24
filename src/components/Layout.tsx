@@ -5,13 +5,14 @@ import NotificationBell from "@/components/NotificationBell";
 import HelpButton from "@/components/HelpButton";
 import {
   LayoutDashboard, Users, Truck, Building2, FileText,
-  DollarSign, ShoppingCart, LogOut, Menu, X, Crown, UserCircle
+  DollarSign, ShoppingCart, LogOut, Menu, X, Crown, UserCircle, PackageCheck
 } from "lucide-react";
 
 const navItems = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
   { to: "/clients", label: "Clientes", icon: Users },
   { to: "/suppliers", label: "Fornecedores", icon: Truck },
+  { to: "/purchases", label: "Compras", icon: PackageCheck },
   { to: "/obras", label: "Obras", icon: Building2 },
   { to: "/budgets", label: "Orçamentos", icon: FileText },
   { to: "/quotations", label: "Cotações", icon: ShoppingCart },
