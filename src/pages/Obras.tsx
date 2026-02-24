@@ -4,7 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import {
-  Search, Plus, ChevronLeft, ChevronRight, Pencil, Trash2, X, Download, Eraser
+  Search, Plus, ChevronLeft, ChevronRight, Pencil, Trash2, X, Download, Eraser,
+  FileText, Power
 } from "lucide-react";
 import { exportCSV, exportExcel, exportPDF, fetchCompanyInfo } from "@/utils/exportWithHeader";
 import ExportDialog from "@/components/ExportDialog";
@@ -77,6 +78,7 @@ export default function Obras() {
   const [activeTab, setActiveTab] = useState("dados");
   const [cepLoading, setCepLoading] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [reportMenuOpen, setReportMenuOpen] = useState(false);
 
   // Data
   const { data: clients = [] } = useQuery({
@@ -217,6 +219,65 @@ export default function Obras() {
     setEditing(null);
     setForm({});
     setActiveTab("dados");
+    setReportMenuOpen(false);
+  };
+
+  const generateObraDataPDF = async () => {
+    if (!editing) return;
+    const doc = new (await import("jspdf")).default();
+    const company = user ? await fetchCompanyInfo(user.id) : null;
+    let y = 15;
+    if (company?.company_name) { doc.setFontSize(14); doc.setFont("helvetica", "bold"); doc.text(company.company_name, 14, y); y += 7; }
+    if (company?.document) { doc.setFontSize(9); doc.setFont("helvetica", "normal"); doc.text(`CNPJ/CPF: ${company.document}`, 14, y); y += 5; }
+    y += 5;
+    doc.setFontSize(12); doc.setFont("helvetica", "bold"); doc.text("DADOS DA OBRA", 14, y); y += 8;
+    doc.setFontSize(9); doc.setFont("helvetica", "normal");
+    const fields = [
+      ["Nome", editing.name], ["Cliente", editing.client_id ? getClientName(editing.client_id) : "—"],
+      ["Categoria", editing.category ? getCategoryLabel(editing.category) : "—"], ["Situação", getStatusLabel(editing.status)],
+      ["CNO", editing.cno || "—"], ["Área (m²)", editing.area_m2 || "—"], ["ART", editing.art_number || "—"],
+      ["Resp. Técnico", editing.resp_tecnico || "—"], ["Resp. Obra", editing.resp_obra || "—"],
+      ["Empreiteiro", editing.empreiteiro || "—"],
+      ["Início", editing.start_date ? new Date(editing.start_date + "T00:00:00").toLocaleDateString("pt-BR") : "—"],
+      ["Fim previsto", editing.expected_end_date ? new Date(editing.expected_end_date + "T00:00:00").toLocaleDateString("pt-BR") : "—"],
+      ["Endereço", [editing.address, editing.address_number, editing.neighborhood, editing.city, editing.state].filter(Boolean).join(", ") || "—"],
+      ["CEP", editing.cep || "—"], ["Orçamento", editing.total_budget ? `R$ ${Number(editing.total_budget).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "—"],
+      ["Controla estoque", editing.stock_control ? "Sim" : "Não"],
+    ];
+    fields.forEach(([label, val]) => { doc.text(`${label}: ${val}`, 14, y); y += 5; if (y > 280) { doc.addPage(); y = 15; } });
+    doc.save(`Obra_${editing.name.replace(/\s+/g, "_")}.pdf`);
+    toast.success("Relatório gerado!");
+  };
+
+  const generateRDOPDF = async () => {
+    if (!editing) return;
+    const doc = new (await import("jspdf")).default();
+    const { default: autoTable } = await import("jspdf-autotable");
+    const company = user ? await fetchCompanyInfo(user.id) : null;
+    let y = 15;
+    if (company?.company_name) { doc.setFontSize(14); doc.setFont("helvetica", "bold"); doc.text(company.company_name, 14, y); y += 7; }
+    if (company?.document) { doc.setFontSize(9); doc.setFont("helvetica", "normal"); doc.text(`CNPJ/CPF: ${company.document}`, 14, y); y += 5; }
+    y += 5;
+    doc.setFontSize(12); doc.setFont("helvetica", "bold"); doc.text(`RDO - ${editing.name}`, 14, y); y += 8;
+    // Fetch daily entries
+    const { data: entries } = await supabase.from("obra_daily_entries" as any).select("*").eq("obra_id", editing.id).order("entry_date", { ascending: false });
+    if (entries && entries.length > 0) {
+      autoTable(doc, {
+        startY: y,
+        head: [["Data", "Fase", "Serviço", "Mensagem", "Cliente"]],
+        body: (entries as any[]).map((e: any) => [
+          e.entry_date ? new Date(e.entry_date + "T00:00:00").toLocaleDateString("pt-BR") : "",
+          e.phase || "", e.service || "", e.message || "", e.show_to_client ? "Sim" : "Não",
+        ]),
+        styles: { fontSize: 7, cellPadding: 2 },
+        headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: "bold" },
+        alternateRowStyles: { fillColor: [245, 245, 245] },
+      });
+    } else {
+      doc.setFontSize(9); doc.text("Nenhum registro encontrado.", 14, y);
+    }
+    doc.save(`RDO_${editing.name.replace(/\s+/g, "_")}.pdf`);
+    toast.success("RDO gerado!");
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -748,15 +809,55 @@ export default function Obras() {
             </div>
 
             {/* Bottom bar */}
-            <div className="flex items-center justify-end gap-3 px-5 py-3 border-t border-border bg-muted rounded-b-xl">
-              <button type="button" onClick={closeForm} className="px-4 py-2 rounded-lg bg-white text-foreground border border-border hover:bg-muted/80 text-sm">
-                Cancelar
-              </button>
-              {(activeTab === "dados" || activeTab === "endereco" || activeTab === "config") && (
-                <button type="submit" form="obra-form" onClick={(e) => { if (activeTab !== "dados") { e.preventDefault(); saveMutation.mutate(form); } }} disabled={saveMutation.isPending} className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50">
-                  {saveMutation.isPending ? "Salvando..." : "Salvar"}
+            <div className="flex items-center justify-between px-5 py-3 border-t border-border bg-muted rounded-b-xl">
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={closeForm} className="px-4 py-2 rounded-lg bg-background text-foreground border border-border hover:bg-muted/80 text-sm">
+                  Cancelar
                 </button>
-              )}
+
+                {/* Relatórios dropdown */}
+                {editing && (
+                  <div className="relative">
+                    <button type="button" onClick={() => setReportMenuOpen(p => !p)} className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-border bg-background text-foreground text-sm hover:bg-muted/80">
+                      <FileText className="h-4 w-4" /> Relatórios ▾
+                    </button>
+                    {reportMenuOpen && (
+                      <div className="absolute bottom-full left-0 mb-1 bg-background border border-border rounded-lg shadow-lg z-50 min-w-[180px]">
+                        <button onClick={() => { generateObraDataPDF(); setReportMenuOpen(false); }} className="w-full text-left px-4 py-2 text-sm text-foreground hover:bg-muted/50 rounded-t-lg">
+                          Dados da Obra
+                        </button>
+                        <button onClick={() => { generateRDOPDF(); setReportMenuOpen(false); }} className="w-full text-left px-4 py-2 text-sm text-foreground hover:bg-muted/50 rounded-b-lg border-t border-border">
+                          RDO - Diário de Obra
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Ativo/Inativo */}
+                {editing && (
+                  <button
+                    type="button"
+                    onClick={() => { toggleActive.mutate({ id: editing.id, active: !editing.active }); setEditing((p: any) => p ? { ...p, active: !p.active } : p); }}
+                    className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium border ${editing.active ? "border-destructive/30 text-destructive hover:bg-destructive/10" : "border-green-500/30 text-green-600 hover:bg-green-50"}`}
+                  >
+                    <Power className="h-4 w-4" /> {editing.active ? "Desativar" : "Ativar"}
+                  </button>
+                )}
+
+                {/* Nova Obra */}
+                <button type="button" onClick={() => { closeForm(); setTimeout(openNew, 100); }} className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-primary text-primary text-sm font-medium hover:bg-primary/5">
+                  <Plus className="h-4 w-4" /> Nova Obra
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {(activeTab === "dados" || activeTab === "endereco" || activeTab === "config") && (
+                  <button type="submit" form="obra-form" onClick={(e) => { if (activeTab !== "dados") { e.preventDefault(); saveMutation.mutate(form); } }} disabled={saveMutation.isPending} className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50">
+                    {saveMutation.isPending ? "Salvando..." : "Salvar"}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
