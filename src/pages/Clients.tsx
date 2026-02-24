@@ -425,7 +425,7 @@ export default function Clients() {
       {/* Edit/Create Modal */}
       {formOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={closeForm}>
-          <div className="bg-card border border-border rounded-xl w-full max-w-4xl max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-card border border-border rounded-xl w-full max-w-4xl h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
             {/* Header */}
             <div className="flex items-center justify-between p-5 border-b border-border">
               <h3 className="text-lg font-semibold text-card-foreground">{editing ? "Editar" : "Novo"} cliente</h3>
