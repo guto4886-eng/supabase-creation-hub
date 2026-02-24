@@ -4,6 +4,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import Attachments from "@/components/Attachments";
+import QuotationDeliveryAddress from "@/components/quotation/QuotationDeliveryAddress";
+import QuotationSuppliers from "@/components/quotation/QuotationSuppliers";
+import QuotationSending from "@/components/quotation/QuotationSending";
+import QuotationLinkedRecords from "@/components/quotation/QuotationLinkedRecords";
+import QuotationMessages from "@/components/quotation/QuotationMessages";
 import {
   Search, Plus, ChevronLeft, ChevronRight, Pencil, Trash2, X, Eraser, Paperclip
 } from "lucide-react";
@@ -59,7 +64,7 @@ export default function PurchaseQuotations() {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState<Record<string, any>>({});
-  const [activeTab, setActiveTab] = useState<"dados" | "anexos">("dados");
+  const [activeTab, setActiveTab] = useState<"dados" | "endereco" | "fornecedores" | "envio" | "vinculos" | "anexos" | "mensagens">("dados");
 
   // --- Items state ---
   const [quotationItems, setQuotationItems] = useState<QuotationItem[]>([]);
@@ -161,6 +166,14 @@ export default function PurchaseQuotations() {
           deadline: values.deadline || null,
           notes: values.notes || null,
           obra_id: values.obra_id || null,
+          delivery_cep: values.delivery_cep || null,
+          delivery_address: values.delivery_address || null,
+          delivery_number: values.delivery_number || null,
+          delivery_complement: values.delivery_complement || null,
+          delivery_neighborhood: values.delivery_neighborhood || null,
+          delivery_city: values.delivery_city || null,
+          delivery_state: values.delivery_state || null,
+          delivery_address_source: values.delivery_address_source || "obra",
         }).eq("id", editing.id);
         if (error) throw error;
         quotationId = editing.id;
@@ -173,6 +186,14 @@ export default function PurchaseQuotations() {
           deadline: values.deadline || null,
           notes: values.notes || null,
           obra_id: values.obra_id || null,
+          delivery_cep: values.delivery_cep || null,
+          delivery_address: values.delivery_address || null,
+          delivery_number: values.delivery_number || null,
+          delivery_complement: values.delivery_complement || null,
+          delivery_neighborhood: values.delivery_neighborhood || null,
+          delivery_city: values.delivery_city || null,
+          delivery_state: values.delivery_state || null,
+          delivery_address_source: values.delivery_address_source || "obra",
           user_id: user!.id,
         }).select("id").single();
         if (error) throw error;
@@ -313,7 +334,12 @@ export default function PurchaseQuotations() {
 
   const TABS = [
     { key: "dados", label: "Dados" },
+    { key: "endereco", label: "End. Entrega" },
+    { key: "fornecedores", label: "Fornecedores" },
+    { key: "envio", label: "Envio" },
+    { key: "vinculos", label: "Registros Vinculados" },
     { key: "anexos", label: "Anexos" },
+    { key: "mensagens", label: "Mensagens" },
   ] as const;
 
   return (
@@ -457,10 +483,10 @@ export default function PurchaseQuotations() {
             </div>
 
             {/* Tabs */}
-            <div className="flex border-b border-border bg-muted/30">
+            <div className="flex border-b border-border bg-muted/30 overflow-x-auto">
               {TABS.map(t => (
                 <button key={t.key} onClick={() => setActiveTab(t.key)}
-                  className={`flex-1 text-center py-3 text-sm font-medium transition-colors ${activeTab === t.key ? "text-primary border-b-2 border-primary" : "text-muted-foreground hover:text-foreground"}`}>
+                  className={`whitespace-nowrap px-4 text-center py-3 text-sm font-medium transition-colors ${activeTab === t.key ? "text-primary border-b-2 border-primary" : "text-muted-foreground hover:text-foreground"}`}>
                   {t.label}
                 </button>
               ))}
@@ -637,6 +663,16 @@ export default function PurchaseQuotations() {
                     )}
                   </fieldset>
                 </div>
+              ) : activeTab === "endereco" ? (
+                <QuotationDeliveryAddress form={form} setForm={setForm} obras={obras as any} />
+              ) : activeTab === "fornecedores" ? (
+                <QuotationSuppliers quotationId={editing?.id || null} />
+              ) : activeTab === "envio" ? (
+                <QuotationSending quotationId={editing?.id || null} />
+              ) : activeTab === "vinculos" ? (
+                <QuotationLinkedRecords quotationId={editing?.id || null} />
+              ) : activeTab === "mensagens" ? (
+                <QuotationMessages quotationId={editing?.id || null} />
               ) : editing ? (
                 <div className="p-6">
                   <Attachments entityType="purchase_quotation" entityId={editing.id} />

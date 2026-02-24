@@ -922,6 +922,14 @@ export type Database = {
         Row: {
           created_at: string
           deadline: string | null
+          delivery_address: string | null
+          delivery_address_source: string | null
+          delivery_cep: string | null
+          delivery_city: string | null
+          delivery_complement: string | null
+          delivery_neighborhood: string | null
+          delivery_number: string | null
+          delivery_state: string | null
           description: string | null
           id: string
           notes: string | null
@@ -935,6 +943,14 @@ export type Database = {
         Insert: {
           created_at?: string
           deadline?: string | null
+          delivery_address?: string | null
+          delivery_address_source?: string | null
+          delivery_cep?: string | null
+          delivery_city?: string | null
+          delivery_complement?: string | null
+          delivery_neighborhood?: string | null
+          delivery_number?: string | null
+          delivery_state?: string | null
           description?: string | null
           id?: string
           notes?: string | null
@@ -948,6 +964,14 @@ export type Database = {
         Update: {
           created_at?: string
           deadline?: string | null
+          delivery_address?: string | null
+          delivery_address_source?: string | null
+          delivery_cep?: string | null
+          delivery_city?: string | null
+          delivery_complement?: string | null
+          delivery_neighborhood?: string | null
+          delivery_number?: string | null
+          delivery_state?: string | null
           description?: string | null
           id?: string
           notes?: string | null
@@ -1138,6 +1162,79 @@ export type Database = {
           },
         ]
       }
+      quotation_links: {
+        Row: {
+          created_at: string
+          id: string
+          linked_entity_id: string
+          linked_entity_type: string
+          notes: string | null
+          quotation_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          linked_entity_id: string
+          linked_entity_type: string
+          notes?: string | null
+          quotation_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          linked_entity_id?: string
+          linked_entity_type?: string
+          notes?: string | null
+          quotation_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quotation_links_quotation_id_fkey"
+            columns: ["quotation_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_quotations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quotation_messages: {
+        Row: {
+          category: string | null
+          created_at: string
+          id: string
+          message: string
+          quotation_id: string
+          user_id: string
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          id?: string
+          message: string
+          quotation_id: string
+          user_id: string
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          id?: string
+          message?: string
+          quotation_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quotation_messages_quotation_id_fkey"
+            columns: ["quotation_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_quotations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       quotation_responses: {
         Row: {
           created_at: string
@@ -1176,6 +1273,66 @@ export type Database = {
           },
           {
             foreignKeyName: "quotation_responses_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quotation_suppliers: {
+        Row: {
+          created_at: string
+          id: string
+          quotation_id: string
+          response_at: string | null
+          response_notes: string | null
+          response_value: number | null
+          selected: boolean | null
+          sent_at: string | null
+          sent_method: string | null
+          status: string | null
+          supplier_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          quotation_id: string
+          response_at?: string | null
+          response_notes?: string | null
+          response_value?: number | null
+          selected?: boolean | null
+          sent_at?: string | null
+          sent_method?: string | null
+          status?: string | null
+          supplier_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          quotation_id?: string
+          response_at?: string | null
+          response_notes?: string | null
+          response_value?: number | null
+          selected?: boolean | null
+          sent_at?: string | null
+          sent_method?: string | null
+          status?: string | null
+          supplier_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quotation_suppliers_quotation_id_fkey"
+            columns: ["quotation_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_quotations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quotation_suppliers_supplier_id_fkey"
             columns: ["supplier_id"]
             isOneToOne: false
             referencedRelation: "suppliers"
