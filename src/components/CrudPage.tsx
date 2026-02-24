@@ -257,7 +257,7 @@ export default function CrudPage({ table, queryKey, title, fields, defaultValues
   ];
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 p-4 lg:p-6">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <h2 className="text-2xl font-bold text-foreground">{title}</h2>
         <div className="flex items-center gap-2">

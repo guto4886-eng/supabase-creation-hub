@@ -35,7 +35,7 @@ export default function Plans() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-4 lg:p-6">
       <div>
         <h2 className="text-2xl font-bold text-foreground">Meu Plano</h2>
         <p className="text-muted-foreground mt-1">Gerencie sua assinatura e serviços</p>

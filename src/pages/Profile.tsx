@@ -210,7 +210,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="max-w-lg mx-auto space-y-6">
+    <div className="max-w-lg mx-auto space-y-6 p-4 lg:p-6">
       <div>
         <h2 className="text-2xl font-bold text-foreground">Meu Perfil</h2>
         <p className="text-muted-foreground mt-1">Gerencie suas informações pessoais</p>
