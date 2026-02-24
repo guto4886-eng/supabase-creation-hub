@@ -7,6 +7,8 @@
   --color-foreground: hsl(var(--foreground));
   --color-card: hsl(var(--card));
   --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
   --color-primary: hsl(var(--primary));
   --color-primary-foreground: hsl(var(--primary-foreground));
   --color-secondary: hsl(var(--secondary));
@@ -51,6 +53,8 @@
   --border: 220 13% 91%;
   --input: 220 13% 91%;
   --ring: 217 91% 50%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 220 14% 10%;
   --radius: 0.5rem;
   --sidebar-background: 220 14% 10%;
   --sidebar-foreground: 220 14% 96%;
@@ -67,6 +71,8 @@
   --foreground: 220 14% 96%;
   --card: 220 14% 14%;
   --card-foreground: 220 14% 96%;
+  --popover: 220 14% 14%;
+  --popover-foreground: 220 14% 96%;
   --primary: 217 91% 60%;
   --primary-foreground: 0 0% 100%;
   --secondary: 220 14% 16%;
