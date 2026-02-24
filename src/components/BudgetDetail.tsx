@@ -428,68 +428,59 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
           )}
 
           {activeTab === "valores_custo" && (() => {
-            const normalizeCategory = (value: string | null | undefined) => {
-              const normalized = (value ?? "").trim();
-              return normalized.length > 0 ? normalized : "Geral";
-            };
+            // Phase items have category "Fase"/"fase", services have "Serviço"
+            const phaseItems = items.filter((i) => (i.category || "").toLowerCase() === "fase");
+            const serviceItems = items.filter((i) => (i.category || "").toLowerCase() === "serviço" || (i.category || "").toLowerCase() === "servico");
 
-            const allCategories = [...new Set(items.map((i) => normalizeCategory(i.category)))];
-
-            const getPhasePrefix = (cat: string) => {
-              const match = cat.trim().match(/^(\d+(?:\.\d+)*)/);
+            const getDescPrefix = (desc: string) => {
+              const match = desc.trim().match(/^(\d+(?:\.\d+)*)/);
               return match ? match[1] : null;
             };
 
-            const getRootIndex = (cat: string) => {
-              const prefix = getPhasePrefix(cat);
-              return prefix ? prefix.split(".")[0] : null;
-            };
+            // Build phase rows from "Fase" items
+            const phaseRows = phaseItems
+              .map((p) => {
+                const prefix = getDescPrefix(p.description);
+                const rootIndex = prefix ? prefix.split(".")[0] : null;
+                if (!rootIndex || prefix !== rootIndex) return null; // only root-level phases (1, 2, 3...)
 
-            const indexedRootRows = Array.from(
-              new Set(allCategories.map((cat) => getRootIndex(cat)).filter((value): value is string => !!value))
-            )
-              .map((rootIndex) => {
-                const categoriesForRoot = allCategories.filter((cat) => getRootIndex(cat) === rootIndex);
-                const exactPhaseCategory = categoriesForRoot.find((cat) => getPhasePrefix(cat) === rootIndex);
-                const label = exactPhaseCategory || categoriesForRoot[0] || rootIndex;
-                const total = items
-                  .filter((i) => getRootIndex(normalizeCategory(i.category)) === rootIndex)
-                  .reduce((sum, i) => sum + (i.total_price || 0), 0);
+                const total = serviceItems
+                  .filter((s) => {
+                    const sPrefix = getDescPrefix(s.description);
+                    return sPrefix ? sPrefix.split(".")[0] === rootIndex : false;
+                  })
+                  .reduce((sum, s) => sum + (s.total_price || 0), 0);
 
-                return { rootIndex, label, total };
+                return { rootIndex, label: p.description, total };
               })
+              .filter((v): v is { rootIndex: string; label: string; total: number } => !!v)
+              // Deduplicate by rootIndex
+              .filter((v, i, arr) => arr.findIndex((a) => a.rootIndex === v.rootIndex) === i)
               .sort((a, b) => Number.parseInt(a.rootIndex, 10) - Number.parseInt(b.rootIndex, 10));
 
-            const isIndexedMode = indexedRootRows.length > 0;
-            const phaseRows = isIndexedMode
-              ? indexedRootRows
-              : allCategories.map((cat) => ({
+            // Fallback: if no "Fase" items, use unique categories
+            const fallbackRows = phaseRows.length === 0
+              ? [...new Set(items.map((i) => (i.category || "Geral").trim()))].map((cat) => ({
                   rootIndex: cat,
                   label: cat,
-                  total: items
-                    .filter((i) => normalizeCategory(i.category) === cat)
-                    .reduce((sum, i) => sum + (i.total_price || 0), 0),
-                }));
+                  total: items.filter((i) => (i.category || "Geral").trim() === cat).reduce((sum, i) => sum + (i.total_price || 0), 0),
+                }))
+              : [];
 
-            const selectedRootIndex = selectedPhase ? getRootIndex(selectedPhase) : null;
-            const activePhaseRow = phaseRows.find((phase) =>
-              selectedPhase
-                ? isIndexedMode
-                  ? phase.rootIndex === selectedRootIndex
-                  : phase.label === selectedPhase
-                : false
-            );
+            const rows = phaseRows.length > 0 ? phaseRows : fallbackRows;
+
+            const activePhaseRow = selectedPhase
+              ? rows.find((r) => r.label === selectedPhase)
+              : null;
 
             const activePhaseLabel = activePhaseRow?.label ?? null;
 
             const displayItems = activePhaseRow
-              ? items.filter((i) => {
-                  const category = normalizeCategory(i.category);
-                  return isIndexedMode
-                    ? getRootIndex(category) === activePhaseRow.rootIndex
-                    : category === activePhaseRow.label;
+              ? serviceItems.filter((s) => {
+                  const sPrefix = getDescPrefix(s.description);
+                  return sPrefix ? sPrefix.split(".")[0] === activePhaseRow.rootIndex : false;
                 })
-              : items;
+              : serviceItems.length > 0 ? serviceItems : items;
 
             return (
               <div className="flex gap-0 h-full">
@@ -502,14 +493,14 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                   <div className="flex-1 overflow-y-auto">
                     <table className="w-full text-xs">
                       <tbody>
-                        {phaseRows.length === 0 ? (
+                        {rows.length === 0 ? (
                           <tr>
                             <td colSpan={2} className="px-3 py-3 text-center text-muted-foreground">
                               Nenhuma fase encontrada.
                             </td>
                           </tr>
                         ) : (
-                          phaseRows.map((phase, idx) => {
+                          rows.map((phase, idx) => {
                             const isActive = activePhaseRow?.label === phase.label;
                             return (
                               <tr
