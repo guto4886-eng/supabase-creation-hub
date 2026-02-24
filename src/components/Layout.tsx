@@ -34,7 +34,6 @@ const navItems: NavItem[] = [
   { to: "/budgets", label: "Orçamentos", icon: FileText },
   { to: "/quotations", label: "Cotações", icon: ShoppingCart },
   { to: "/financial", label: "Financeiro", icon: DollarSign },
-  { to: "/profile", label: "Meu Perfil", icon: UserCircle },
   { to: "/plans", label: "Meu Plano", icon: Crown },
 ];
 
