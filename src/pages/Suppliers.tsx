@@ -59,6 +59,27 @@ export default function Suppliers() {
     },
   });
 
+  // Fetch quality ratings for all suppliers
+  const { data: allRatings = [] } = useQuery({
+    queryKey: ["supplier_quality_ratings_all"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("supplier_quality_ratings").select("supplier_id, rating");
+      if (error) throw error;
+      return data as any[];
+    },
+  });
+
+  // Compute average rating per supplier
+  const ratingMap: Record<string, { avg: number; count: number }> = {};
+  allRatings.forEach((r: any) => {
+    if (!ratingMap[r.supplier_id]) ratingMap[r.supplier_id] = { avg: 0, count: 0 };
+    ratingMap[r.supplier_id].avg += r.rating;
+    ratingMap[r.supplier_id].count += 1;
+  });
+  Object.keys(ratingMap).forEach(k => {
+    ratingMap[k].avg = ratingMap[k].avg / ratingMap[k].count;
+  });
+
   const filtered = searched
     ? items.filter((item) => {
         if (filterName && !item.name?.toLowerCase().includes(filterName.toLowerCase())) return false;
@@ -141,13 +162,14 @@ export default function Suppliers() {
   ];
 
   const tableFields = [
-    { name: "name", label: "Nome" },
+    { name: "name", label: "Razão social" },
+    { name: "trade_name", label: "Nome fantasia" },
     { name: "document", label: "CPF/CNPJ" },
-    { name: "email", label: "Email" },
+    { name: "city_uf", label: "Cidade/UF", computed: true },
+    { name: "neighborhood", label: "Bairro" },
     { name: "phone", label: "Telefone" },
-    { name: "category", label: "Categoria" },
-    { name: "city", label: "Cidade" },
-    { name: "state", label: "UF" },
+    { name: "email", label: "E-mail" },
+    { name: "category", label: "Categorias" },
   ];
 
   const openNew = () => {
@@ -370,28 +392,37 @@ export default function Suppliers() {
                   <table className="w-full text-sm">
                     <thead className="sticky top-0">
                       <tr className="bg-muted/50">
-                        <th className="w-16 px-4 py-3 font-medium text-muted-foreground">Ativo</th>
-                        {tableFields.map((f) => <th key={f.name} className="text-left px-4 py-3 font-medium text-muted-foreground">{f.label}</th>)}
-                        <th className="w-24 px-4 py-3" />
+                        <th className="w-10 px-2 py-3"><input type="checkbox" disabled className="accent-primary" /></th>
+                        {tableFields.map((f) => <th key={f.name} className="text-left px-3 py-3 font-medium text-muted-foreground whitespace-nowrap">{f.label}</th>)}
+                        <th className="text-left px-3 py-3 font-medium text-muted-foreground whitespace-nowrap">Qualificação</th>
+                        <th className="text-left px-3 py-3 font-medium text-muted-foreground whitespace-nowrap">Cadastro</th>
+                        <th className="w-20 px-3 py-3 font-medium text-muted-foreground text-center">Ações</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-border">
-                      {paginatedItems.map((item) => (
-                        <tr key={item.id} onClick={() => openEdit(item)} className={`hover:bg-muted/30 transition-colors cursor-pointer ${!item.active ? "opacity-50" : ""}`}>
-                          <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
-                            <button onClick={() => toggleActive.mutate({ id: item.id, active: !item.active })} className={`relative h-6 w-11 rounded-full transition-colors ${item.active ? "bg-primary" : "bg-muted-foreground/30"}`}>
-                              <span className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white transition-transform shadow-sm ${item.active ? "translate-x-5" : ""}`} />
-                            </button>
-                          </td>
-                          {tableFields.map((f) => <td key={f.name} className="px-4 py-3 text-foreground">{String(item[f.name] ?? "—")}</td>)}
-                          <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
-                            <div className="flex gap-1">
-                              <button onClick={() => openEdit(item)} className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground"><Pencil className="h-4 w-4" /></button>
-                              <button onClick={() => { if (confirm("Remover?")) deleteMutation.mutate(item.id); }} className="p-1.5 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive"><Trash2 className="h-4 w-4" /></button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                    <tbody>
+                      {paginatedItems.map((item, idx) => {
+                        const rating = ratingMap[item.id];
+                        const qualLabel = rating ? `${rating.avg.toFixed(1)} - Aprovado` : "Não qualificado";
+                        const qualColor = rating ? "text-green-600 font-medium" : "text-muted-foreground";
+                        const cityUf = [item.city, item.state].filter(Boolean).join(", ") || "—";
+                        return (
+                          <tr key={item.id} onClick={() => openEdit(item)} className={`border-b border-border transition-colors cursor-pointer ${idx % 2 === 0 ? "bg-background" : "bg-muted/20"} hover:bg-muted/40 ${!item.active ? "opacity-50" : ""}`}>
+                            <td className="px-2 py-2.5" onClick={e => e.stopPropagation()}><input type="checkbox" className="accent-primary" /></td>
+                            {tableFields.map((f) => {
+                              const val = (f as any).computed ? cityUf : (item[f.name] ?? "");
+                              return <td key={f.name} className="px-3 py-2.5 text-foreground truncate max-w-[150px]" title={String(val)}>{String(val || "")}</td>;
+                            })}
+                            <td className={`px-3 py-2.5 whitespace-nowrap ${qualColor}`}>{qualLabel}</td>
+                            <td className="px-3 py-2.5 text-muted-foreground whitespace-nowrap">{new Date(item.created_at).toLocaleDateString("pt-BR")} {new Date(item.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</td>
+                            <td className="px-3 py-2.5" onClick={e => e.stopPropagation()}>
+                              <div className="flex gap-1 justify-center">
+                                <button onClick={() => openEdit(item)} title="Editar" className="p-1.5 rounded-md hover:bg-accent text-primary"><Pencil className="h-4 w-4" /></button>
+                                <button onClick={() => { if (confirm("Remover?")) deleteMutation.mutate(item.id); }} title="Excluir" className="p-1.5 rounded-md hover:bg-destructive/10 text-destructive"><Trash2 className="h-4 w-4" /></button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
