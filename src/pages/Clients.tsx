@@ -265,7 +265,7 @@ export default function Clients() {
   ];
 
   return (
-    <div className="flex h-[calc(100vh-73px)] overflow-hidden relative">
+    <div className="flex h-[calc(100vh-49px)] overflow-hidden relative">
       {/* Filter Panel + Toggle */}
       <div className="flex flex-shrink-0">
         <div className={`border-r border-border bg-muted transition-all duration-300 overflow-hidden ${filtersOpen ? "w-80" : "w-0"}`}>
