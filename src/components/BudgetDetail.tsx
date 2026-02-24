@@ -616,10 +616,63 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
           })()}
 
           {activeTab === "valores_venda" && (() => {
-            const phases = [...new Set(items.map((i) => i.category || "Geral"))];
-            const activePhase = selectedPhase || phases[0] || "Geral";
-            const phaseItems = items.filter((i) => (i.category || "Geral") === activePhase);
-            const totalVenda = items.reduce((s, i) => {
+            const phaseItemsVenda = items.filter((i) => (i.category || "").toLowerCase() === "fase");
+            const serviceItemsVenda = items.filter((i) => (i.category || "").toLowerCase() === "serviço" || (i.category || "").toLowerCase() === "servico");
+
+            const getDescPrefixVenda = (desc: string) => {
+              const match = desc.trim().match(/^(\d+(?:\.\d+)*)/);
+              return match ? match[1] : null;
+            };
+
+            const vendaPhaseRows = phaseItemsVenda
+              .map((p) => {
+                const prefix = getDescPrefixVenda(p.description);
+                const rootIndex = prefix ? prefix.split(".")[0] : null;
+                if (!rootIndex || prefix !== rootIndex) return null;
+
+                const total = serviceItemsVenda
+                  .filter((s) => {
+                    const sPrefix = getDescPrefixVenda(s.description);
+                    return sPrefix ? sPrefix.split(".")[0] === rootIndex : false;
+                  })
+                  .reduce((sum, s) => {
+                    const bdi = (s as any).bdi || 0;
+                    return sum + (s.total_price || 0) * (1 + bdi / 100);
+                  }, 0);
+
+                return { rootIndex, label: p.description, total };
+              })
+              .filter((v): v is { rootIndex: string; label: string; total: number } => !!v)
+              .filter((v, i, arr) => arr.findIndex((a) => a.rootIndex === v.rootIndex) === i)
+              .sort((a, b) => Number.parseInt(a.rootIndex, 10) - Number.parseInt(b.rootIndex, 10));
+
+            const vendaFallbackRows = vendaPhaseRows.length === 0
+              ? [...new Set(items.map((i) => (i.category || "Geral").trim()))].map((cat) => ({
+                  rootIndex: cat,
+                  label: cat,
+                  total: items.filter((i) => (i.category || "Geral").trim() === cat).reduce((sum, i) => {
+                    const bdi = (i as any).bdi || 0;
+                    return sum + (i.total_price || 0) * (1 + bdi / 100);
+                  }, 0),
+                }))
+              : [];
+
+            const vendaRows = vendaPhaseRows.length > 0 ? vendaPhaseRows : vendaFallbackRows;
+
+            const activeVendaRow = selectedPhase
+              ? vendaRows.find((r) => r.label === selectedPhase)
+              : null;
+
+            const activeVendaLabel = activeVendaRow?.label ?? null;
+
+            const vendaDisplayItems = activeVendaRow
+              ? serviceItemsVenda.filter((s) => {
+                  const sPrefix = getDescPrefixVenda(s.description);
+                  return sPrefix ? sPrefix.split(".")[0] === activeVendaRow.rootIndex : false;
+                })
+              : serviceItemsVenda.length > 0 ? serviceItemsVenda : items;
+
+            const totalVenda = (serviceItemsVenda.length > 0 ? serviceItemsVenda : items).reduce((s, i) => {
               const bdi = (i as any).bdi || 0;
               return s + (i.total_price || 0) * (1 + bdi / 100);
             }, 0);
@@ -630,88 +683,120 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
             };
 
             return (
-              <div className="flex gap-4 h-full">
-                {/* Phase sidebar */}
-                <div className="w-72 flex-shrink-0 border border-border rounded-lg overflow-hidden">
-                  <div className="bg-muted/50 px-3 py-2 flex items-center justify-between">
+              <div className="flex gap-0 h-full">
+                {/* Phase sidebar - same layout as valores_custo */}
+                <div className="w-80 flex-shrink-0 border border-border rounded-l-lg overflow-hidden flex flex-col">
+                  <div className="bg-muted/50 px-3 py-2 flex items-center justify-between border-b border-border">
                     <span className="text-xs font-semibold text-muted-foreground">Fase da obra</span>
                     <span className="text-xs font-semibold text-muted-foreground">Total (R$)</span>
                   </div>
-                  <div className="divide-y divide-border max-h-[60vh] overflow-y-auto">
-                    {phases.map((phase) => {
-                      const total = items.filter((i) => (i.category || "Geral") === phase).reduce((s, i) => {
-                        const bdi = (i as any).bdi || 0;
-                        return s + (i.total_price || 0) * (1 + bdi / 100);
-                      }, 0);
-                      return (
-                        <button
-                          key={phase}
-                          onClick={() => setSelectedPhase(phase)}
-                          className={`w-full text-left px-3 py-2.5 text-xs flex justify-between items-center transition-colors ${
-                            activePhase === phase ? "bg-primary/10 text-primary font-semibold" : "text-foreground hover:bg-muted/50"
-                          }`}
-                        >
-                          <span className="truncate pr-2">{phase}</span>
-                          <span className="flex-shrink-0 font-medium">{total.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
-                        </button>
-                      );
-                    })}
+                  <div className="flex-1 overflow-y-auto">
+                    <table className="w-full text-xs">
+                      <tbody>
+                        {vendaRows.length === 0 ? (
+                          <tr>
+                            <td colSpan={2} className="px-3 py-3 text-center text-muted-foreground">
+                              Nenhuma fase encontrada.
+                            </td>
+                          </tr>
+                        ) : (
+                          vendaRows.map((phase, idx) => {
+                            const isActive = activeVendaRow?.label === phase.label;
+                            return (
+                              <tr
+                                key={phase.rootIndex}
+                                onClick={() => setSelectedPhase(phase.label)}
+                                className={`cursor-pointer border-b border-border transition-colors ${
+                                  isActive ? "bg-primary/10 font-bold text-primary" : idx % 2 === 0 ? "bg-background hover:bg-muted/50" : "bg-muted/20 hover:bg-muted/50"
+                                }`}
+                              >
+                                <td className="px-3 py-2.5 text-left leading-snug">{phase.label}</td>
+                                <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap font-medium">{phase.total.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
                   </div>
-                  <div className="bg-muted/50 px-3 py-2 border-t border-border">
+                  <div className="bg-muted/50 px-3 py-2.5 border-t border-border">
                     <div className="flex justify-between text-xs font-bold text-foreground">
-                      <span>Total venda:</span>
+                      <span>Total da obra:</span>
                       <span>{fmt(totalVenda)}</span>
                     </div>
                   </div>
                 </div>
 
-                {/* Phase items with BDI */}
-                <div className="flex-1 space-y-4 overflow-y-auto max-h-[60vh]">
-                  <h4 className="text-sm font-semibold text-foreground">{activePhase}</h4>
-                  {phaseItems.length === 0 ? (
-                    <div className="text-center py-12 text-muted-foreground text-sm">Nenhum item nesta fase.</div>
-                  ) : (
-                    <div className="space-y-3">
-                      {phaseItems.map((item) => {
+                {/* Right panel - service cards with BDI */}
+                <div className="flex-1 border border-l-0 border-border rounded-r-lg flex flex-col">
+                  <div className="px-4 py-3 border-b border-border bg-muted/20 flex items-center justify-between">
+                    <h4 className="text-sm font-bold text-foreground uppercase tracking-wide">{activeVendaLabel || "Todos os serviços"}</h4>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto p-4 space-y-4" style={{ maxHeight: "55vh" }}>
+                    {vendaDisplayItems.length === 0 ? (
+                      <div className="text-center py-12 text-muted-foreground text-sm">Nenhum item nesta fase.</div>
+                    ) : (
+                      vendaDisplayItems.map((item) => {
                         const bdi = (item as any).bdi || 0;
                         const vendaUnit = (item.unit_price || 0) * (1 + bdi / 100);
                         const vendaTotal = (item.total_price || 0) * (1 + bdi / 100);
                         return (
-                          <div key={item.id} className="border border-border rounded-lg p-4 space-y-3">
-                            <span className="text-sm font-semibold text-foreground">{item.description}</span>
-                            <div className="flex items-center gap-6 text-sm flex-wrap">
-                              <div className="flex items-center gap-2">
-                                <span className="text-muted-foreground">Custo unit.:</span>
-                                <span className="text-foreground">{fmt(item.unit_price)}</span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <span className="text-muted-foreground">Custo total:</span>
-                                <span className="text-foreground">{fmt(item.total_price)}</span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <span className="text-muted-foreground">BDI (%):</span>
-                                <input
-                                  type="number"
-                                  step="0.01"
-                                  defaultValue={bdi}
-                                  onBlur={(e) => updateBdi(item.id, parseFloat(e.target.value) || 0)}
-                                  className="w-20 px-2 py-1 rounded border border-input bg-background text-foreground text-sm text-right"
-                                />
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <span className="text-muted-foreground">Venda unit.:</span>
-                                <span className="font-semibold text-foreground">{fmt(vendaUnit)}</span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <span className="text-muted-foreground">Venda total:</span>
-                                <span className="font-bold text-primary">{fmt(vendaTotal)}</span>
+                          <div key={item.id} className="border border-border rounded-lg bg-background">
+                            <div className="bg-muted/40 px-4 py-2.5 rounded-t-lg border-b border-border">
+                              <span className="text-sm font-semibold text-foreground">{item.description}</span>
+                            </div>
+                            <div className="p-4">
+                              <div className="flex items-center gap-6 text-sm flex-wrap">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-muted-foreground text-xs">Custo unit.:</span>
+                                  <span className="text-foreground">{fmt(item.unit_price)}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-muted-foreground text-xs">Custo total:</span>
+                                  <span className="text-foreground">{fmt(item.total_price)}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-muted-foreground text-xs">BDI (%):</span>
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    defaultValue={bdi}
+                                    onBlur={(e) => updateBdi(item.id, parseFloat(e.target.value) || 0)}
+                                    className="w-20 px-2 py-1 rounded border border-input bg-background text-foreground text-sm text-right"
+                                  />
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-muted-foreground text-xs">Venda unit.:</span>
+                                  <span className="font-semibold text-foreground">{fmt(vendaUnit)}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-muted-foreground text-xs">Venda total:</span>
+                                  <span className="font-bold text-primary">{fmt(vendaTotal)}</span>
+                                </div>
                               </div>
                             </div>
                           </div>
                         );
-                      })}
+                      })
+                    )}
+                  </div>
+
+                  <div className="border-t border-border px-4 py-2.5 flex gap-6 bg-muted/30">
+                    <div className="flex items-center gap-2 border border-primary/30 rounded px-3 py-1.5 bg-primary/5">
+                      <span className="text-xs font-semibold text-foreground">Total venda:</span>
+                      <span className="text-xs font-bold text-foreground">{fmt(totalVenda)}</span>
                     </div>
-                  )}
+                    {activeVendaRow && (
+                      <div className="flex items-center gap-2 border border-border rounded px-3 py-1.5">
+                        <span className="text-xs font-semibold text-foreground">Total da fase:</span>
+                        <span className="text-xs font-bold text-foreground">{fmt(vendaDisplayItems.reduce((s, i) => {
+                          const bdi = (i as any).bdi || 0;
+                          return s + (i.total_price || 0) * (1 + bdi / 100);
+                        }, 0))}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             );
