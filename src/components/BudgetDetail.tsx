@@ -111,6 +111,7 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
   const [itemForm, setItemForm] = useState({ description: "", category: "", quantity: "1", unit: "un", unit_price: "0" });
   const [showImport, setShowImport] = useState(false);
   const [selectedPhase, setSelectedPhase] = useState<string | null>(null);
+  const [expandedAbc, setExpandedAbc] = useState<string | null>(null);
 
   // Fetch budget
   const { data: budget, isLoading: budgetLoading } = useQuery({
@@ -850,44 +851,101 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
           )}
 
           {activeTab === "curva_abc" && (() => {
+            const getPrefix = (desc: string) => {
+              const m = desc.trim().match(/^(\d+(?:\.\d+)*)/);
+              return m ? m[1] : null;
+            };
+
+            const phaseItems = items.filter((i) => (i.category || "").toLowerCase() === "fase");
             const serviceItems = items
               .filter((i) => (i.category || "").toLowerCase() === "serviço" || (i.category || "").toLowerCase() === "servico")
               .filter((i) => (i.total_price || 0) > 0);
-            const sorted = [...serviceItems].sort((a, b) => (b.total_price || 0) - (a.total_price || 0));
-            const grandTotal = sorted.reduce((s, i) => s + (i.total_price || 0), 0);
-            let cumulative = 0;
+
+            // Group services by root phase index
+            const phaseMap = new Map<string, { label: string; total: number; services: typeof serviceItems }>();
+            const rootPhases = phaseItems.filter((p) => {
+              const pfx = getPrefix(p.description);
+              return pfx && !pfx.includes(".");
+            });
+
+            rootPhases.forEach((phase) => {
+              const rootIdx = getPrefix(phase.description)!;
+              const children = serviceItems.filter((s) => {
+                const sp = getPrefix(s.description);
+                return sp ? sp.split(".")[0] === rootIdx : false;
+              });
+              const total = children.reduce((sum, s) => sum + (s.total_price || 0), 0);
+              if (total > 0) {
+                phaseMap.set(rootIdx, { label: phase.description, total, services: children });
+              }
+            });
+
+            // Sort phases by total descending for ABC
+            const phaseArr = [...phaseMap.entries()].sort((a, b) => b[1].total - a[1].total);
+            const grandTotal = phaseArr.reduce((s, [, v]) => s + v.total, 0);
+            let cumPhase = 0;
+
 
             return (
               <div className="space-y-4">
-                <h4 className="text-sm font-semibold text-foreground">Curva ABC de Serviços</h4>
-                {sorted.length === 0 ? (
-                  <div className="text-center py-12 text-muted-foreground text-sm">Nenhum serviço com valor cadastrado.</div>
+                <h4 className="text-sm font-semibold text-foreground">Curva ABC por Fases</h4>
+                {phaseArr.length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground text-sm">Nenhuma fase com serviços cadastrados.</div>
                 ) : (
                   <div className="border border-border rounded-lg overflow-hidden">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="bg-muted/50">
-                          <th className="text-left px-3 py-2.5 font-medium text-muted-foreground">Classe</th>
-                          <th className="text-left px-3 py-2.5 font-medium text-muted-foreground">Descrição</th>
+                          <th className="text-left px-3 py-2.5 font-medium text-muted-foreground w-16">Classe</th>
+                          <th className="text-left px-3 py-2.5 font-medium text-muted-foreground">Fase</th>
                           <th className="text-right px-3 py-2.5 font-medium text-muted-foreground">Valor</th>
                           <th className="text-right px-3 py-2.5 font-medium text-muted-foreground">% Individual</th>
                           <th className="text-right px-3 py-2.5 font-medium text-muted-foreground">% Acumulado</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border">
-                        {sorted.map((item, idx) => {
-                          const pct = grandTotal > 0 ? ((item.total_price || 0) / grandTotal) * 100 : 0;
-                          cumulative += pct;
-                          const cls = cumulative <= 80 ? "A" : cumulative <= 95 ? "B" : "C";
+                        {phaseArr.map(([rootIdx, { label, total, services }], idx) => {
+                          const pct = grandTotal > 0 ? (total / grandTotal) * 100 : 0;
+                          cumPhase += pct;
+                          const cls = cumPhase <= 80 ? "A" : cumPhase <= 95 ? "B" : "C";
                           const clsColor = cls === "A" ? "text-red-600 font-bold" : cls === "B" ? "text-amber-600 font-semibold" : "text-muted-foreground";
+                          const isOpen = expandedAbc === rootIdx;
+                          const sortedSvc = [...services].sort((a, b) => (b.total_price || 0) - (a.total_price || 0));
+                          const svcTotal = total;
+                          let cumSvc = 0;
+
                           return (
-                            <tr key={item.id} className={idx % 2 === 0 ? "bg-background" : "bg-muted/20"}>
-                              <td className={`px-3 py-2 ${clsColor}`}>{cls}</td>
-                              <td className="px-3 py-2 text-foreground">{item.description}</td>
-                              <td className="px-3 py-2 text-right text-foreground tabular-nums">{fmt(item.total_price)}</td>
-                              <td className="px-3 py-2 text-right text-foreground tabular-nums">{pct.toFixed(2)}%</td>
-                              <td className="px-3 py-2 text-right text-foreground tabular-nums">{cumulative.toFixed(2)}%</td>
-                            </tr>
+                            <>
+                              <tr
+                                key={rootIdx}
+                                className={`cursor-pointer hover:bg-muted/40 ${idx % 2 === 0 ? "bg-background" : "bg-muted/20"}`}
+                                onClick={() => setExpandedAbc(isOpen ? null : rootIdx)}
+                              >
+                                <td className={`px-3 py-2 ${clsColor}`}>{cls}</td>
+                                <td className="px-3 py-2 text-foreground font-medium flex items-center gap-1.5">
+                                  <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isOpen ? "rotate-0" : "-rotate-90"}`} />
+                                  {label}
+                                </td>
+                                <td className="px-3 py-2 text-right text-foreground tabular-nums font-medium">{fmt(total)}</td>
+                                <td className="px-3 py-2 text-right text-foreground tabular-nums">{pct.toFixed(2)}%</td>
+                                <td className="px-3 py-2 text-right text-foreground tabular-nums">{cumPhase.toFixed(2)}%</td>
+                              </tr>
+                              {isOpen && sortedSvc.map((svc, si) => {
+                                const sPct = svcTotal > 0 ? ((svc.total_price || 0) / svcTotal) * 100 : 0;
+                                cumSvc += sPct;
+                                const sCls = cumSvc <= 80 ? "A" : cumSvc <= 95 ? "B" : "C";
+                                const sClsColor = sCls === "A" ? "text-red-500" : sCls === "B" ? "text-amber-500" : "text-muted-foreground";
+                                return (
+                                  <tr key={svc.id} className="bg-muted/10">
+                                    <td className={`px-3 py-1.5 pl-8 text-xs ${sClsColor}`}>{sCls}</td>
+                                    <td className="px-3 py-1.5 pl-10 text-foreground text-xs">{svc.description}</td>
+                                    <td className="px-3 py-1.5 text-right text-foreground text-xs tabular-nums">{fmt(svc.total_price)}</td>
+                                    <td className="px-3 py-1.5 text-right text-foreground text-xs tabular-nums">{sPct.toFixed(2)}%</td>
+                                    <td className="px-3 py-1.5 text-right text-foreground text-xs tabular-nums">{cumSvc.toFixed(2)}%</td>
+                                  </tr>
+                                );
+                              })}
+                            </>
                           );
                         })}
                       </tbody>
