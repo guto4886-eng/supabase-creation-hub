@@ -20,6 +20,7 @@ import Quotations from "@/pages/Quotations";
 import Financial from "@/pages/Financial";
 import Profile from "@/pages/Profile";
 import Plans from "@/pages/Plans";
+import Companies from "@/pages/Companies";
 
 const queryClient = new QueryClient();
 
@@ -63,6 +64,7 @@ function App() {
                 <Route path="quotations" element={<Quotations />} />
                 <Route path="financial" element={<Financial />} />
                 <Route path="profile" element={<Profile />} />
+                <Route path="companies" element={<Companies />} />
                 <Route path="plans" element={<Plans />} />
               </Route>
             </Routes>
