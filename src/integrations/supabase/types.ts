@@ -947,6 +947,7 @@ export type Database = {
           request_id: string
           service: string | null
           unit: string
+          unit_price: number | null
         }
         Insert: {
           complement?: string | null
@@ -959,6 +960,7 @@ export type Database = {
           request_id: string
           service?: string | null
           unit?: string
+          unit_price?: number | null
         }
         Update: {
           complement?: string | null
@@ -971,6 +973,7 @@ export type Database = {
           request_id?: string
           service?: string | null
           unit?: string
+          unit_price?: number | null
         }
         Relationships: [
           {

@@ -39,6 +39,7 @@ interface RequestItem {
   complement: string;
   quantity: number;
   unit: string;
+  unit_price: number;
   phase: string;
   service: string;
 }
@@ -66,7 +67,7 @@ export default function PurchaseRequests() {
 
   // --- Items state (in modal) ---
   const [requestItems, setRequestItems] = useState<RequestItem[]>([]);
-  const [newItem, setNewItem] = useState<RequestItem>({ item_type: "livre", item: "", complement: "", quantity: 1, unit: "un", phase: "", service: "" });
+  const [newItem, setNewItem] = useState<RequestItem>({ item_type: "livre", item: "", complement: "", quantity: 1, unit: "un", unit_price: 0, phase: "", service: "" });
 
   // --- Queries ---
   const { data: obras = [] } = useQuery({
@@ -158,6 +159,7 @@ export default function PurchaseRequests() {
           complement: it.complement || null,
           quantity: Number(it.quantity) || 1,
           unit: it.unit || "un",
+          unit_price: Number(it.unit_price) || 0,
           phase: it.phase || null,
           service: it.service || null,
         }));
@@ -190,7 +192,7 @@ export default function PurchaseRequests() {
     setEditing(null);
     setForm({ priority: "normal", status: "pendente", needed_by: "", description: "" });
     setRequestItems([]);
-    setNewItem({ item_type: "livre", item: "", complement: "", quantity: 1, unit: "un", phase: "", service: "" });
+    setNewItem({ item_type: "livre", item: "", complement: "", quantity: 1, unit: "un", unit_price: 0, phase: "", service: "" });
     setActiveTab("dados");
     setFormOpen(true);
   };
@@ -204,9 +206,9 @@ export default function PurchaseRequests() {
     const { data } = await (supabase as any).from("purchase_request_items").select("*").eq("request_id", item.id).order("created_at");
     setRequestItems((data || []).map((r: any) => ({
       id: r.id, item_type: r.item_type, item: r.item, complement: r.complement || "",
-      quantity: r.quantity, unit: r.unit, phase: r.phase || "", service: r.service || "",
+      quantity: r.quantity, unit: r.unit, unit_price: r.unit_price || 0, phase: r.phase || "", service: r.service || "",
     })));
-    setNewItem({ item_type: "livre", item: "", complement: "", quantity: 1, unit: "un", phase: "", service: "" });
+    setNewItem({ item_type: "livre", item: "", complement: "", quantity: 1, unit: "un", unit_price: 0, phase: "", service: "" });
   };
 
   const closeForm = () => { setFormOpen(false); setEditing(null); setForm({}); setRequestItems([]); };
@@ -224,7 +226,7 @@ export default function PurchaseRequests() {
     if (!newItem.quantity || newItem.quantity <= 0) { toast.error("Quantidade inválida"); return; }
     if (!newItem.unit.trim()) { toast.error("Unidade é obrigatória"); return; }
     setRequestItems(prev => [...prev, { ...newItem }]);
-    setNewItem({ item_type: "livre", item: "", complement: "", quantity: 1, unit: "un", phase: "", service: "" });
+    setNewItem({ item_type: "livre", item: "", complement: "", quantity: 1, unit: "un", unit_price: 0, phase: "", service: "" });
   };
 
   const removeItem = (idx: number) => setRequestItems(prev => prev.filter((_, i) => i !== idx));
@@ -546,6 +548,10 @@ export default function PurchaseRequests() {
                         <label className="block text-sm font-medium text-foreground mb-1">Unidade *</label>
                         <input value={newItem.unit} onChange={e => setNewItem(p => ({ ...p, unit: e.target.value }))} className={inputClass} />
                       </div>
+                      <div className="w-36">
+                        <label className="block text-sm font-medium text-foreground mb-1">Valor unit. (R$)</label>
+                        <input type="number" step="0.01" min="0" value={newItem.unit_price} onChange={e => setNewItem(p => ({ ...p, unit_price: Number(e.target.value) }))} className={inputClass} />
+                      </div>
                       <div className="flex-1" />
                       <button type="button" onClick={addItem} className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90">
                         <Plus className="h-4 w-4" /> Adicionar
@@ -568,6 +574,8 @@ export default function PurchaseRequests() {
                               <th className="text-left px-2 py-2 font-medium text-muted-foreground">Complemento</th>
                               <th className="text-center px-2 py-2 font-medium text-muted-foreground">Qtd</th>
                               <th className="text-center px-2 py-2 font-medium text-muted-foreground">Un</th>
+                              <th className="text-right px-2 py-2 font-medium text-muted-foreground">Valor unit.</th>
+                              <th className="text-right px-2 py-2 font-medium text-muted-foreground">Total</th>
                               <th className="w-10" />
                             </tr>
                           </thead>
@@ -579,6 +587,8 @@ export default function PurchaseRequests() {
                                 <td className="px-2 py-2 text-muted-foreground">{it.complement || "—"}</td>
                                 <td className="px-2 py-2 text-center text-foreground">{it.quantity}</td>
                                 <td className="px-2 py-2 text-center text-muted-foreground">{it.unit}</td>
+                                <td className="px-2 py-2 text-right text-foreground">{(it.unit_price || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</td>
+                                <td className="px-2 py-2 text-right text-foreground font-medium">{((it.quantity || 0) * (it.unit_price || 0)).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</td>
                                 <td className="px-2 py-2">
                                   <button onClick={() => removeItem(idx)} className="p-1 rounded hover:bg-destructive/10 text-destructive"><Trash2 className="h-3.5 w-3.5" /></button>
                                 </td>
