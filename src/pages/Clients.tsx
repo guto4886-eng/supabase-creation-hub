@@ -617,7 +617,7 @@ export default function Clients() {
 
             {/* Bottom bar - fixed */}
             <div className="flex items-center justify-end gap-3 px-5 py-3 border-t border-border bg-muted rounded-b-xl">
-              <button type="button" onClick={closeForm} className="px-4 py-2 rounded-lg border border-border text-foreground hover:bg-muted text-sm">
+              <button type="button" onClick={closeForm} className="px-4 py-2 rounded-lg bg-white text-foreground border border-border hover:bg-gray-50 text-sm">
                 Cancelar
               </button>
               {activeTab === "dados" && (
