@@ -109,7 +109,7 @@ export default function Suppliers() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["suppliers"] });
-      toast.success(editing ? "Atualizado!" : "Criado!");
+      toast.success(editing ? "Fornecedor atualizado com sucesso!" : "Fornecedor cadastrado com sucesso!", { duration: 3000 });
       closeForm();
     },
     onError: (e: any) => toast.error(e.message),
