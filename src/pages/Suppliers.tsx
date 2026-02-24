@@ -372,14 +372,14 @@ export default function Suppliers() {
                     </thead>
                     <tbody className="divide-y divide-border">
                       {paginatedItems.map((item) => (
-                        <tr key={item.id} className={`hover:bg-muted/30 transition-colors ${!item.active ? "opacity-50" : ""}`}>
-                          <td className="px-4 py-3">
+                        <tr key={item.id} onClick={() => openEdit(item)} className={`hover:bg-muted/30 transition-colors cursor-pointer ${!item.active ? "opacity-50" : ""}`}>
+                          <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                             <button onClick={() => toggleActive.mutate({ id: item.id, active: !item.active })} className={`relative h-6 w-11 rounded-full transition-colors ${item.active ? "bg-primary" : "bg-muted-foreground/30"}`}>
                               <span className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white transition-transform shadow-sm ${item.active ? "translate-x-5" : ""}`} />
                             </button>
                           </td>
                           {tableFields.map((f) => <td key={f.name} className="px-4 py-3 text-foreground">{String(item[f.name] ?? "—")}</td>)}
-                          <td className="px-4 py-3">
+                          <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                             <div className="flex gap-1">
                               <button onClick={() => openEdit(item)} className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground"><Pencil className="h-4 w-4" /></button>
                               <button onClick={() => { if (confirm("Remover?")) deleteMutation.mutate(item.id); }} className="p-1.5 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive"><Trash2 className="h-4 w-4" /></button>
