@@ -492,52 +492,42 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
             }) : items;
 
             return (
-              <div className="flex gap-4 h-full">
-                {/* Phase sidebar */}
-                <div className="w-72 flex-shrink-0 border border-border rounded-lg overflow-hidden">
-                  <div className="bg-muted/50 px-3 py-2 flex items-center justify-between">
+              <div className="flex gap-0 h-full">
+                {/* Phase sidebar - left */}
+                <div className="w-80 flex-shrink-0 border border-border rounded-l-lg overflow-hidden flex flex-col">
+                  <div className="bg-muted/50 px-3 py-2 flex items-center justify-between border-b border-border">
                     <span className="text-xs font-semibold text-muted-foreground">Fase da obra</span>
                     <span className="text-xs font-semibold text-muted-foreground">Total (R$)</span>
                   </div>
-                  <div className="divide-y divide-border max-h-[60vh] overflow-y-auto">
-                    <button
-                      onClick={() => setSelectedPhase(null)}
-                      className={`w-full text-left px-3 py-2.5 text-xs flex justify-between items-center transition-colors ${
-                        !activePhase ? "bg-primary/10 text-primary font-semibold" : "text-foreground hover:bg-muted/50"
-                      }`}
-                    >
-                      <span className="truncate pr-2">📋 Todas as fases</span>
-                      <span className="flex-shrink-0 font-medium">{totalCusto.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
-                    </button>
+                  <div className="flex-1 overflow-y-auto">
                     {rootPhases.map((phase) => {
                       const node = phaseMap.get(phase)!;
                       const deepTotal = getDeepTotal(phase);
-                      const deepCount = getDeepCount(phase);
+                      const isActive = activePhase === phase;
+                      const isChildActive = node.children.includes(activePhase || "");
                       return (
-                        <div key={phase}>
+                        <div key={phase} className="border-b border-border">
                           <button
                             onClick={() => setSelectedPhase(phase)}
                             className={`w-full text-left px-3 py-2.5 text-xs flex justify-between items-center transition-colors ${
-                              activePhase === phase ? "bg-primary/10 text-primary font-semibold" : "text-foreground hover:bg-muted/50"
+                              isActive ? "bg-primary/10 text-primary font-bold" : "text-foreground hover:bg-muted/50"
                             }`}
                           >
-                            <span className="truncate pr-2 font-semibold">{phase} <span className="text-muted-foreground font-normal">({deepCount})</span></span>
-                            <span className="flex-shrink-0 font-bold">{deepTotal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+                            <span className="truncate pr-2 leading-snug">{phase}</span>
+                            <span className="flex-shrink-0 font-medium tabular-nums">{deepTotal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
                           </button>
-                          {node.children.map((sub) => {
-                            const subNode = phaseMap.get(sub)!;
+                          {node.children.length > 0 && (isActive || isChildActive || !activePhase) && node.children.map((sub) => {
                             const subDeepTotal = getDeepTotal(sub);
-                            const subDeepCount = getDeepCount(sub);
                             return (
                               <button
                                 key={sub}
                                 onClick={() => setSelectedPhase(sub)}
-                                className={`w-full text-left pl-6 pr-3 py-2 text-xs flex justify-between items-center transition-colors border-t border-border/50 ${
+                                className={`w-full text-left pl-6 pr-3 py-2 text-xs flex justify-between items-center transition-colors border-t border-border/30 ${
                                   activePhase === sub ? "bg-primary/10 text-primary font-semibold" : "text-muted-foreground hover:bg-muted/30 hover:text-foreground"
                                 }`}
                               >
-                                <span className="truncate pr-2">↳ {sub} <span className="opacity-70">({subDeepCount})</span></span>
-                                <span className="flex-shrink-0 font-medium">{subDeepTotal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+                                <span className="truncate pr-2">↳ {sub}</span>
+                                <span className="flex-shrink-0 font-medium tabular-nums">{subDeepTotal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
                               </button>
                             );
                           })}
@@ -545,77 +535,91 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                       );
                     })}
                   </div>
-                  <div className="bg-muted/50 px-3 py-2 border-t border-border">
-                    <div className="flex justify-between text-xs font-bold text-foreground">
-                      <span>Total da obra:</span>
-                      <span>{fmt(totalCusto)}</span>
-                    </div>
-                  </div>
                 </div>
 
-                {/* Phase items - table */}
-                <div className="flex-1 space-y-3 overflow-y-auto max-h-[60vh]">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-sm font-semibold text-foreground">{activePhase || "Todos os serviços"}</h4>
+                {/* Right panel - service cards like reference image */}
+                <div className="flex-1 border border-l-0 border-border rounded-r-lg flex flex-col">
+                  {/* Phase title header */}
+                  <div className="px-4 py-3 border-b border-border bg-muted/20 flex items-center justify-between">
+                    <h4 className="text-sm font-bold text-foreground uppercase tracking-wide">{activePhase || "Todos os serviços"}</h4>
                     <button onClick={() => { setItemForm({ description: "", category: activePhase || "", quantity: "1", unit: "un", unit_price: "0" }); setEditingItem(null); setAddingItem(true); }} className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-lg text-xs font-medium hover:opacity-90">
                       <Plus className="h-3.5 w-3.5" /> Adicionar item
                     </button>
                   </div>
 
-                  {displayItems.length === 0 ? (
-                    <div className="text-center py-12 text-muted-foreground text-sm">Nenhum item nesta fase.</div>
-                  ) : (() => {
-                    const groupedCats = [...new Set(displayItems.map((i) => i.category || "Geral"))];
-                    return (
-                      <>
-                        {groupedCats.map((cat) => {
-                          const catItems = displayItems.filter((i) => (i.category || "Geral") === cat);
-                          const catTotal = catItems.reduce((s, i) => s + (i.total_price || 0), 0);
-                          return (
-                            <div key={cat} className="border border-border rounded-lg overflow-hidden">
-                              <div className="bg-muted/50 px-3 py-2 flex items-center justify-between cursor-pointer hover:bg-muted/70" onClick={() => setSelectedPhase(cat)}>
-                                <span className="text-xs font-semibold text-foreground">{cat} ({catItems.length})</span>
-                                <span className="text-xs font-bold text-foreground">{fmt(catTotal)}</span>
-                              </div>
-                              <table className="w-full text-xs">
-                                <thead>
-                                  <tr className="bg-muted/30">
-                                    <th className="text-left px-3 py-1.5 font-medium text-muted-foreground">Descrição</th>
-                                    <th className="text-right px-3 py-1.5 font-medium text-muted-foreground w-20">Qtd</th>
-                                    <th className="text-left px-3 py-1.5 font-medium text-muted-foreground w-14">Un</th>
-                                    <th className="text-right px-3 py-1.5 font-medium text-muted-foreground w-28">Preço Unit.</th>
-                                    <th className="text-right px-3 py-1.5 font-medium text-muted-foreground w-28">Total</th>
-                                    <th className="w-16"></th>
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y divide-border">
-                                  {catItems.map((item, idx) => (
-                                    <tr key={item.id} className={`${idx % 2 === 0 ? "bg-background" : "bg-muted/20"} hover:bg-accent/50 cursor-pointer`} onClick={() => openEditItem(item)}>
-                                      <td className="px-3 py-2 text-foreground">{item.description}</td>
-                                      <td className="px-3 py-2 text-right text-foreground">{(item.quantity ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td>
-                                      <td className="px-3 py-2 text-muted-foreground uppercase">{item.unit || "un"}</td>
-                                      <td className="px-3 py-2 text-right text-foreground">{fmt(item.unit_price)}</td>
-                                      <td className="px-3 py-2 text-right font-medium text-foreground">{fmt(item.total_price)}</td>
-                                      <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
-                                        <div className="flex gap-1 justify-center">
-                                          <button onClick={() => openEditItem(item)} className="p-1 rounded hover:bg-accent text-primary"><Pencil className="h-3.5 w-3.5" /></button>
-                                          <button onClick={() => { if (confirm("Remover item?")) deleteItem.mutate(item.id); }} className="p-1 rounded hover:bg-destructive/10 text-destructive"><Trash2 className="h-3.5 w-3.5" /></button>
-                                        </div>
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
+                  {/* Scrollable service cards */}
+                  <div className="flex-1 overflow-y-auto p-4 space-y-4" style={{ maxHeight: "55vh" }}>
+                    {displayItems.length === 0 ? (
+                      <div className="text-center py-12 text-muted-foreground text-sm">Nenhum item nesta fase.</div>
+                    ) : (
+                      displayItems.map((item) => (
+                        <div key={item.id} className="border border-border rounded-lg bg-background">
+                          {/* Service title bar */}
+                          <div className="bg-muted/40 px-4 py-2.5 rounded-t-lg flex items-center justify-between border-b border-border">
+                            <span className="text-sm font-semibold text-foreground">{item.description}</span>
+                            <div className="flex gap-1">
+                              <button onClick={() => openEditItem(item)} className="p-1.5 rounded hover:bg-accent text-primary" title="Editar"><Pencil className="h-3.5 w-3.5" /></button>
+                              <button onClick={() => { if (confirm("Remover item?")) deleteItem.mutate(item.id); }} className="p-1.5 rounded hover:bg-destructive/10 text-destructive" title="Excluir"><Trash2 className="h-3.5 w-3.5" /></button>
                             </div>
-                          );
-                        })}
-                        <div className="bg-muted/30 border border-border rounded-lg p-3 flex justify-between">
-                          <span className="text-sm font-semibold text-foreground">Total:</span>
-                          <span className="text-sm font-bold text-foreground">{fmt(displayItems.reduce((s, i) => s + (i.total_price || 0), 0))}</span>
+                          </div>
+
+                          {/* Service details */}
+                          <div className="p-4 space-y-3">
+                            {/* Row: Quantidade + Unidade + Valor unitário + Valor total */}
+                            <div className="flex items-center gap-6 flex-wrap text-sm">
+                              <div className="flex items-center gap-2">
+                                <span className="text-muted-foreground text-xs">Quantidade</span>
+                                <span className="px-2 py-1 border border-input rounded bg-muted/30 text-foreground text-sm font-medium tabular-nums min-w-[70px] text-center">
+                                  {(item.quantity ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                                </span>
+                                <span className="text-muted-foreground text-xs uppercase">{item.unit || "UN"}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-muted-foreground text-xs">Valor unitário:</span>
+                                <span className="font-medium text-foreground">{fmt(item.unit_price)}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-muted-foreground text-xs">Valor total:</span>
+                                <span className="font-bold text-foreground">{fmt(item.total_price)}</span>
+                              </div>
+                            </div>
+
+                            {/* Tipos de custo section */}
+                            <div className="border-t border-border pt-3">
+                              <span className="text-xs font-semibold text-primary">Tipos de custo</span>
+                              <div className="flex items-center gap-6 mt-2 text-sm">
+                                <span className="text-muted-foreground text-xs">Serviço</span>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-muted-foreground text-xs">Valor unitário</span>
+                                  <span className="px-2 py-1 border border-input rounded bg-muted/30 text-foreground text-sm font-medium tabular-nums">
+                                    R$ {(item.unit_price ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-muted-foreground text-xs">Valor total:</span>
+                                  <span className="font-bold text-foreground">{fmt(item.total_price)}</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
                         </div>
-                      </>
-                    );
-                  })()}
+                      ))
+                    )}
+                  </div>
+
+                  {/* Bottom totals bar */}
+                  <div className="border-t border-border px-4 py-2.5 flex gap-6 bg-muted/30">
+                    <div className="flex items-center gap-2 border border-primary/30 rounded px-3 py-1.5 bg-primary/5">
+                      <span className="text-xs font-semibold text-foreground">Total da obra:</span>
+                      <span className="text-xs font-bold text-foreground">{fmt(totalCusto)}</span>
+                    </div>
+                    {activePhase && (
+                      <div className="flex items-center gap-2 border border-border rounded px-3 py-1.5">
+                        <span className="text-xs font-semibold text-foreground">Total da fase:</span>
+                        <span className="text-xs font-bold text-foreground">{fmt(displayItems.reduce((s, i) => s + (i.total_price || 0), 0))}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             );
