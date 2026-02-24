@@ -428,10 +428,15 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
           )}
 
           {activeTab === "valores_custo" && (() => {
-            const allCategories = [...new Set(items.map((i) => i.category || "Geral"))];
+            const normalizeCategory = (value: string | null | undefined) => {
+              const normalized = (value ?? "").trim();
+              return normalized.length > 0 ? normalized : "Geral";
+            };
+
+            const allCategories = [...new Set(items.map((i) => normalizeCategory(i.category)))];
 
             const getPhasePrefix = (cat: string) => {
-              const match = cat.match(/^(\d+(?:\.\d+)*)/);
+              const match = cat.trim().match(/^(\d+(?:\.\d+)*)/);
               return match ? match[1] : null;
             };
 
@@ -440,7 +445,7 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
               return prefix ? prefix.split(".")[0] : null;
             };
 
-            const rootPhaseRows = Array.from(
+            const indexedRootRows = Array.from(
               new Set(allCategories.map((cat) => getRootIndex(cat)).filter((value): value is string => !!value))
             )
               .map((rootIndex) => {
@@ -448,20 +453,42 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                 const exactPhaseCategory = categoriesForRoot.find((cat) => getPhasePrefix(cat) === rootIndex);
                 const label = exactPhaseCategory || categoriesForRoot[0] || rootIndex;
                 const total = items
-                  .filter((i) => getRootIndex(i.category || "Geral") === rootIndex)
+                  .filter((i) => getRootIndex(normalizeCategory(i.category)) === rootIndex)
                   .reduce((sum, i) => sum + (i.total_price || 0), 0);
 
                 return { rootIndex, label, total };
               })
               .sort((a, b) => Number.parseInt(a.rootIndex, 10) - Number.parseInt(b.rootIndex, 10));
 
-            const selectedRootIndex = selectedPhase ? getRootIndex(selectedPhase) : null;
-            const activePhaseLabel = selectedRootIndex
-              ? rootPhaseRows.find((phase) => phase.rootIndex === selectedRootIndex)?.label || selectedPhase
-              : null;
+            const isIndexedMode = indexedRootRows.length > 0;
+            const phaseRows = isIndexedMode
+              ? indexedRootRows
+              : allCategories.map((cat) => ({
+                  rootIndex: cat,
+                  label: cat,
+                  total: items
+                    .filter((i) => normalizeCategory(i.category) === cat)
+                    .reduce((sum, i) => sum + (i.total_price || 0), 0),
+                }));
 
-            const displayItems = selectedRootIndex
-              ? items.filter((i) => getRootIndex(i.category || "Geral") === selectedRootIndex)
+            const selectedRootIndex = selectedPhase ? getRootIndex(selectedPhase) : null;
+            const activePhaseRow = phaseRows.find((phase) =>
+              selectedPhase
+                ? isIndexedMode
+                  ? phase.rootIndex === selectedRootIndex
+                  : phase.label === selectedPhase
+                : false
+            );
+
+            const activePhaseLabel = activePhaseRow?.label ?? null;
+
+            const displayItems = activePhaseRow
+              ? items.filter((i) => {
+                  const category = normalizeCategory(i.category);
+                  return isIndexedMode
+                    ? getRootIndex(category) === activePhaseRow.rootIndex
+                    : category === activePhaseRow.label;
+                })
               : items;
 
             return (
@@ -475,21 +502,29 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                   <div className="flex-1 overflow-y-auto">
                     <table className="w-full text-xs">
                       <tbody>
-                        {rootPhaseRows.map((phase, idx) => {
-                          const isActive = selectedRootIndex === phase.rootIndex;
-                          return (
-                            <tr
-                              key={phase.rootIndex}
-                              onClick={() => setSelectedPhase(phase.label)}
-                              className={`cursor-pointer border-b border-border transition-colors ${
-                                isActive ? "bg-primary/10 font-bold text-primary" : idx % 2 === 0 ? "bg-background hover:bg-muted/50" : "bg-muted/20 hover:bg-muted/50"
-                              }`}
-                            >
-                              <td className="px-3 py-2.5 text-left leading-snug">{phase.label}</td>
-                              <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap font-medium">{phase.total.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td>
-                            </tr>
-                          );
-                        })}
+                        {phaseRows.length === 0 ? (
+                          <tr>
+                            <td colSpan={2} className="px-3 py-3 text-center text-muted-foreground">
+                              Nenhuma fase encontrada.
+                            </td>
+                          </tr>
+                        ) : (
+                          phaseRows.map((phase, idx) => {
+                            const isActive = activePhaseRow?.label === phase.label;
+                            return (
+                              <tr
+                                key={phase.rootIndex}
+                                onClick={() => setSelectedPhase(phase.label)}
+                                className={`cursor-pointer border-b border-border transition-colors ${
+                                  isActive ? "bg-primary/10 font-bold text-primary" : idx % 2 === 0 ? "bg-background hover:bg-muted/50" : "bg-muted/20 hover:bg-muted/50"
+                                }`}
+                              >
+                                <td className="px-3 py-2.5 text-left leading-snug">{phase.label}</td>
+                                <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap font-medium">{phase.total.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td>
+                              </tr>
+                            );
+                          })
+                        )}
                       </tbody>
                     </table>
                   </div>
