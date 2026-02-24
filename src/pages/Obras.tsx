@@ -99,6 +99,27 @@ export default function Obras() {
     },
   });
 
+  // Fetch budgets linked to obras for sequential numbering
+  const { data: allBudgets = [] } = useQuery({
+    queryKey: ["budgets_for_obras"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("budgets").select("id, obra_id, created_at").order("created_at", { ascending: true });
+      if (error) throw error;
+      return data as { id: string; obra_id: string; created_at: string }[];
+    },
+  });
+
+  // Build a map: obra_id -> "ORC-001" (sequential number based on budget creation order)
+  const budgetNumberMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    allBudgets.forEach((b, idx) => {
+      if (b.obra_id && !map[b.obra_id]) {
+        map[b.obra_id] = `ORC-${String(idx + 1).padStart(3, "0")}`;
+      }
+    });
+    return map;
+  }, [allBudgets]);
+
   const tableFields = useMemo(() => [
     { name: "name", label: "Nome" },
     { name: "client_id", label: "Cliente" },
@@ -241,7 +262,7 @@ export default function Obras() {
       ["Início", editing.start_date ? new Date(editing.start_date + "T00:00:00").toLocaleDateString("pt-BR") : "—"],
       ["Fim previsto", editing.expected_end_date ? new Date(editing.expected_end_date + "T00:00:00").toLocaleDateString("pt-BR") : "—"],
       ["Endereço", [editing.address, editing.address_number, editing.neighborhood, editing.city, editing.state].filter(Boolean).join(", ") || "—"],
-      ["CEP", editing.cep || "—"], ["Orçamento", editing.total_budget ? `R$ ${Number(editing.total_budget).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "—"],
+      ["CEP", editing.cep || "—"], ["Orçamento", budgetNumberMap[editing.id] || "—"],
       ["Controla estoque", editing.stock_control ? "Sim" : "Não"],
     ];
     fields.forEach(([label, val]) => { doc.text(`${label}: ${val}`, 14, y); y += 5; if (y > 280) { doc.addPage(); y = 15; } });
@@ -504,7 +525,7 @@ export default function Obras() {
                               const d = item[f.name === "expected_end_date" ? "expected_end_date" : "start_date"];
                               content = d ? new Date(d + "T00:00:00").toLocaleDateString("pt-BR") : "";
                             }
-                            else if (f.name === "total_budget") content = item.total_budget ? `${String(item.total_budget).padStart(6, "0")}` : "";
+                            else if (f.name === "total_budget") content = budgetNumberMap[item.id] || "—";
                             else if (f.name === "medido") {
                               const pct = 0; // placeholder - no measured field yet
                               content = (
