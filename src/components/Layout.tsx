@@ -117,7 +117,7 @@ export default function Layout() {
           {userMenuOpen && (
             <div className="absolute top-full left-0 mt-1 w-52 bg-popover border border-border rounded-lg shadow-lg py-1 z-50">
               <button
-                onClick={() => { setUserMenuOpen(false); navigate("/profile", { state: { tab: "company" } }); }}
+                onClick={() => { setUserMenuOpen(false); navigate("/companies"); }}
                 className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-popover-foreground hover:bg-accent transition-colors"
               >
                 <Building2 className="h-4 w-4" />
