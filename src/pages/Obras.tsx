@@ -9,7 +9,7 @@ import {
 import { exportCSV, exportExcel, exportPDF, fetchCompanyInfo } from "@/utils/exportWithHeader";
 import ExportDialog from "@/components/ExportDialog";
 import { fetchCep } from "@/utils/cep";
-import Attachments from "@/components/Attachments";
+import ObraFolders from "@/components/ObraFolders";
 import ObraContacts from "@/components/ObraContacts";
 import ObraDailyEntries from "@/components/ObraDailyEntries";
 import ObraServiceMessages from "@/components/ObraServiceMessages";
@@ -725,7 +725,7 @@ export default function Obras() {
               {activeTab === "diadia" && editing && <ObraDailyEntries obraId={editing.id} />}
 
               {/* ─── PASTA DA OBRA ─── */}
-              {activeTab === "pasta" && editing && <div className="p-5"><Attachments entityType="obras" entityId={editing.id} /></div>}
+              {activeTab === "pasta" && editing && <ObraFolders obraId={editing.id} />}
 
               {/* ─── ATENDIMENTO ─── */}
               {activeTab === "atendimento" && editing && <ObraServiceMessages obraId={editing.id} />}
