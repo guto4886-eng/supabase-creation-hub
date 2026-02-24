@@ -935,6 +935,53 @@ export type Database = {
           },
         ]
       }
+      purchase_request_items: {
+        Row: {
+          complement: string | null
+          created_at: string
+          id: string
+          item: string
+          item_type: string
+          phase: string | null
+          quantity: number
+          request_id: string
+          service: string | null
+          unit: string
+        }
+        Insert: {
+          complement?: string | null
+          created_at?: string
+          id?: string
+          item: string
+          item_type?: string
+          phase?: string | null
+          quantity?: number
+          request_id: string
+          service?: string | null
+          unit?: string
+        }
+        Update: {
+          complement?: string | null
+          created_at?: string
+          id?: string
+          item?: string
+          item_type?: string
+          phase?: string | null
+          quantity?: number
+          request_id?: string
+          service?: string | null
+          unit?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_request_items_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       purchase_requests: {
         Row: {
           created_at: string
