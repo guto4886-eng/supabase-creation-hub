@@ -82,11 +82,11 @@ export default function Layout() {
 
       {/* Main */}
       <main className="flex-1 min-w-0">
-        <header className="sticky top-0 z-30 bg-background/80 backdrop-blur border-b border-border px-4 py-3 flex items-center gap-4 lg:px-6">
-          <button onClick={() => setSidebarOpen(true)} className="lg:hidden text-foreground">
+        <header className="sticky top-0 z-30 bg-primary backdrop-blur border-b border-primary px-4 py-3 flex items-center gap-4 lg:px-6">
+          <button onClick={() => setSidebarOpen(true)} className="lg:hidden text-primary-foreground">
             <Menu className="h-5 w-5" />
           </button>
-          <h1 className="text-lg font-semibold text-foreground flex-1">
+          <h1 className="text-lg font-semibold text-primary-foreground flex-1">
             {navItems.find((n) => n.to === location.pathname)?.label ?? "Toca a Obra"}
           </h1>
           <NotificationBell />
