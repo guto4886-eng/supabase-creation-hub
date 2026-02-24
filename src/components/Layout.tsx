@@ -1,12 +1,14 @@
-import { useState } from "react";
-import { Link, useLocation, Outlet } from "react-router-dom";
+import { useState, useRef, useEffect } from "react";
+import { Link, useLocation, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import NotificationBell from "@/components/NotificationBell";
 import HelpButton from "@/components/HelpButton";
 import {
   LayoutDashboard, Users, Truck, Building2, FileText,
   DollarSign, ShoppingCart, LogOut, Menu, X, Crown, UserCircle,
-  PackageCheck, ChevronDown, ClipboardList, FileSearch, FileBox
+  PackageCheck, ChevronDown, ClipboardList, FileSearch, FileBox, Settings, User
 } from "lucide-react";
 
 type NavItem = {
@@ -41,8 +43,36 @@ const HEADER_HEIGHT = 49;
 export default function Layout() {
   const { user, signOut } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+
+  const { data: profile } = useQuery({
+    queryKey: ["profile-header", user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      const { data } = await supabase
+        .from("profiles")
+        .select("full_name, avatar_url")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!user?.id,
+  });
+
+  // Close user menu on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setUserMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   const isActive = (path: string) => location.pathname === path;
   const isGroupActive = (item: NavItem) =>
@@ -52,23 +82,13 @@ export default function Layout() {
     setExpandedGroups(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
-  // Auto-expand active group
   const getExpanded = (item: NavItem) => {
     if (expandedGroups[item.to] !== undefined) return expandedGroups[item.to];
     return isGroupActive(item);
   };
 
-  // Find current page label for header
-  const currentLabel = (() => {
-    for (const item of navItems) {
-      if (item.to === location.pathname) return item.label;
-      if (item.children) {
-        const child = item.children.find(c => c.to === location.pathname);
-        if (child) return child.label;
-      }
-    }
-    return "Toca a Obra";
-  })();
+  const displayName = profile?.full_name || user?.email?.split("@")[0] || "";
+  const avatarUrl = profile?.avatar_url;
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -76,11 +96,58 @@ export default function Layout() {
         <button onClick={() => setSidebarOpen(true)} className="lg:hidden text-primary-foreground">
           <Menu className="h-5 w-5" />
         </button>
-        <div className="flex items-center gap-3 lg:w-64">
-          <Building2 className="h-6 w-6 text-primary-foreground" />
-          <span className="text-lg font-bold text-primary-foreground hidden lg:inline">Toca a Obra</span>
+
+        {/* Left: User indicator */}
+        <div className="relative flex items-center" ref={userMenuRef}>
+          <button
+            onClick={() => setUserMenuOpen(!userMenuOpen)}
+            className="flex items-center gap-2 text-primary-foreground hover:opacity-80 transition-opacity"
+          >
+            {avatarUrl ? (
+              <img src={avatarUrl} alt="Avatar" className="h-7 w-7 rounded-full object-cover border border-primary-foreground/30" />
+            ) : (
+              <div className="h-7 w-7 rounded-full bg-primary-foreground/20 flex items-center justify-center text-primary-foreground text-xs font-bold">
+                {displayName?.[0]?.toUpperCase() || "?"}
+              </div>
+            )}
+            <span className="text-sm font-medium hidden sm:inline max-w-[120px] truncate">{displayName}</span>
+            <ChevronDown className="h-3.5 w-3.5" />
+          </button>
+
+          {userMenuOpen && (
+            <div className="absolute top-full left-0 mt-1 w-52 bg-popover border border-border rounded-lg shadow-lg py-1 z-50">
+              <button
+                onClick={() => { setUserMenuOpen(false); navigate("/profile", { state: { tab: "company" } }); }}
+                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-popover-foreground hover:bg-accent transition-colors"
+              >
+                <Building2 className="h-4 w-4" />
+                Dados da Empresa
+              </button>
+              <button
+                onClick={() => { setUserMenuOpen(false); navigate("/profile"); }}
+                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-popover-foreground hover:bg-accent transition-colors"
+              >
+                <User className="h-4 w-4" />
+                Dados do Usuário
+              </button>
+              <div className="border-t border-border my-1" />
+              <button
+                onClick={() => { setUserMenuOpen(false); signOut(); }}
+                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-destructive hover:bg-accent transition-colors"
+              >
+                <LogOut className="h-4 w-4" />
+                Sair
+              </button>
+            </div>
+          )}
         </div>
-        <h1 className="text-lg font-semibold text-primary-foreground flex-1">{currentLabel}</h1>
+
+        {/* Center: App name */}
+        <div className="flex-1 flex items-center justify-center">
+          <span className="text-lg font-bold text-primary-foreground">Toca a Obra</span>
+        </div>
+
+        {/* Right: Notifications */}
         <NotificationBell />
       </header>
 
