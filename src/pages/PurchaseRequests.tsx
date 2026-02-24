@@ -1,4 +1,5 @@
 import { useState } from "react";
+import Attachments from "@/components/Attachments";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -600,10 +601,14 @@ export default function PurchaseRequests() {
                     )}
                   </fieldset>
                 </div>
+              ) : editing ? (
+                <div className="p-6">
+                  <Attachments entityType="purchase_request" entityId={editing.id} />
+                </div>
               ) : (
                 <div className="p-6 flex flex-col items-center justify-center h-full">
                   <Paperclip className="h-12 w-12 text-muted-foreground mb-4" />
-                  <p className="text-sm text-muted-foreground">Anexos estarão disponíveis após salvar a solicitação.</p>
+                  <p className="text-sm text-muted-foreground">Salve a solicitação primeiro para anexar arquivos.</p>
                 </div>
               )}
             </div>
