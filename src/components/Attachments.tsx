@@ -1,9 +1,9 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import { Paperclip, Trash2, Download, FileText, Image, File } from "lucide-react";
+import { Paperclip, Trash2, Download, FileText, Image, File, UploadCloud } from "lucide-react";
 
 interface Props {
   entityType: string;
@@ -38,6 +38,7 @@ export default function Attachments({ entityType, entityId }: Props) {
   const qc = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [dragging, setDragging] = useState(false);
 
   const queryKey = ["attachments", entityType, entityId];
 
@@ -77,10 +78,8 @@ export default function Attachments({ entityType, entityId }: Props) {
     onError: (e: any) => toast.error(e.message),
   });
 
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || !user) return;
-
+  const uploadFiles = useCallback(async (files: FileList | File[]) => {
+    if (!user) return;
     setUploading(true);
     try {
       for (const file of Array.from(files)) {
@@ -113,7 +112,27 @@ export default function Attachments({ entityType, entityId }: Props) {
       setUploading(false);
       if (fileRef.current) fileRef.current.value = "";
     }
+  }, [user, entityType, entityId, qc, queryKey]);
+
+  const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) uploadFiles(e.target.files);
   };
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setDragging(false);
+    if (e.dataTransfer.files.length > 0) uploadFiles(e.dataTransfer.files);
+  }, [uploadFiles]);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setDragging(false);
+  }, []);
 
   const handleDownload = async (attachment: Attachment) => {
     const { data, error } = await supabase.storage
@@ -132,60 +151,87 @@ export default function Attachments({ entityType, entityId }: Props) {
   };
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h4 className="text-sm font-semibold text-card-foreground flex items-center gap-2">
-          <Paperclip className="h-4 w-4" />
-          Anexos ({attachments.length})
-        </h4>
-        <label className="cursor-pointer px-3 py-1.5 bg-primary text-primary-foreground rounded-lg text-xs font-medium hover:opacity-90 transition-opacity">
-          {uploading ? "Enviando..." : "Adicionar"}
-          <input
-            ref={fileRef}
-            type="file"
-            multiple
-            onChange={handleUpload}
-            disabled={uploading}
-            className="hidden"
-          />
-        </label>
+    <div className="space-y-4">
+      {/* Drop zone */}
+      <div
+        onDrop={handleDrop}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onClick={() => fileRef.current?.click()}
+        className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
+          dragging
+            ? "border-primary bg-primary/5"
+            : "border-border hover:border-primary/50 hover:bg-muted/30"
+        }`}
+      >
+        <input
+          ref={fileRef}
+          type="file"
+          multiple
+          onChange={handleUpload}
+          disabled={uploading}
+          className="hidden"
+        />
+        <UploadCloud className={`h-10 w-10 mx-auto mb-3 ${dragging ? "text-primary" : "text-muted-foreground"}`} />
+        {uploading ? (
+          <p className="text-sm text-primary font-medium">Enviando...</p>
+        ) : (
+          <>
+            <p className="text-sm text-foreground font-medium">
+              Clique para selecionar ou arraste arquivos aqui
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">Qualquer tipo de arquivo</p>
+          </>
+        )}
       </div>
 
+      {/* Attachments list */}
       {isLoading ? (
         <div className="flex justify-center py-4">
           <div className="animate-spin h-5 w-5 border-2 border-primary border-t-transparent rounded-full" />
         </div>
       ) : attachments.length === 0 ? (
-        <p className="text-xs text-muted-foreground text-center py-3">Nenhum anexo</p>
+        <p className="text-xs text-muted-foreground text-center py-2">Nenhum anexo</p>
       ) : (
-        <div className="space-y-1.5">
-          {attachments.map((a) => (
-            <div
-              key={a.id}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-background text-sm"
-            >
-              <FileIcon contentType={a.content_type} />
-              <span className="flex-1 truncate text-foreground">{a.file_name}</span>
-              <span className="text-xs text-muted-foreground whitespace-nowrap">
-                {formatFileSize(a.file_size)}
-              </span>
-              <button
-                onClick={() => handleDownload(a)}
-                className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground"
-                title="Baixar"
-              >
-                <Download className="h-3.5 w-3.5" />
-              </button>
-              <button
-                onClick={() => { if (confirm("Remover anexo?")) deleteMutation.mutate(a); }}
-                className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
-                title="Remover"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          ))}
-        </div>
+        <fieldset className="border border-border rounded-lg p-0 overflow-hidden">
+          <legend className="text-sm font-semibold text-muted-foreground px-2 ml-3">Anexos ({attachments.length})</legend>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-muted/60">
+                <th className="text-left px-3 py-2 font-medium text-muted-foreground">Arquivo</th>
+                <th className="text-left px-3 py-2 font-medium text-muted-foreground">Tamanho</th>
+                <th className="text-left px-3 py-2 font-medium text-muted-foreground">Data</th>
+                <th className="text-center px-3 py-2 font-medium text-muted-foreground">Ações</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {attachments.map((a) => (
+                <tr key={a.id} className="hover:bg-muted/30 transition-colors">
+                  <td className="px-3 py-2 text-foreground">
+                    <div className="flex items-center gap-2">
+                      <FileIcon contentType={a.content_type} />
+                      <span className="truncate">{a.file_name}</span>
+                    </div>
+                  </td>
+                  <td className="px-3 py-2 text-muted-foreground whitespace-nowrap">{formatFileSize(a.file_size)}</td>
+                  <td className="px-3 py-2 text-muted-foreground whitespace-nowrap">
+                    {new Date(a.created_at).toLocaleDateString("pt-BR")}
+                  </td>
+                  <td className="px-3 py-2">
+                    <div className="flex items-center justify-center gap-1">
+                      <button onClick={() => handleDownload(a)} className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground" title="Baixar">
+                        <Download className="h-3.5 w-3.5" />
+                      </button>
+                      <button onClick={() => { if (confirm("Remover anexo?")) deleteMutation.mutate(a); }} className="p-1 rounded hover:bg-destructive/10 text-destructive" title="Remover">
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </fieldset>
       )}
     </div>
   );
