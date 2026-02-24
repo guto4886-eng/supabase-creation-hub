@@ -354,22 +354,20 @@ export default function Clients() {
           </div>
         </div>
 
-        {/* Toggle filter panel button - thin line with protruding tab */}
-        <div className="flex-shrink-0 relative flex flex-col items-center z-10">
-          {/* Top thin line */}
-          <div className={`w-1.5 flex-1 ${filtersOpen ? "bg-primary" : "bg-amber-700"}`} />
-          {/* Protruding tab with text */}
+        {/* Toggle filter panel button - thin line on left with protruding tab */}
+        <div className="flex-shrink-0 relative z-10" style={{ width: "28px" }}>
+          {/* Continuous thin line on the left edge */}
+          <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${filtersOpen ? "bg-primary" : "bg-amber-700"}`} />
+          {/* Protruding tab with text - aligned to left edge */}
           <button
             onClick={() => setFiltersOpen(!filtersOpen)}
-            className={`w-7 py-4 flex items-center justify-center cursor-pointer hover:opacity-90 transition-all rounded-r-md ${filtersOpen ? "bg-primary" : "bg-amber-700"}`}
+            className={`absolute left-0 top-1/2 -translate-y-1/2 w-7 py-4 flex items-center justify-center cursor-pointer hover:opacity-90 transition-all rounded-r-md ${filtersOpen ? "bg-primary" : "bg-amber-700"}`}
             title={filtersOpen ? "Fechar filtros" : "Filtros de pesquisa"}
           >
             <span className="text-white text-[10px] font-bold uppercase tracking-wider whitespace-nowrap flex items-center gap-1" style={{ writingMode: "vertical-lr" }}>
               FILTROS DE PESQUISA {filtersOpen ? "‹" : "›"}
             </span>
           </button>
-          {/* Bottom thin line */}
-          <div className={`w-1.5 flex-1 ${filtersOpen ? "bg-primary" : "bg-amber-700"}`} />
         </div>
       </div>
 
