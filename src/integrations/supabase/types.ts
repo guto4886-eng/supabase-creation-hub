@@ -932,8 +932,11 @@ export type Database = {
           delivery_state: string | null
           description: string | null
           id: string
+          needed_by: string | null
           notes: string | null
           obra_id: string | null
+          response_deadline: string | null
+          sending_notes: string | null
           status: string | null
           supplier_id: string | null
           title: string
@@ -953,8 +956,11 @@ export type Database = {
           delivery_state?: string | null
           description?: string | null
           id?: string
+          needed_by?: string | null
           notes?: string | null
           obra_id?: string | null
+          response_deadline?: string | null
+          sending_notes?: string | null
           status?: string | null
           supplier_id?: string | null
           title: string
@@ -974,8 +980,11 @@ export type Database = {
           delivery_state?: string | null
           description?: string | null
           id?: string
+          needed_by?: string | null
           notes?: string | null
           obra_id?: string | null
+          response_deadline?: string | null
+          sending_notes?: string | null
           status?: string | null
           supplier_id?: string | null
           title?: string

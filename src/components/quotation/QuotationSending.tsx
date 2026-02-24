@@ -3,11 +3,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Send, CheckCircle2 } from "lucide-react";
 
+const inputClass = "w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm";
+
 interface Props {
   quotationId: string | null;
+  form: Record<string, any>;
+  setForm: (fn: (prev: Record<string, any>) => Record<string, any>) => void;
 }
 
-export default function QuotationSending({ quotationId }: Props) {
+export default function QuotationSending({ quotationId, form, setForm }: Props) {
   const qc = useQueryClient();
 
   const { data: linked = [], isLoading } = useQuery({
@@ -41,20 +45,37 @@ export default function QuotationSending({ quotationId }: Props) {
     onError: (e: any) => toast.error(e.message),
   });
 
-  if (!quotationId) {
-    return (
-      <div className="p-6 text-center text-muted-foreground">
-        <p className="text-sm">Salve a cotação primeiro para gerenciar envios.</p>
-      </div>
-    );
-  }
-
   return (
     <div className="p-6 space-y-5">
       <h4 className="text-sm font-semibold text-primary">Envio da Cotação</h4>
+
+      {/* Dates and notes */}
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-foreground mb-1">Data de necessidade de entrega</label>
+          <input type="date" value={form.needed_by || ""} onChange={e => setForm(p => ({ ...p, needed_by: e.target.value }))} className={inputClass} />
+          <p className="text-xs text-muted-foreground mt-1">Quando os produtos precisam ser entregues</p>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-foreground mb-1">Data limite para resposta</label>
+          <input type="date" value={form.response_deadline || ""} onChange={e => setForm(p => ({ ...p, response_deadline: e.target.value }))} className={inputClass} />
+          <p className="text-xs text-muted-foreground mt-1">Prazo para o fornecedor responder a cotação</p>
+        </div>
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-foreground mb-1">Observações do envio</label>
+        <textarea value={form.sending_notes || ""} onChange={e => setForm(p => ({ ...p, sending_notes: e.target.value }))} rows={3} className={inputClass}
+          placeholder="Instruções adicionais para os fornecedores, condições de pagamento, etc." />
+      </div>
+
+      <hr className="border-border" />
+
+      {/* Suppliers sending */}
       <p className="text-sm text-muted-foreground">Controle o envio da cotação para cada fornecedor vinculado.</p>
 
-      {isLoading ? (
+      {!quotationId ? (
+        <p className="text-sm text-muted-foreground py-4">Salve a cotação primeiro para gerenciar envios.</p>
+      ) : isLoading ? (
         <div className="flex justify-center py-6"><div className="animate-spin h-6 w-6 border-4 border-primary border-t-transparent rounded-full" /></div>
       ) : linked.length === 0 ? (
         <p className="text-sm text-muted-foreground py-4">Nenhum fornecedor vinculado. Adicione fornecedores na aba "Fornecedores".</p>
