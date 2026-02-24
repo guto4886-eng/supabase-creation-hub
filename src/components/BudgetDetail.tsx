@@ -499,23 +499,27 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                     <span className="text-xs font-semibold text-muted-foreground">Fase da obra</span>
                     <span className="text-xs font-semibold text-muted-foreground">Total (R$)</span>
                   </div>
-                  <div className="flex-1 overflow-y-auto divide-y divide-border">
-                    {allCategories.map((cat) => {
-                      const deepTotal = getDeepTotal(cat);
-                      const isActive = activePhase === cat;
-                      return (
-                        <button
-                          key={cat}
-                          onClick={() => setSelectedPhase(cat)}
-                          className={`w-full text-left px-3 py-2.5 text-xs flex justify-between items-start gap-2 transition-colors ${
-                            isActive ? "bg-primary/10 text-primary font-bold" : "text-foreground hover:bg-muted/50"
-                          }`}
-                        >
-                          <span className="leading-snug min-w-0">{cat}</span>
-                          <span className="flex-shrink-0 font-medium tabular-nums text-right">{deepTotal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
-                        </button>
-                      );
-                    })}
+                  <div className="flex-1 overflow-y-auto">
+                    <table className="w-full text-xs">
+                      <tbody>
+                        {allCategories.map((cat, idx) => {
+                          const catTotal = items.filter((i) => (i.category || "Geral") === cat).reduce((s, i) => s + (i.total_price || 0), 0);
+                          const isActive = activePhase === cat;
+                          return (
+                            <tr
+                              key={cat}
+                              onClick={() => setSelectedPhase(cat)}
+                              className={`cursor-pointer border-b border-border transition-colors ${
+                                isActive ? "bg-primary/10 font-bold text-primary" : idx % 2 === 0 ? "bg-background hover:bg-muted/50" : "bg-muted/20 hover:bg-muted/50"
+                              }`}
+                            >
+                              <td className="px-3 py-2.5 text-left leading-snug">{cat}</td>
+                              <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap font-medium">{catTotal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                   <div className="bg-muted/50 px-3 py-2.5 border-t border-border">
                     <div className="flex justify-between text-xs font-bold text-foreground">
