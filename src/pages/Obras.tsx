@@ -16,10 +16,19 @@ const ESTADOS = [
 ];
 
 const STATUS_OPTIONS = [
-  { value: "planejamento", label: "Planejamento" },
+  { value: "cancelada", label: "Cancelada" },
   { value: "em_andamento", label: "Em andamento" },
-  { value: "pausada", label: "Pausada" },
-  { value: "concluida", label: "Concluída" },
+  { value: "concluida", label: "Finalizada" },
+  { value: "nao_iniciada", label: "Não iniciada" },
+  { value: "pausada", label: "Paralisada" },
+];
+
+const CATEGORIA_OBRAS = [
+  { value: "residencial", label: "Residencial" },
+  { value: "comercial", label: "Comercial" },
+  { value: "industrial", label: "Industrial" },
+  { value: "reforma", label: "Reforma" },
+  { value: "infraestrutura", label: "Infraestrutura" },
 ];
 
 const PAGE_SIZE = 15;
@@ -32,10 +41,14 @@ export default function Obras() {
   const [filtersOpen, setFiltersOpen] = useState(true);
   const [filterName, setFilterName] = useState("");
   const [filterClient, setFilterClient] = useState("");
-  const [filterStatus, setFilterStatus] = useState("");
+  const [filterStatuses, setFilterStatuses] = useState<string[]>([]);
+  const [filterCategory, setFilterCategory] = useState("");
   const [filterState, setFilterState] = useState("");
   const [filterCity, setFilterCity] = useState("");
+  const [filterNeighborhood, setFilterNeighborhood] = useState("");
+  const [filterAddress, setFilterAddress] = useState("");
   const [filterCondition, setFilterCondition] = useState<"ativo" | "inativo" | "ambos">("ativo");
+  const [filterStock, setFilterStock] = useState<"sim" | "nao" | "ambos">("ambos");
   const [searched, setSearched] = useState(false);
 
   // Pagination
@@ -89,9 +102,12 @@ export default function Obras() {
     ? items.filter((item) => {
         if (filterName && !item.name?.toLowerCase().includes(filterName.toLowerCase())) return false;
         if (filterClient && item.client_id !== filterClient) return false;
-        if (filterStatus && item.status !== filterStatus) return false;
+        if (filterStatuses.length > 0 && !filterStatuses.includes(item.status)) return false;
+        if (filterCategory && item.category !== filterCategory) return false;
         if (filterState && item.state !== filterState) return false;
         if (filterCity && !item.city?.toLowerCase().includes(filterCity.toLowerCase())) return false;
+        if (filterNeighborhood && !item.neighborhood?.toLowerCase().includes(filterNeighborhood.toLowerCase())) return false;
+        if (filterAddress && !item.address?.toLowerCase().includes(filterAddress.toLowerCase())) return false;
         if (filterCondition === "ativo" && !item.active) return false;
         if (filterCondition === "inativo" && item.active) return false;
         return true;
@@ -197,10 +213,14 @@ export default function Obras() {
   const handleClearFilters = () => {
     setFilterName("");
     setFilterClient("");
-    setFilterStatus("");
+    setFilterStatuses([]);
+    setFilterCategory("");
     setFilterState("");
     setFilterCity("");
+    setFilterNeighborhood("");
+    setFilterAddress("");
     setFilterCondition("ativo");
+    setFilterStock("ambos");
     setSearched(false);
     setPage(0);
   };
@@ -251,9 +271,9 @@ export default function Obras() {
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {/* Nome */}
+              {/* Nome (obra) */}
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Nome</label>
+                <label className="block text-sm font-medium text-foreground mb-1">Nome (obra)</label>
                 <input type="text" value={filterName} onChange={(e) => setFilterName(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
               </div>
 
@@ -266,12 +286,33 @@ export default function Obras() {
                 </select>
               </div>
 
-              {/* Status */}
+              {/* Situação - checkboxes */}
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Status</label>
-                <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm">
+                <label className="block text-sm font-medium text-foreground mb-1.5">Situação</label>
+                <div className="space-y-1.5">
+                  {STATUS_OPTIONS.map((o) => (
+                    <label key={o.value} className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={filterStatuses.includes(o.value)}
+                        onChange={(e) => {
+                          if (e.target.checked) setFilterStatuses((p) => [...p, o.value]);
+                          else setFilterStatuses((p) => p.filter((v) => v !== o.value));
+                        }}
+                        className="h-4 w-4 rounded border-input accent-primary"
+                      />
+                      {o.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Categoria */}
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Categoria</label>
+                <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm">
                   <option value="">Selecione...</option>
-                  {STATUS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  {CATEGORIA_OBRAS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               </div>
 
@@ -290,6 +331,18 @@ export default function Obras() {
                 <input type="text" value={filterCity} onChange={(e) => setFilterCity(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
               </div>
 
+              {/* Bairro */}
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Bairro</label>
+                <input type="text" value={filterNeighborhood} onChange={(e) => setFilterNeighborhood(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
+              </div>
+
+              {/* Logradouro */}
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Logradouro</label>
+                <input type="text" value={filterAddress} onChange={(e) => setFilterAddress(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
+              </div>
+
               {/* Condição */}
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1.5">Condição</label>
@@ -297,6 +350,19 @@ export default function Obras() {
                   {([["ativo", "Ativo"], ["inativo", "Inativo"], ["ambos", "Ambos"]] as const).map(([val, label]) => (
                     <label key={val} className="flex items-center gap-1.5 text-sm text-foreground cursor-pointer">
                       <input type="radio" name="filterConditionObras" checked={filterCondition === val} onChange={() => setFilterCondition(val)} className="accent-primary" />
+                      {label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Controla estoque */}
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1.5">Controla estoque</label>
+                <div className="flex gap-4">
+                  {([["sim", "Sim"], ["nao", "Não"], ["ambos", "Ambos"]] as const).map(([val, label]) => (
+                    <label key={val} className="flex items-center gap-1.5 text-sm text-foreground cursor-pointer">
+                      <input type="radio" name="filterStockObras" checked={filterStock === val} onChange={() => setFilterStock(val)} className="accent-primary" />
                       {label}
                     </label>
                   ))}
