@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -70,6 +70,30 @@ export default function Clients() {
   const [activeTab, setActiveTab] = useState("dados");
   const [cepLoading, setCepLoading] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+
+  // Resizable columns
+  const defaultWidths: Record<string, number> = { name: 180, category: 120, document: 140, email: 180, phone: 120, city: 120, state: 60 };
+  const [colWidths, setColWidths] = useState<Record<string, number>>(defaultWidths);
+  const resizing = useRef<{ field: string; startX: number; startW: number } | null>(null);
+
+  const onResizeStart = useCallback((field: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    resizing.current = { field, startX: e.clientX, startW: colWidths[field] || 120 };
+
+    const onMove = (ev: MouseEvent) => {
+      if (!resizing.current) return;
+      const diff = ev.clientX - resizing.current.startX;
+      const newW = Math.max(60, resizing.current.startW + diff);
+      setColWidths((prev) => ({ ...prev, [resizing.current!.field]: newW }));
+    };
+    const onUp = () => {
+      resizing.current = null;
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }, [colWidths]);
 
   // Data
   const { data: items = [], isLoading } = useQuery({
@@ -363,14 +387,20 @@ export default function Clients() {
             ) : (
               <>
                 <div className="flex-1 overflow-auto border border-border rounded-xl">
-                  <table className="w-full text-sm table-fixed min-w-[900px]">
+                  <table className="text-sm" style={{ tableLayout: "fixed", minWidth: 900 }}>
                     <thead className="sticky top-0 z-10">
                       <tr className="bg-muted">
-                        <th className="w-20 px-4 py-3 font-medium text-muted-foreground">Ativo</th>
+                        <th className="px-4 py-3 font-medium text-muted-foreground" style={{ width: 80 }}>Ativo</th>
                         {fields.map((f) => (
-                          <th key={f.name} className="text-left px-4 py-3 font-medium text-muted-foreground" style={{ minWidth: f.name === "name" ? 180 : f.name === "email" ? 180 : 120 }}>{f.label}</th>
+                          <th key={f.name} className="text-left px-4 py-3 font-medium text-muted-foreground relative select-none" style={{ width: colWidths[f.name] || 120 }}>
+                            {f.label}
+                            <span
+                              onMouseDown={(e) => onResizeStart(f.name, e)}
+                              className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-primary/40 active:bg-primary/60"
+                            />
+                          </th>
                         ))}
-                        <th className="w-24 px-4 py-3" />
+                        <th className="px-4 py-3" style={{ width: 80 }} />
                       </tr>
                     </thead>
                     <tbody>
@@ -394,7 +424,7 @@ export default function Clients() {
                               const opt = CATEGORIAS.find((o) => o.value === item[f.name]);
                               display = opt ? opt.label : item[f.name];
                             }
-                            return <td key={f.name} className="px-4 py-3 text-foreground truncate" title={String(display)}>{String(display)}</td>;
+                            return <td key={f.name} className="px-4 py-3 text-foreground overflow-hidden text-ellipsis whitespace-nowrap" title={String(display)}>{String(display)}</td>;
                           })}
                           <td className="px-4 py-3">
                             <div className="flex gap-1">
