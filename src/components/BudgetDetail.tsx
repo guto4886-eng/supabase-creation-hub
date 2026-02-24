@@ -1043,6 +1043,19 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
               const nextNum = measurements.length > 0 ? Math.max(...measurements.map((m: any) => m.measurement_number)) + 1 : 1;
               const now = new Date();
               const period = `${String(now.getMonth() + 1).padStart(2, "0")}/${now.getFullYear()}`;
+
+              // Find the previous measurement to carry forward values
+              let previousItems: any[] = [];
+              if (measurements.length > 0) {
+                const sortedMeasurements = [...measurements].sort((a: any, b: any) => b.measurement_number - a.measurement_number);
+                const previousMeasurement = sortedMeasurements[0] as any;
+                const { data: prevItems } = await supabase
+                  .from("budget_measurement_items")
+                  .select("*")
+                  .eq("measurement_id", previousMeasurement.id);
+                previousItems = prevItems || [];
+              }
+
               const { data, error } = await supabase
                 .from("budget_measurements")
                 .insert({
@@ -1055,19 +1068,22 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                 .single();
               if (error) { toast.error(error.message); return; }
 
-              const itemsToInsert = serviceItemsMed.map((svc) => ({
-                measurement_id: (data as any).id,
-                budget_item_id: svc.id,
-                measured_quantity: 0,
-                measured_percentage: 0,
-              }));
+              const itemsToInsert = serviceItemsMed.map((svc) => {
+                const prevItem = previousItems.find((pi: any) => pi.budget_item_id === svc.id);
+                return {
+                  measurement_id: (data as any).id,
+                  budget_item_id: svc.id,
+                  measured_quantity: prevItem?.measured_quantity || 0,
+                  measured_percentage: prevItem?.measured_percentage || 0,
+                };
+              });
               if (itemsToInsert.length > 0) {
                 await supabase.from("budget_measurement_items").insert(itemsToInsert as any);
               }
 
               qc.invalidateQueries({ queryKey: ["budget_measurements", budgetId] });
               setActiveMeasurement((data as any).id);
-              toast.success(`Medição #${nextNum} criada!`);
+              toast.success(`Medição #${nextNum} criada com valores da medição anterior!`);
             };
 
             const updateMeasuredField = async (itemId: string, budgetItemId: string, field: "pct" | "value", val: number) => {
