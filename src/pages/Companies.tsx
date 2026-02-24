@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { maskCpfCnpj, validateCpfCnpj } from "@/utils/cpfCnpj";
 import { fetchCep } from "@/utils/cep";
+import { fetchCnpj } from "@/utils/cnpjLookup";
 import Attachments from "@/components/Attachments";
 
 const ESTADOS = [
@@ -64,6 +65,7 @@ export default function Companies() {
   const [form, setForm] = useState<Record<string, any>>({});
   const [activeTab, setActiveTab] = useState("dados");
   const [cepLoading, setCepLoading] = useState(false);
+  const [cnpjLoading, setCnpjLoading] = useState(false);
 
   // Resizable columns
   const defaultWidths: Record<string, number> = { name: 200, company_type: 100, document: 160, city: 140, state: 60 };
@@ -206,6 +208,33 @@ export default function Companies() {
       toast.success("Endereço preenchido!");
     } else if (value.replace(/\D/g, "").length === 8) {
       toast.error("CEP não encontrado");
+    }
+  };
+
+  const handleCnpjBlur = async (value: string) => {
+    const clean = value.replace(/\D/g, "");
+    if (clean.length !== 14) return;
+    setCnpjLoading(true);
+    const data = await fetchCnpj(value);
+    setCnpjLoading(false);
+    if (data) {
+      setForm((p: any) => ({
+        ...p,
+        name: data.razao_social || p.name,
+        trade_name: data.nome_fantasia || p.trade_name,
+        address: data.logradouro || p.address,
+        address_number: data.numero || p.address_number,
+        complement: data.complemento || p.complement,
+        neighborhood: data.bairro || p.neighborhood,
+        city: data.municipio || p.city,
+        state: data.uf || p.state,
+        cep: data.cep || p.cep,
+        phone: data.telefone || p.phone,
+        email: data.email || p.email,
+      }));
+      toast.success("Dados do CNPJ preenchidos!");
+    } else {
+      toast.error("CNPJ não encontrado");
     }
   };
 
@@ -368,8 +397,10 @@ export default function Companies() {
           setActiveTab={setActiveTab}
           matrices={matrices}
           cepLoading={cepLoading}
+          cnpjLoading={cnpjLoading}
           handleSubmit={handleSubmit}
           handleCepBlur={handleCepBlur}
+          handleCnpjBlur={handleCnpjBlur}
           closeForm={closeForm}
           saveMutation={saveMutation}
           inputClass={inputClass}
@@ -570,8 +601,8 @@ function MatrizFiliaisContent({
 
 /* ───── Company Form Modal ───── */
 function CompanyFormModal({
-  editing, form, setForm, activeTab, setActiveTab, matrices, cepLoading,
-  handleSubmit, handleCepBlur, closeForm, saveMutation, inputClass,
+  editing, form, setForm, activeTab, setActiveTab, matrices, cepLoading, cnpjLoading,
+  handleSubmit, handleCepBlur, handleCnpjBlur, closeForm, saveMutation, inputClass,
 }: any) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={closeForm}>
@@ -639,7 +670,14 @@ function CompanyFormModal({
               <div className="grid grid-cols-2 gap-4">
                 <div className="flex items-center gap-3">
                   <label className="text-sm font-medium text-card-foreground whitespace-nowrap min-w-[120px] text-right">CNPJ</label>
-                  <input value={form.document ?? ""} onChange={(e: any) => setForm((p: any) => ({ ...p, document: maskCpfCnpj(e.target.value) }))} placeholder="00.000.000/0000-00" className={inputClass} />
+                  <div className="relative flex-1">
+                    <input value={form.document ?? ""} onChange={(e: any) => setForm((p: any) => ({ ...p, document: maskCpfCnpj(e.target.value) }))} onBlur={(e: any) => handleCnpjBlur(e.target.value)} placeholder="00.000.000/0000-00" className={inputClass} />
+                    {cnpjLoading && (
+                      <div className="absolute right-3 top-2.5">
+                        <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full" />
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <div className="flex items-center gap-3">
                   <label className="text-sm font-medium text-card-foreground whitespace-nowrap min-w-[40px] text-right">IE</label>
