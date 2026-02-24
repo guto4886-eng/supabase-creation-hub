@@ -417,15 +417,36 @@ export default function PurchaseQuotations() {
       const doc = await generatePDF();
       if (!doc) return;
       const blob = doc.output("blob");
-      const file = new File([blob], `cotacao_${(form.title || "doc").replace(/\s+/g, "_")}.pdf`, { type: "application/pdf" });
-      if (navigator.share && navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ title: "Cotação de Compra", text: `Cotação: ${form.title || ""}`, files: [file] });
-      } else {
-        const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = file.name; a.click(); URL.revokeObjectURL(a.href);
-        const text = encodeURIComponent(`Cotação de Compra: ${form.title || ""}\nObra: ${obras.find((o: any) => o.id === form.obra_id)?.name || ""}\n${form.needed_by ? "Entrega: " + new Date(form.needed_by + "T00:00:00").toLocaleDateString("pt-BR") : ""}\n${form.response_deadline ? "Resposta até: " + new Date(form.response_deadline + "T00:00:00").toLocaleDateString("pt-BR") : ""}`);
-        window.open(`https://wa.me/?text=${text}`, "_blank");
+      const fileName = `cotacao_${(form.title || "doc").replace(/\s+/g, "_")}.pdf`;
+
+      // Download PDF first
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+
+      // Build WhatsApp message
+      const obraName = obras.find((o: any) => o.id === form.obra_id)?.name || "";
+      const lines = [`*Cotação de Compra: ${form.title || ""}*`];
+      if (obraName) lines.push(`Obra: ${obraName}`);
+      if (form.needed_by) lines.push(`Entrega: ${new Date(form.needed_by + "T00:00:00").toLocaleDateString("pt-BR")}`);
+      if (form.response_deadline) lines.push(`Resposta até: ${new Date(form.response_deadline + "T00:00:00").toLocaleDateString("pt-BR")}`);
+      if (form.sending_notes) lines.push(`Obs: ${form.sending_notes}`);
+      lines.push("", "_PDF em anexo (baixado automaticamente)_");
+
+      const text = encodeURIComponent(lines.join("\n"));
+      const whatsappUrl = `https://wa.me/?text=${text}`;
+
+      // Use location.href as fallback if window.open is blocked
+      const win = window.open(whatsappUrl, "_blank");
+      if (!win) {
+        window.location.href = whatsappUrl;
       }
-      toast.success("Compartilhamento iniciado!");
+
+      toast.success("PDF baixado! Anexe-o na conversa do WhatsApp.");
     } catch (e: any) { if (e.name !== "AbortError") toast.error("Erro: " + e.message); }
   };
 
