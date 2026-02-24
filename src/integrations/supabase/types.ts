@@ -914,6 +914,232 @@ export type Database = {
           },
         ]
       }
+      supplier_bank_accounts: {
+        Row: {
+          account: string | null
+          account_type: string | null
+          agency: string | null
+          bank_name: string | null
+          created_at: string
+          holder_document: string | null
+          holder_name: string | null
+          id: string
+          notes: string | null
+          pix_key: string | null
+          pix_type: string | null
+          supplier_id: string
+          user_id: string
+        }
+        Insert: {
+          account?: string | null
+          account_type?: string | null
+          agency?: string | null
+          bank_name?: string | null
+          created_at?: string
+          holder_document?: string | null
+          holder_name?: string | null
+          id?: string
+          notes?: string | null
+          pix_key?: string | null
+          pix_type?: string | null
+          supplier_id: string
+          user_id: string
+        }
+        Update: {
+          account?: string | null
+          account_type?: string | null
+          agency?: string | null
+          bank_name?: string | null
+          created_at?: string
+          holder_document?: string | null
+          holder_name?: string | null
+          id?: string
+          notes?: string | null
+          pix_key?: string | null
+          pix_type?: string | null
+          supplier_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supplier_bank_accounts_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      supplier_categories: {
+        Row: {
+          category: string
+          created_at: string
+          id: string
+          supplier_id: string
+          user_id: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          id?: string
+          supplier_id: string
+          user_id: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          id?: string
+          supplier_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supplier_categories_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      supplier_certifications: {
+        Row: {
+          certificate_number: string | null
+          created_at: string
+          expiry_date: string | null
+          id: string
+          issue_date: string | null
+          issuer: string | null
+          name: string
+          notes: string | null
+          status: string | null
+          supplier_id: string
+          user_id: string
+        }
+        Insert: {
+          certificate_number?: string | null
+          created_at?: string
+          expiry_date?: string | null
+          id?: string
+          issue_date?: string | null
+          issuer?: string | null
+          name: string
+          notes?: string | null
+          status?: string | null
+          supplier_id: string
+          user_id: string
+        }
+        Update: {
+          certificate_number?: string | null
+          created_at?: string
+          expiry_date?: string | null
+          id?: string
+          issue_date?: string | null
+          issuer?: string | null
+          name?: string
+          notes?: string | null
+          status?: string | null
+          supplier_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supplier_certifications_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      supplier_contacts: {
+        Row: {
+          cellphone: string | null
+          created_at: string
+          email: string | null
+          id: string
+          name: string
+          notes: string | null
+          phone: string | null
+          role: string | null
+          supplier_id: string
+          user_id: string
+        }
+        Insert: {
+          cellphone?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          phone?: string | null
+          role?: string | null
+          supplier_id: string
+          user_id: string
+        }
+        Update: {
+          cellphone?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          phone?: string | null
+          role?: string | null
+          supplier_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supplier_contacts_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      supplier_quality_ratings: {
+        Row: {
+          created_at: string
+          criterion: string
+          evaluation_date: string | null
+          id: string
+          notes: string | null
+          rating: number
+          supplier_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          criterion: string
+          evaluation_date?: string | null
+          id?: string
+          notes?: string | null
+          rating?: number
+          supplier_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          criterion?: string
+          evaluation_date?: string | null
+          id?: string
+          notes?: string | null
+          rating?: number
+          supplier_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supplier_quality_ratings_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       suppliers: {
         Row: {
           active: boolean

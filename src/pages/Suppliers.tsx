@@ -12,6 +12,11 @@ import { maskCpfCnpj, validateCpfCnpj } from "@/utils/cpfCnpj";
 import { fetchCep } from "@/utils/cep";
 import { fetchCnpj } from "@/utils/cnpjLookup";
 import Attachments from "@/components/Attachments";
+import SupplierBankAccounts from "@/components/SupplierBankAccounts";
+import SupplierContacts from "@/components/SupplierContacts";
+import SupplierCategories from "@/components/SupplierCategories";
+import SupplierQuality from "@/components/SupplierQuality";
+import SupplierCertifications from "@/components/SupplierCertifications";
 import CsvImport from "@/components/CsvImport";
 
 const ESTADOS = [
@@ -580,23 +585,41 @@ export default function Suppliers() {
                 </form>
               )}
 
-              {activeTab === "bancarios" && (
-                <div className="p-6 text-center text-muted-foreground py-12">Em breve</div>
+              {activeTab === "bancarios" && editing && (
+                <SupplierBankAccounts supplierId={editing.id} />
               )}
-              {activeTab === "vendedores" && (
-                <div className="p-6 text-center text-muted-foreground py-12">Em breve</div>
+              {activeTab === "bancarios" && !editing && (
+                <div className="p-6 text-center text-muted-foreground py-12">Salve o fornecedor primeiro para adicionar dados bancários</div>
               )}
-              {activeTab === "categorias" && (
-                <div className="p-6 text-center text-muted-foreground py-12">Em breve</div>
+              {activeTab === "vendedores" && editing && (
+                <SupplierContacts supplierId={editing.id} />
               )}
-              {activeTab === "qualidade" && (
-                <div className="p-6 text-center text-muted-foreground py-12">Em breve</div>
+              {activeTab === "vendedores" && !editing && (
+                <div className="p-6 text-center text-muted-foreground py-12">Salve o fornecedor primeiro para adicionar vendedores</div>
+              )}
+              {activeTab === "categorias" && editing && (
+                <SupplierCategories supplierId={editing.id} />
+              )}
+              {activeTab === "categorias" && !editing && (
+                <div className="p-6 text-center text-muted-foreground py-12">Salve o fornecedor primeiro para adicionar categorias</div>
+              )}
+              {activeTab === "qualidade" && editing && (
+                <SupplierQuality supplierId={editing.id} />
+              )}
+              {activeTab === "qualidade" && !editing && (
+                <div className="p-6 text-center text-muted-foreground py-12">Salve o fornecedor primeiro para avaliar qualidade</div>
               )}
               {activeTab === "anexos" && editing && (
                 <div className="p-6"><Attachments entityType="suppliers" entityId={editing.id} /></div>
               )}
-              {activeTab === "certificacoes" && (
-                <div className="p-6 text-center text-muted-foreground py-12">Em breve</div>
+              {activeTab === "anexos" && !editing && (
+                <div className="p-6 text-center text-muted-foreground py-12">Salve o fornecedor primeiro para adicionar anexos</div>
+              )}
+              {activeTab === "certificacoes" && editing && (
+                <SupplierCertifications supplierId={editing.id} />
+              )}
+              {activeTab === "certificacoes" && !editing && (
+                <div className="p-6 text-center text-muted-foreground py-12">Salve o fornecedor primeiro para adicionar certificações</div>
               )}
             </div>
 
