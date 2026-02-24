@@ -354,14 +354,14 @@ export default function Clients() {
           </div>
         </div>
 
-        {/* Toggle filter panel button - positioned right after the panel */}
+        {/* Toggle filter panel button - full height bar */}
         <button
           onClick={() => setFiltersOpen(!filtersOpen)}
-          className="flex-shrink-0 self-center bg-primary text-primary-foreground py-6 px-1 rounded-r-lg shadow-md hover:opacity-90 transition-opacity z-10"
+          className="flex-shrink-0 w-6 bg-primary text-primary-foreground flex items-center justify-center hover:opacity-90 transition-opacity z-10 cursor-pointer"
           title={filtersOpen ? "Fechar filtros" : "Filtros de pesquisa"}
         >
-          <span className="text-xs font-medium" style={{ writingMode: "vertical-lr" }}>
-            {filtersOpen ? <PanelLeftClose className="h-4 w-4" /> : "FILTROS"}
+          <span className="text-xs font-bold uppercase tracking-widest whitespace-nowrap" style={{ writingMode: "vertical-lr" }}>
+            {filtersOpen ? "‹ Fechar" : "FILTROS DE PESQUISA"}
           </span>
         </button>
       </div>
