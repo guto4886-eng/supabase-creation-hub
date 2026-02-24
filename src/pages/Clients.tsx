@@ -396,7 +396,8 @@ export default function Clients() {
                             {f.label}
                             <span
                               onMouseDown={(e) => onResizeStart(f.name, e)}
-                              className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-primary/40 active:bg-primary/60"
+                              className="absolute right-0 top-1 bottom-1 w-1 rounded-full bg-muted-foreground/30 cursor-col-resize hover:bg-primary/60 active:bg-primary transition-colors"
+                              title="Arraste para redimensionar"
                             />
                           </th>
                         ))}
