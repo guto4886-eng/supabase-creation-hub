@@ -105,6 +105,7 @@ export type Database = {
       }
       budgets: {
         Row: {
+          budget_code: string | null
           company_id: string | null
           created_at: string
           description: string | null
@@ -117,6 +118,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          budget_code?: string | null
           company_id?: string | null
           created_at?: string
           description?: string | null
@@ -129,6 +131,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          budget_code?: string | null
           company_id?: string | null
           created_at?: string
           description?: string | null

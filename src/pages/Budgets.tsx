@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Plus, ChevronRight, ChevronDown, Pencil, Trash2, X, Download, Search, Eraser } from "lucide-react";
 import { exportToCSV } from "@/utils/exportCsv";
 import { useCompanies, CompanyFilterSelect } from "@/hooks/useCompanies";
+import BudgetDetail from "@/components/BudgetDetail";
 
 interface Budget {
   id: string;
@@ -15,6 +16,8 @@ interface Budget {
   description: string | null;
   obra_id: string;
   created_at: string;
+  budget_code: string | null;
+  company_id: string | null;
 }
 
 interface BudgetItem {
@@ -55,10 +58,9 @@ export default function Budgets() {
   const [wizardContent, setWizardContent] = useState<"blank" | "copy">("blank");
   const [wizardCopyFrom, setWizardCopyFrom] = useState("");
 
-  // Budget form
-  const [budgetFormOpen, setBudgetFormOpen] = useState(false);
-  const [editingBudget, setEditingBudget] = useState<Budget | null>(null);
-  const [budgetForm, setBudgetForm] = useState({ name: "", status: "rascunho", description: "", obra_id: "", company_id: "" });
+
+  // Detail modal
+  const [detailBudgetId, setDetailBudgetId] = useState<string | null>(null);
 
   // Item form
   const [editingItem, setEditingItem] = useState<BudgetItem | null>(null);
@@ -99,7 +101,7 @@ export default function Budgets() {
         if (filterName && !b.name.toLowerCase().includes(filterName.toLowerCase())) return false;
         if (filterStatus && b.status !== filterStatus) return false;
         if (filterObra && b.obra_id !== filterObra) return false;
-        if (filterCompany && (b as any).company_id !== filterCompany) return false;
+        if (filterCompany && b.company_id !== filterCompany) return false;
         return true;
       })
     : [];
@@ -112,45 +114,6 @@ export default function Budgets() {
     });
   };
 
-  // Budget CRUD
-  const saveBudget = useMutation({
-    mutationFn: async () => {
-      const payload = { name: budgetForm.name, status: budgetForm.status, description: budgetForm.description || null, obra_id: budgetForm.obra_id, company_id: budgetForm.company_id || null };
-      if (editingBudget) {
-        const { error } = await supabase.from("budgets").update(payload).eq("id", editingBudget.id);
-        if (error) throw error;
-      } else {
-        const { data: newBudget, error } = await supabase.from("budgets").insert({ ...payload, user_id: user!.id }).select("id").single();
-        if (error) throw error;
-        // Copy items from another budget if selected
-        if (wizardContent === "copy" && wizardCopyFrom && newBudget) {
-          const sourceItems = allItems.filter((i) => i.budget_id === wizardCopyFrom);
-          if (sourceItems.length > 0) {
-            const copies = sourceItems.map((item) => ({
-              budget_id: newBudget.id,
-              description: item.description,
-              category: item.category,
-              quantity: item.quantity,
-              unit: item.unit,
-              unit_price: item.unit_price,
-              total_price: item.total_price,
-              sort_order: item.sort_order,
-            }));
-            const { error: copyError } = await supabase.from("budget_items").insert(copies);
-            if (copyError) throw copyError;
-          }
-        }
-      }
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["budgets"] });
-      qc.invalidateQueries({ queryKey: ["budget_items"] });
-      toast.success(editingBudget ? "Orçamento atualizado!" : "Orçamento criado!");
-      closeBudgetForm();
-    },
-    onError: (e: any) => toast.error(e.message),
-  });
-
   const deleteBudget = useMutation({
     mutationFn: async (id: string) => { const { error } = await supabase.from("budgets").delete().eq("id", id); if (error) throw error; },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["budgets"] }); toast.success("Orçamento removido!"); },
@@ -158,8 +121,7 @@ export default function Budgets() {
   });
 
   const openNewBudget = () => { setWizardCompany(""); setWizardObra(""); setWizardContent("blank"); setWizardCopyFrom(""); setWizardOpen(true); };
-  const openEditBudget = (b: Budget) => { setEditingBudget(b); setBudgetForm({ name: b.name, status: b.status, description: b.description ?? "", obra_id: b.obra_id ?? "", company_id: (b as any).company_id ?? "" }); setBudgetFormOpen(true); };
-  const closeBudgetForm = () => { setBudgetFormOpen(false); setEditingBudget(null); setWizardOpen(false); };
+  const openEditBudget = (b: Budget) => { setDetailBudgetId(b.id); };
 
   // Item CRUD
   const saveItem = useMutation({
@@ -323,7 +285,7 @@ export default function Budgets() {
                     <div key={budget.id} className="border border-border rounded-xl overflow-hidden">
                       <div className="flex items-center gap-3 px-4 py-3 bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => toggle(budget.id)}>
                         <span className="text-muted-foreground">{isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}</span>
-                        <span className="font-medium text-foreground flex-1">{budget.name}</span>
+                        <span className="font-medium text-foreground flex-1">{budget.budget_code ? `ORC-${budget.budget_code}` : ""} {budget.name || "Sem nome"}</span>
                         <span className="text-xs text-muted-foreground">{getObraName(budget.obra_id)}</span>
                         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColor[budget.status] || "bg-muted text-muted-foreground"}`}>
                           {statusOptions.find((s) => s.value === budget.status)?.label ?? budget.status}
@@ -441,14 +403,45 @@ export default function Budgets() {
             </div>
             <div className="flex justify-end gap-3 px-5 py-4 border-t border-border bg-muted rounded-b-xl">
               <button
-                onClick={() => {
+                onClick={async () => {
                   if (!wizardCompany) { toast.error("Selecione uma empresa"); return; }
                   if (!wizardObra) { toast.error("Selecione uma obra"); return; }
                   if (wizardContent === "copy" && !wizardCopyFrom) { toast.error("Selecione o orçamento de origem"); return; }
-                  setWizardOpen(false);
-                  setEditingBudget(null);
-                  setBudgetForm({ name: "", status: "rascunho", description: "", obra_id: wizardObra, company_id: wizardCompany });
-                  setBudgetFormOpen(true);
+                  try {
+                    const { data: newBudget, error } = await supabase.from("budgets").insert({
+                      name: "",
+                      status: "rascunho",
+                      description: null,
+                      obra_id: wizardObra,
+                      company_id: wizardCompany,
+                      user_id: user!.id,
+                    }).select("id").single();
+                    if (error) throw error;
+                    // Copy items if needed
+                    if (wizardContent === "copy" && wizardCopyFrom && newBudget) {
+                      const sourceItems = allItems.filter((i) => i.budget_id === wizardCopyFrom);
+                      if (sourceItems.length > 0) {
+                        const copies = sourceItems.map((item) => ({
+                          budget_id: newBudget.id,
+                          description: item.description,
+                          category: item.category,
+                          quantity: item.quantity,
+                          unit: item.unit,
+                          unit_price: item.unit_price,
+                          total_price: item.total_price,
+                          sort_order: item.sort_order,
+                        }));
+                        await supabase.from("budget_items").insert(copies);
+                      }
+                    }
+                    qc.invalidateQueries({ queryKey: ["budgets"] });
+                    qc.invalidateQueries({ queryKey: ["budget_items"] });
+                    setWizardOpen(false);
+                    setDetailBudgetId(newBudget.id);
+                    toast.success("Orçamento criado!");
+                  } catch (e: any) {
+                    toast.error(e.message);
+                  }
                 }}
                 className="px-5 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 flex items-center gap-2"
               >
@@ -459,98 +452,16 @@ export default function Budgets() {
         </div>
       )}
 
-      {/* Budget form modal */}
-      {budgetFormOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={closeBudgetForm}>
-          <div className="bg-card border border-border rounded-xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-5 border-b border-border bg-muted rounded-t-xl">
-              <h3 className="text-lg font-semibold text-primary">{editingBudget ? "Editar" : "Novo"} Orçamento</h3>
-              <button onClick={closeBudgetForm} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
-            </div>
-            <form onSubmit={(e) => { e.preventDefault(); saveBudget.mutate(); }} className="p-5 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-card-foreground mb-1">Nome *</label>
-                <input value={budgetForm.name} onChange={(e) => setBudgetForm((p) => ({ ...p, name: e.target.value }))} required className={inputClass} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-card-foreground mb-1">Obra *</label>
-                <select value={budgetForm.obra_id} onChange={(e) => setBudgetForm((p) => ({ ...p, obra_id: e.target.value }))} required className={inputClass}>
-                  <option value="">Selecione...</option>
-                  {obras.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-card-foreground mb-1">Empresa</label>
-                <select value={budgetForm.company_id} onChange={(e) => setBudgetForm((p) => ({ ...p, company_id: e.target.value }))} className={inputClass}>
-                  <option value="">Nenhuma</option>
-                  {companiesList.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.company_type === "filial" ? "↳ " : ""}{c.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-card-foreground mb-1">Status</label>
-                <select value={budgetForm.status} onChange={(e) => setBudgetForm((p) => ({ ...p, status: e.target.value }))} className={inputClass}>
-                  {statusOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-card-foreground mb-1">Descrição</label>
-                <textarea value={budgetForm.description} onChange={(e) => setBudgetForm((p) => ({ ...p, description: e.target.value }))} rows={3} className={inputClass} />
-              </div>
-              <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={closeBudgetForm} className="px-4 py-2 rounded-lg border border-border bg-background text-foreground hover:bg-muted">Cancelar</button>
-                <button type="submit" disabled={saveBudget.isPending} className="px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 disabled:opacity-50">
-                  {saveBudget.isPending ? "Salvando..." : "💾 Salvar"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Item form modal */}
-      {(addingTo || editingItem) && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={closeItemForm}>
-          <div className="bg-card border border-border rounded-xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-5 border-b border-border">
-              <h3 className="text-lg font-semibold text-card-foreground">{editingItem ? "Editar" : "Novo"} Item</h3>
-              <button onClick={closeItemForm} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
-            </div>
-            <form onSubmit={(e) => { e.preventDefault(); saveItem.mutate(); }} className="p-5 space-y-3">
-              <div>
-                <label className="block text-sm font-medium text-card-foreground mb-1">Descrição</label>
-                <input value={itemForm.description} onChange={(e) => setItemForm((p) => ({ ...p, description: e.target.value }))} required className={inputClass} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-card-foreground mb-1">Categoria</label>
-                <input value={itemForm.category} onChange={(e) => setItemForm((p) => ({ ...p, category: e.target.value }))} className={inputClass} />
-              </div>
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-card-foreground mb-1">Qtd</label>
-                  <input type="number" step="0.01" value={itemForm.quantity} onChange={(e) => setItemForm((p) => ({ ...p, quantity: e.target.value }))} className={inputClass} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-card-foreground mb-1">Unidade</label>
-                  <input value={itemForm.unit} onChange={(e) => setItemForm((p) => ({ ...p, unit: e.target.value }))} className={inputClass} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-card-foreground mb-1">Preço Unit.</label>
-                  <input type="number" step="0.01" value={itemForm.unit_price} onChange={(e) => setItemForm((p) => ({ ...p, unit_price: e.target.value }))} className={inputClass} />
-                </div>
-              </div>
-              <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={closeItemForm} className="px-4 py-2 rounded-lg border border-border text-foreground hover:bg-muted">Cancelar</button>
-                <button type="submit" disabled={saveItem.isPending} className="px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 disabled:opacity-50">
-                  {saveItem.isPending ? "Salvando..." : "Salvar"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+      {/* Budget Detail Modal */}
+      {detailBudgetId && (
+        <BudgetDetail
+          budgetId={detailBudgetId}
+          onClose={() => {
+            setDetailBudgetId(null);
+            qc.invalidateQueries({ queryKey: ["budgets"] });
+            qc.invalidateQueries({ queryKey: ["budget_items"] });
+          }}
+        />
       )}
     </div>
   );
