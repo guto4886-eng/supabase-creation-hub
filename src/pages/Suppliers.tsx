@@ -32,12 +32,19 @@ export default function Suppliers() {
 
   // Filter panel
   const [filtersOpen, setFiltersOpen] = useState(true);
+  const [filterPersonType, setFilterPersonType] = useState<"j" | "f" | "ambas">("ambas");
   const [filterName, setFilterName] = useState("");
-  const [filterCategory, setFilterCategory] = useState("");
+  const [filterTradeName, setFilterTradeName] = useState("");
+  const [filterVendor, setFilterVendor] = useState("");
   const [filterDocument, setFilterDocument] = useState("");
+  const [filterCategory, setFilterCategory] = useState("");
   const [filterState, setFilterState] = useState("");
   const [filterCity, setFilterCity] = useState("");
+  const [filterNeighborhood, setFilterNeighborhood] = useState("");
+  const [filterRecommended, setFilterRecommended] = useState<"sim" | "nao" | "ambos">("ambos");
   const [filterCondition, setFilterCondition] = useState<"ativo" | "inativo" | "ambos">("ativo");
+  const [filterDateFrom, setFilterDateFrom] = useState("");
+  const [filterDateTo, setFilterDateTo] = useState("");
   const [searched, setSearched] = useState(false);
   const [page, setPage] = useState(0);
 
@@ -82,13 +89,20 @@ export default function Suppliers() {
 
   const filtered = searched
     ? items.filter((item) => {
+        if (filterPersonType !== "ambas" && item.person_type !== filterPersonType) return false;
         if (filterName && !item.name?.toLowerCase().includes(filterName.toLowerCase())) return false;
-        if (filterCategory && !item.category?.toLowerCase().includes(filterCategory.toLowerCase())) return false;
+        if (filterTradeName && !item.trade_name?.toLowerCase().includes(filterTradeName.toLowerCase())) return false;
         if (filterDocument && !item.document?.includes(filterDocument.replace(/\D/g, ""))) return false;
+        if (filterCategory && !item.category?.toLowerCase().includes(filterCategory.toLowerCase())) return false;
         if (filterState && item.state !== filterState) return false;
         if (filterCity && !item.city?.toLowerCase().includes(filterCity.toLowerCase())) return false;
+        if (filterNeighborhood && !item.neighborhood?.toLowerCase().includes(filterNeighborhood.toLowerCase())) return false;
+        if (filterRecommended === "sim" && !item.recommended) return false;
+        if (filterRecommended === "nao" && item.recommended) return false;
         if (filterCondition === "ativo" && !item.active) return false;
         if (filterCondition === "inativo" && item.active) return false;
+        if (filterDateFrom && item.created_at < filterDateFrom) return false;
+        if (filterDateTo && item.created_at > filterDateTo + "T23:59:59") return false;
         return true;
       })
     : [];
@@ -219,7 +233,7 @@ export default function Suppliers() {
   const handleSearch = () => { setSearched(true); setPage(0); };
 
   const handleClearFilters = () => {
-    setFilterName(""); setFilterCategory(""); setFilterDocument(""); setFilterState(""); setFilterCity(""); setFilterCondition("ativo"); setSearched(false); setPage(0);
+    setFilterPersonType("ambas"); setFilterName(""); setFilterTradeName(""); setFilterVendor(""); setFilterDocument(""); setFilterCategory(""); setFilterState(""); setFilterCity(""); setFilterNeighborhood(""); setFilterRecommended("ambos"); setFilterCondition("ativo"); setFilterDateFrom(""); setFilterDateTo(""); setSearched(false); setPage(0);
   };
 
   const renderFormInput = (f: typeof fields[0]) => {
@@ -273,16 +287,38 @@ export default function Suppliers() {
 
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Nome</label>
+                <label className="block text-sm font-medium text-foreground mb-1.5">Tipo de pessoa</label>
+                <div className="flex gap-4">
+                  {([["j", "Jurídica"], ["f", "Física"], ["ambas", "Ambas"]] as const).map(([val, label]) => (
+                    <label key={val} className="flex items-center gap-1.5 text-sm text-foreground cursor-pointer">
+                      <input type="radio" name="filterPersonType" checked={filterPersonType === val} onChange={() => setFilterPersonType(val)} className="accent-primary" />
+                      {label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Razão social</label>
                 <input type="text" value={filterName} onChange={(e) => setFilterName(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Categoria</label>
-                <input type="text" value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
+                <label className="block text-sm font-medium text-foreground mb-1">Nome fantasia</label>
+                <input type="text" value={filterTradeName} onChange={(e) => setFilterTradeName(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Vendedor</label>
+                <input type="text" value={filterVendor} onChange={(e) => setFilterVendor(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">CPF/CNPJ</label>
                 <input type="text" value={filterDocument} onChange={(e) => setFilterDocument(maskCpfCnpj(e.target.value))} placeholder="CPF ou CNPJ" className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Categoria</label>
+                <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm">
+                  <option value="">Selecione...</option>
+                  {[...new Set(items.map((i: any) => i.category).filter(Boolean))].sort().map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Estado</label>
@@ -293,7 +329,25 @@ export default function Suppliers() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Cidade</label>
-                <input type="text" value={filterCity} onChange={(e) => setFilterCity(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
+                <select value={filterCity} onChange={(e) => setFilterCity(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm">
+                  <option value="">Selecione...</option>
+                  {[...new Set(items.filter((i: any) => !filterState || i.state === filterState).map((i: any) => i.city).filter(Boolean))].sort().map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Bairro</label>
+                <input type="text" value={filterNeighborhood} onChange={(e) => setFilterNeighborhood(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1.5">Parceiro recomendado</label>
+                <div className="flex gap-4">
+                  {([["sim", "Sim"], ["nao", "Não"], ["ambos", "Ambos"]] as const).map(([val, label]) => (
+                    <label key={val} className="flex items-center gap-1.5 text-sm text-foreground cursor-pointer">
+                      <input type="radio" name="filterRecommended" checked={filterRecommended === val} onChange={() => setFilterRecommended(val)} className="accent-primary" />
+                      {label}
+                    </label>
+                  ))}
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1.5">Condição</label>
@@ -304,6 +358,14 @@ export default function Suppliers() {
                       {label}
                     </label>
                   ))}
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Data cadastro</label>
+                <div className="flex items-center gap-2">
+                  <input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} className="flex-1 px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
+                  <span className="text-sm text-muted-foreground">até</span>
+                  <input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} className="flex-1 px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
                 </div>
               </div>
             </div>
