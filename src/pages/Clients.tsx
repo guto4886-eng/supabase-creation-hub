@@ -427,25 +427,33 @@ export default function Clients() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={closeForm}>
           <div className="bg-card border border-border rounded-xl w-full max-w-4xl h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
             {/* Header */}
-            <div className="flex items-center justify-between p-5 border-b border-border">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-muted/40 rounded-t-xl">
               <h3 className="text-lg font-semibold text-card-foreground">{editing ? "Editar" : "Novo"} cliente</h3>
               <button onClick={closeForm} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
             </div>
 
-            {/* Tabs */}
-            <div className="flex border-b border-border px-5 gap-1">
+            {/* Tabs bar - distinct background */}
+            <div className="flex bg-muted/60 px-5 gap-1 border-b border-border">
               {ALL_TABS.map((t) => (
-                <button key={t.key} onClick={() => setActiveTab(t.key)} className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${activeTab === t.key ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+                <button
+                  key={t.key}
+                  onClick={() => setActiveTab(t.key)}
+                  className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
+                    activeTab === t.key
+                      ? "border-primary text-primary bg-card rounded-t-lg"
+                      : "border-transparent text-muted-foreground hover:text-foreground"
+                  }`}
+                >
                   {t.label}
                 </button>
               ))}
             </div>
 
-            {/* Tab content */}
+            {/* Tab content - scrollable */}
             <div className="flex-1 overflow-y-auto">
               {/* DADOS tab */}
               {activeTab === "dados" && (
-                <form onSubmit={handleSubmit} className="p-5 space-y-5">
+                <form id="client-form" onSubmit={handleSubmit} className="p-5 space-y-5">
                   {/* Nome - full width */}
                   <div className="flex items-center gap-3">
                     <label className="text-sm font-medium text-card-foreground whitespace-nowrap min-w-[80px] text-right">Nome *</label>
@@ -583,14 +591,6 @@ export default function Clients() {
                       </div>
                     </div>
                   </fieldset>
-
-                  {/* Salvar */}
-                  <div className="flex justify-end gap-3 pt-2">
-                    <button type="button" onClick={closeForm} className="px-4 py-2 rounded-lg border border-border text-foreground hover:bg-muted">Cancelar</button>
-                    <button type="submit" disabled={saveMutation.isPending} className="px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 disabled:opacity-50">
-                      {saveMutation.isPending ? "Salvando..." : "Salvar"}
-                    </button>
-                  </div>
                 </form>
               )}
 
@@ -612,6 +612,18 @@ export default function Clients() {
               )}
               {activeTab === "portal" && editing && (
                 <div className="p-5"><ClientPortalPermissions clientId={editing.id} /></div>
+              )}
+            </div>
+
+            {/* Bottom bar - fixed */}
+            <div className="flex items-center justify-end gap-3 px-5 py-3 border-t border-border bg-muted/40 rounded-b-xl">
+              <button type="button" onClick={closeForm} className="px-4 py-2 rounded-lg border border-border text-foreground hover:bg-muted text-sm">
+                Cancelar
+              </button>
+              {activeTab === "dados" && (
+                <button type="submit" form="client-form" disabled={saveMutation.isPending} className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50">
+                  {saveMutation.isPending ? "Salvando..." : "Salvar"}
+                </button>
               )}
             </div>
           </div>
