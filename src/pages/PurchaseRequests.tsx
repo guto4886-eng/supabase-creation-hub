@@ -18,11 +18,12 @@ const PRIORITY_OPTIONS = [
 ];
 
 const STATUS_OPTIONS = [
-  { value: "pendente", label: "Pendente" },
-  { value: "aprovada", label: "Aprovada" },
-  { value: "rejeitada", label: "Rejeitada" },
-  { value: "cotando", label: "Em cotação" },
-  { value: "finalizada", label: "Finalizada" },
+  { value: "aberta", label: "Aberta", color: "text-primary" },
+  { value: "parcial", label: "Parcial", color: "text-primary" },
+  { value: "cotada", label: "Cotada", color: "text-green-600" },
+  { value: "rejeitada", label: "Rejeitada", color: "text-destructive" },
+  { value: "rascunho", label: "Rascunho", color: "text-muted-foreground" },
+  { value: "oc_gerada", label: "Ordem de compra gerada", color: "text-green-700" },
 ];
 
 const ITEM_TYPES = [
@@ -51,12 +52,13 @@ export default function PurchaseRequests() {
 
   // --- Filter state ---
   const [filtersOpen, setFiltersOpen] = useState(true);
-  const [filterDescription, setFilterDescription] = useState("");
+  const [filterNumber, setFilterNumber] = useState("");
+  const [filterStatuses, setFilterStatuses] = useState<string[]>(["aberta", "parcial"]);
   const [filterObra, setFilterObra] = useState("");
-  const [filterStatus, setFilterStatus] = useState("");
-  const [filterPriority, setFilterPriority] = useState("");
   const [filterDateFrom, setFilterDateFrom] = useState("");
   const [filterDateTo, setFilterDateTo] = useState("");
+  const [filterNeededFrom, setFilterNeededFrom] = useState("");
+  const [filterNeededTo, setFilterNeededTo] = useState("");
   const [searched, setSearched] = useState(false);
   const [page, setPage] = useState(0);
 
@@ -105,12 +107,13 @@ export default function PurchaseRequests() {
   // --- Filter logic ---
   const filtered = searched
     ? items.filter((item) => {
-        if (filterDescription && !item.description?.toLowerCase().includes(filterDescription.toLowerCase())) return false;
+        if (filterNumber && !item.id?.toLowerCase().includes(filterNumber.toLowerCase())) return false;
+        if (filterStatuses.length > 0 && !filterStatuses.includes(item.status)) return false;
         if (filterObra && item.obra_id !== filterObra) return false;
-        if (filterStatus && item.status !== filterStatus) return false;
-        if (filterPriority && item.priority !== filterPriority) return false;
-        if (filterDateFrom && item.needed_by && item.needed_by < filterDateFrom) return false;
-        if (filterDateTo && item.needed_by && item.needed_by > filterDateTo) return false;
+        if (filterDateFrom && item.created_at < filterDateFrom) return false;
+        if (filterDateTo && item.created_at > filterDateTo + "T23:59:59") return false;
+        if (filterNeededFrom && item.needed_by && item.needed_by < filterNeededFrom) return false;
+        if (filterNeededTo && item.needed_by && item.needed_by > filterNeededTo) return false;
         return true;
       })
     : [];
@@ -128,7 +131,7 @@ export default function PurchaseRequests() {
           description: values.description,
           obra_id: values.obra_id || null,
           priority: values.priority || "normal",
-          status: values.status || "pendente",
+          status: values.status || "aberta",
           needed_by: values.needed_by || null,
           notes: values.notes || null,
         }).eq("id", editing.id);
@@ -143,7 +146,7 @@ export default function PurchaseRequests() {
           quantity: 1,
           unit: "un",
           priority: values.priority || "normal",
-          status: values.status || "pendente",
+          status: values.status || "aberta",
           needed_by: values.needed_by || null,
           notes: values.notes || null,
           user_id: user!.id,
@@ -191,7 +194,7 @@ export default function PurchaseRequests() {
   // --- Modal helpers ---
   const openNew = () => {
     setEditing(null);
-    setForm({ priority: "normal", status: "pendente", needed_by: "", description: "" });
+    setForm({ priority: "normal", status: "aberta", needed_by: "", description: "" });
     setRequestItems([]);
     setNewItem({ item_type: "livre", item: "", complement: "", quantity: 1, unit: "un", unit_price: 0, phase: "", service: "" });
     setActiveTab("dados");
@@ -233,8 +236,11 @@ export default function PurchaseRequests() {
   const removeItem = (idx: number) => setRequestItems(prev => prev.filter((_, i) => i !== idx));
 
   const handleSearch = () => { setSearched(true); setPage(0); };
+  const toggleFilterStatus = (val: string) => {
+    setFilterStatuses(prev => prev.includes(val) ? prev.filter(s => s !== val) : [...prev, val]);
+  };
   const handleClearFilters = () => {
-    setFilterDescription(""); setFilterObra(""); setFilterStatus(""); setFilterPriority(""); setFilterDateFrom(""); setFilterDateTo(""); setSearched(false); setPage(0);
+    setFilterNumber(""); setFilterStatuses([]); setFilterObra(""); setFilterDateFrom(""); setFilterDateTo(""); setFilterNeededFrom(""); setFilterNeededTo(""); setSearched(false); setPage(0);
   };
 
   const priorityColor = (p: string) => {
@@ -245,11 +251,18 @@ export default function PurchaseRequests() {
   };
 
   const statusColor = (s: string) => {
-    if (s === "aprovada") return "text-green-600 bg-green-100";
+    const found = STATUS_OPTIONS.find(o => o.value === s);
+    if (!found) return "text-muted-foreground";
+    return found.color;
+  };
+
+  const statusBgColor = (s: string) => {
+    if (s === "aberta") return "text-primary bg-primary/10";
+    if (s === "parcial") return "text-primary bg-primary/10";
+    if (s === "cotada") return "text-green-600 bg-green-100";
     if (s === "rejeitada") return "text-destructive bg-destructive/10";
-    if (s === "cotando") return "text-blue-600 bg-blue-100";
-    if (s === "finalizada") return "text-green-700 bg-green-200";
-    return "text-amber-600 bg-amber-100";
+    if (s === "oc_gerada") return "text-green-700 bg-green-200";
+    return "text-muted-foreground bg-muted";
   };
 
   const now = new Date();
@@ -268,36 +281,46 @@ export default function PurchaseRequests() {
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Descrição</label>
-                <input type="text" value={filterDescription} onChange={e => setFilterDescription(e.target.value)} className={inputClass} />
+                <label className="block text-sm font-medium text-foreground mb-1">Número</label>
+                <input type="text" value={filterNumber} onChange={e => setFilterNumber(e.target.value)} className={inputClass} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">Situação</label>
+                <div className="space-y-1.5">
+                  {STATUS_OPTIONS.map(s => (
+                    <label key={s.value} className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={filterStatuses.includes(s.value)}
+                        onChange={() => toggleFilterStatus(s.value)}
+                        className="accent-primary rounded"
+                      />
+                      <span className={`text-sm font-medium ${s.color}`}>{s.label}</span>
+                    </label>
+                  ))}
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Obra</label>
                 <select value={filterObra} onChange={e => setFilterObra(e.target.value)} className={inputClass}>
-                  <option value="">Todas</option>
+                  <option value="">Selecione...</option>
                   {obras.map((o: any) => <option key={o.id} value={o.id}>{o.name}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Status</label>
-                <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className={inputClass}>
-                  <option value="">Todos</option>
-                  {STATUS_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Prioridade</label>
-                <select value={filterPriority} onChange={e => setFilterPriority(e.target.value)} className={inputClass}>
-                  <option value="">Todas</option>
-                  {PRIORITY_OPTIONS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Necessário até</label>
+                <label className="block text-sm font-medium text-foreground mb-1">Data solicitação</label>
                 <div className="flex items-center gap-2">
                   <input type="date" value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)} className={inputClass} />
                   <span className="text-sm text-muted-foreground">até</span>
                   <input type="date" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} className={inputClass} />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Data necessidade</label>
+                <div className="flex items-center gap-2">
+                  <input type="date" value={filterNeededFrom} onChange={e => setFilterNeededFrom(e.target.value)} className={inputClass} />
+                  <span className="text-sm text-muted-foreground">até</span>
+                  <input type="date" value={filterNeededTo} onChange={e => setFilterNeededTo(e.target.value)} className={inputClass} />
                 </div>
               </div>
             </div>
@@ -358,28 +381,30 @@ export default function PurchaseRequests() {
                   <table className="w-full text-sm">
                     <thead className="sticky top-0">
                       <tr className="bg-muted/50">
-                        <th className="text-left px-3 py-3 font-medium text-muted-foreground">Descrição</th>
+                        <th className="text-left px-3 py-3 font-medium text-muted-foreground">Núm.</th>
                         <th className="text-left px-3 py-3 font-medium text-muted-foreground">Obra</th>
-                        <th className="text-center px-3 py-3 font-medium text-muted-foreground">Prioridade</th>
-                        <th className="text-center px-3 py-3 font-medium text-muted-foreground">Status</th>
-                        <th className="text-left px-3 py-3 font-medium text-muted-foreground">Necessário até</th>
-                        <th className="text-left px-3 py-3 font-medium text-muted-foreground">Criado em</th>
+                        <th className="text-left px-3 py-3 font-medium text-muted-foreground">Descrição</th>
+                        <th className="text-center px-3 py-3 font-medium text-muted-foreground">Itens</th>
+                        <th className="text-left px-3 py-3 font-medium text-muted-foreground">Solicitação</th>
+                        <th className="text-left px-3 py-3 font-medium text-muted-foreground">Necessidade</th>
+                        <th className="text-left px-3 py-3 font-medium text-muted-foreground">Solicitante</th>
+                        <th className="text-center px-3 py-3 font-medium text-muted-foreground">Situação</th>
                         <th className="w-20 px-3 py-3 text-center font-medium text-muted-foreground">Ações</th>
                       </tr>
                     </thead>
                     <tbody>
                       {paginatedItems.map((item, idx) => (
                         <tr key={item.id} onClick={() => openEdit(item)} className={`border-b border-border cursor-pointer ${idx % 2 === 0 ? "bg-background" : "bg-muted/20"} hover:bg-muted/40`}>
-                          <td className="px-3 py-2.5 text-foreground">{item.description}</td>
-                          <td className="px-3 py-2.5 text-muted-foreground">{item.obras?.name || "—"}</td>
-                          <td className="px-3 py-2.5 text-center">
-                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${priorityColor(item.priority)}`}>{PRIORITY_OPTIONS.find(p => p.value === item.priority)?.label || item.priority}</span>
-                          </td>
-                          <td className="px-3 py-2.5 text-center">
-                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusColor(item.status)}`}>{STATUS_OPTIONS.find(s => s.value === item.status)?.label || item.status}</span>
-                          </td>
+                          <td className="px-3 py-2.5 text-muted-foreground font-mono text-xs">{item.id.slice(0, 6).toUpperCase()}</td>
+                          <td className="px-3 py-2.5 text-foreground">{item.obras?.name || "—"}</td>
+                          <td className="px-3 py-2.5 text-foreground">{item.description || "—"}</td>
+                          <td className="px-3 py-2.5 text-center text-muted-foreground">—</td>
+                          <td className="px-3 py-2.5 text-muted-foreground">{new Date(item.created_at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</td>
                           <td className="px-3 py-2.5 text-muted-foreground">{item.needed_by ? new Date(item.needed_by + "T00:00:00").toLocaleDateString("pt-BR") : "—"}</td>
-                          <td className="px-3 py-2.5 text-muted-foreground">{new Date(item.created_at).toLocaleDateString("pt-BR")}</td>
+                          <td className="px-3 py-2.5 text-muted-foreground">{profile?.full_name || "—"}</td>
+                          <td className="px-3 py-2.5 text-center">
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusBgColor(item.status)}`}>{STATUS_OPTIONS.find(s => s.value === item.status)?.label || item.status}</span>
+                          </td>
                           <td className="px-3 py-2.5" onClick={e => e.stopPropagation()}>
                             <div className="flex gap-1 justify-center">
                               <button onClick={() => openEdit(item)} title="Editar" className="p-1.5 rounded-md hover:bg-accent text-primary"><Pencil className="h-4 w-4" /></button>
@@ -461,7 +486,7 @@ export default function PurchaseRequests() {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-foreground mb-1">Situação</label>
-                      <select value={form.status || "pendente"} onChange={e => setForm(p => ({ ...p, status: e.target.value }))} className={inputClass}>
+                      <select value={form.status || "aberta"} onChange={e => setForm(p => ({ ...p, status: e.target.value }))} className={inputClass}>
                         {STATUS_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
                       </select>
                     </div>
