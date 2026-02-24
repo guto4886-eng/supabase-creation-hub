@@ -1,4 +1,4 @@
-export async function fetchCep(cep: string): Promise<{ city: string; state: string; address: string } | null> {
+export async function fetchCep(cep: string): Promise<{ city: string; state: string; address: string; neighborhood: string } | null> {
   const clean = cep.replace(/\D/g, "");
   if (clean.length !== 8) return null;
   try {
@@ -8,7 +8,8 @@ export async function fetchCep(cep: string): Promise<{ city: string; state: stri
     return {
       city: data.localidade || "",
       state: data.uf || "",
-      address: [data.logradouro, data.bairro].filter(Boolean).join(", "),
+      address: data.logradouro || "",
+      neighborhood: data.bairro || "",
     };
   } catch {
     return null;

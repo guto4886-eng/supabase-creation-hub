@@ -6,9 +6,14 @@ import { toast } from "sonner";
 import {
   Search, Plus, ChevronLeft, ChevronRight, Pencil, Trash2, X, Download, Eraser
 } from "lucide-react";
-import { exportToCSV } from "@/utils/exportCsv";
+import { exportCSV, exportExcel, exportPDF, fetchCompanyInfo } from "@/utils/exportWithHeader";
+import ExportDialog from "@/components/ExportDialog";
 import { fetchCep } from "@/utils/cep";
 import Attachments from "@/components/Attachments";
+import ObraContacts from "@/components/ObraContacts";
+import ObraDailyEntries from "@/components/ObraDailyEntries";
+import ObraServiceMessages from "@/components/ObraServiceMessages";
+import ObraConfig from "@/components/ObraConfig";
 
 const ESTADOS = [
   "AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG",
@@ -31,7 +36,18 @@ const CATEGORIA_OBRAS = [
   { value: "infraestrutura", label: "Infraestrutura" },
 ];
 
+const ALL_TABS = [
+  { key: "dados", label: "Dados" },
+  { key: "endereco", label: "Endereço" },
+  { key: "contatos", label: "Contatos" },
+  { key: "diadia", label: "Dia a dia" },
+  { key: "pasta", label: "Pasta da obra" },
+  { key: "atendimento", label: "Atendimento" },
+  { key: "config", label: "Configurações" },
+];
+
 const PAGE_SIZE = 15;
+const OBS_MAX_LEN = 4000;
 
 export default function Obras() {
   const { user } = useAuth();
@@ -60,6 +76,7 @@ export default function Obras() {
   const [form, setForm] = useState<Record<string, any>>({});
   const [activeTab, setActiveTab] = useState("dados");
   const [cepLoading, setCepLoading] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
 
   // Data
   const { data: clients = [] } = useQuery({
@@ -80,22 +97,15 @@ export default function Obras() {
     },
   });
 
-  const fields = useMemo(() => [
-    { name: "name", label: "Nome da Obra", required: true },
-    { name: "client_id", label: "Cliente", type: "select" as const, options: clients.map((c) => ({ value: c.id, label: c.name })) },
-    { name: "status", label: "Status", type: "select" as const, options: STATUS_OPTIONS },
-    { name: "cep", label: "CEP", type: "cep" as const, hideInTable: true },
+  const tableFields = useMemo(() => [
+    { name: "name", label: "Nome da Obra" },
+    { name: "client_id", label: "Cliente" },
+    { name: "status", label: "Situação" },
+    { name: "category", label: "Categoria" },
     { name: "city", label: "Cidade" },
     { name: "state", label: "UF" },
-    { name: "start_date", label: "Início", type: "date" as const },
-    { name: "expected_end_date", label: "Previsão término", type: "date" as const },
-    { name: "total_budget", label: "Orçamento total", type: "number" as const, hideInTable: true },
-    { name: "address", label: "Endereço", hideInTable: true },
-    { name: "description", label: "Descrição", type: "textarea" as const, hideInTable: true },
-    { name: "notes", label: "Observações", type: "textarea" as const, hideInTable: true },
-  ], [clients]);
-
-  const tableFields = fields.filter((f) => !f.hideInTable);
+    { name: "start_date", label: "Início" },
+  ], []);
 
   // Filtered results
   const filtered = searched
@@ -161,12 +171,29 @@ export default function Obras() {
     onError: (e: any) => toast.error(e.message),
   });
 
-  const defaultValues: Record<string, any> = { status: "planejamento" };
+  const formFields = [
+    "name", "client_id", "category", "status", "notes",
+    "start_date", "duration", "duration_unit", "expected_end_date",
+    "cno", "area_m2", "empreiteiro", "resp_tecnico", "art_number", "resp_obra",
+    "cep", "address", "address_number", "neighborhood", "complement", "state", "city",
+    "billing_cep", "billing_address", "billing_number", "billing_neighborhood", "billing_complement", "billing_state", "billing_city", "billing_address_source",
+    "stock_control", "stock_type", "client_access", "billing_type", "billing_frequency", "document_type", "planning_frequency", "tracking_method", "work_days",
+    "total_budget", "description",
+  ];
 
   const openNew = () => {
     setEditing(null);
     const initial: Record<string, any> = {};
-    fields.forEach((f) => (initial[f.name] = defaultValues[f.name] ?? ""));
+    formFields.forEach((f) => (initial[f] = ""));
+    initial.status = "nao_iniciada";
+    initial.billing_frequency = "semanal";
+    initial.planning_frequency = "mensal";
+    initial.tracking_method = "custo";
+    initial.billing_address_source = "obra";
+    initial.stock_control = false;
+    initial.client_access = false;
+    initial.work_days = ["seg", "ter", "qua", "qui", "sex"];
+    initial.duration_unit = "meses";
     setForm(initial);
     setActiveTab("dados");
     setFormOpen(true);
@@ -175,7 +202,8 @@ export default function Obras() {
   const openEdit = (item: any) => {
     setEditing(item);
     const initial: Record<string, any> = {};
-    fields.forEach((f) => (initial[f.name] = item[f.name] ?? ""));
+    formFields.forEach((f) => (initial[f] = item[f] ?? ""));
+    if (item.work_days) initial.work_days = item.work_days;
     setForm(initial);
     setActiveTab("dados");
     setFormOpen(true);
@@ -190,71 +218,47 @@ export default function Obras() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!form.name?.trim()) { toast.error("Nome da obra é obrigatório"); return; }
     saveMutation.mutate(form);
   };
 
-  const handleCepBlur = async (value: string) => {
+  const handleCepBlur = async (value: string, prefix = "") => {
     setCepLoading(true);
     const result = await fetchCep(value);
     setCepLoading(false);
     if (result) {
-      setForm((p) => ({ ...p, city: result.city, state: result.state, address: result.address }));
+      if (prefix) {
+        setForm((p) => ({ ...p, [`${prefix}address`]: result.address, [`${prefix}city`]: result.city, [`${prefix}state`]: result.state }));
+      } else {
+        setForm((p) => ({ ...p, address: result.address, city: result.city, state: result.state, neighborhood: result.neighborhood || p.neighborhood }));
+      }
       toast.success("Endereço preenchido!");
     } else if (value.replace(/\D/g, "").length === 8) {
       toast.error("CEP não encontrado");
     }
   };
 
-  const handleSearch = () => {
-    setSearched(true);
-    setPage(0);
-  };
+  const handleSearch = () => { setSearched(true); setPage(0); };
 
   const handleClearFilters = () => {
-    setFilterName("");
-    setFilterClient("");
-    setFilterStatuses([]);
-    setFilterCategory("");
-    setFilterState("");
-    setFilterCity("");
-    setFilterNeighborhood("");
-    setFilterAddress("");
-    setFilterCondition("ativo");
-    setFilterStock("ambos");
-    setSearched(false);
-    setPage(0);
+    setFilterName(""); setFilterClient(""); setFilterStatuses([]); setFilterCategory("");
+    setFilterState(""); setFilterCity(""); setFilterNeighborhood(""); setFilterAddress("");
+    setFilterCondition("ativo"); setFilterStock("ambos"); setSearched(false); setPage(0);
   };
 
   const getClientName = (id: string) => clients.find((c) => c.id === id)?.name ?? "—";
+  const getStatusLabel = (val: string) => STATUS_OPTIONS.find(o => o.value === val)?.label ?? val;
+  const getCategoryLabel = (val: string) => CATEGORIA_OBRAS.find(o => o.value === val)?.label ?? val;
 
-  const renderFormInput = (f: typeof fields[0]) => {
-    const inputClass = "w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring";
-    if (f.type === "textarea") {
-      return <textarea value={form[f.name] ?? ""} onChange={(e) => setForm((p) => ({ ...p, [f.name]: e.target.value }))} required={f.required} rows={3} className={inputClass} />;
-    }
-    if (f.type === "select") {
-      return (
-        <select value={form[f.name] ?? ""} onChange={(e) => setForm((p) => ({ ...p, [f.name]: e.target.value }))} required={f.required} className={inputClass}>
-          <option value="">Selecione...</option>
-          {f.options?.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
-      );
-    }
-    if (f.type === "cep") {
-      return (
-        <div className="relative">
-          <input type="text" value={form[f.name] ?? ""} onChange={(e) => { const v = e.target.value.replace(/\D/g, "").slice(0, 8); const formatted = v.length > 5 ? `${v.slice(0, 5)}-${v.slice(5)}` : v; setForm((p) => ({ ...p, [f.name]: formatted })); }} onBlur={(e) => handleCepBlur(e.target.value)} placeholder="00000-000" className={inputClass} />
-          {cepLoading && <div className="absolute right-3 top-2.5"><div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full" /></div>}
-        </div>
-      );
-    }
-    return <input type={f.type ?? "text"} value={form[f.name] ?? ""} onChange={(e) => setForm((p) => ({ ...p, [f.name]: e.target.value }))} required={f.required} step={f.type === "number" ? "0.01" : undefined} className={inputClass} />;
+  const inputClass = "w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm";
+
+  const formatCep = (v: string) => {
+    const d = v.replace(/\D/g, "").slice(0, 8);
+    return d.length > 5 ? `${d.slice(0, 5)}-${d.slice(5)}` : d;
   };
 
-  const allTabs = [
-    { key: "dados", label: "Dados" },
-    ...(editing ? [{ key: "anexos", label: "Anexos" }] : []),
-  ];
+  // Visible tabs: new obra only shows Dados + Endereço, editing shows all
+  const visibleTabs = editing ? ALL_TABS : ALL_TABS.slice(0, 2);
 
   return (
     <div className="flex h-[calc(100vh-49px)] overflow-hidden relative">
@@ -264,99 +268,74 @@ export default function Obras() {
           <div className="flex flex-col h-full w-80">
             <div className="p-4 border-b border-border">
               <h2 className="text-lg font-bold text-primary uppercase flex items-center gap-2">
-                <Search className="h-5 w-5" />
-                Obras
+                <Search className="h-5 w-5" /> Obras
               </h2>
               <p className="text-xs text-muted-foreground mt-1">Faça sua pesquisa aqui</p>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {/* Nome (obra) */}
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Nome (obra)</label>
-                <input type="text" value={filterName} onChange={(e) => setFilterName(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
+                <input type="text" value={filterName} onChange={(e) => setFilterName(e.target.value)} className={inputClass} />
               </div>
-
-              {/* Cliente */}
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Cliente</label>
-                <select value={filterClient} onChange={(e) => setFilterClient(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm">
+                <select value={filterClient} onChange={(e) => setFilterClient(e.target.value)} className={inputClass}>
                   <option value="">Selecione...</option>
                   {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </div>
-
-              {/* Situação - checkboxes */}
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1.5">Situação</label>
                 <div className="space-y-1.5">
                   {STATUS_OPTIONS.map((o) => (
                     <label key={o.value} className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={filterStatuses.includes(o.value)}
-                        onChange={(e) => {
-                          if (e.target.checked) setFilterStatuses((p) => [...p, o.value]);
-                          else setFilterStatuses((p) => p.filter((v) => v !== o.value));
-                        }}
-                        className="h-4 w-4 rounded border-input accent-primary"
-                      />
+                      <input type="checkbox" checked={filterStatuses.includes(o.value)} onChange={(e) => {
+                        if (e.target.checked) setFilterStatuses(p => [...p, o.value]);
+                        else setFilterStatuses(p => p.filter(v => v !== o.value));
+                      }} className="h-4 w-4 rounded border-input accent-primary" />
                       {o.label}
                     </label>
                   ))}
                 </div>
               </div>
-
-              {/* Categoria */}
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Categoria</label>
-                <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm">
+                <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className={inputClass}>
                   <option value="">Selecione...</option>
-                  {CATEGORIA_OBRAS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  {CATEGORIA_OBRAS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               </div>
-
-              {/* Estado */}
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Estado</label>
-                <select value={filterState} onChange={(e) => setFilterState(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm">
+                <select value={filterState} onChange={(e) => setFilterState(e.target.value)} className={inputClass}>
                   <option value="">Selecione...</option>
-                  {ESTADOS.map((e) => <option key={e} value={e}>{e}</option>)}
+                  {ESTADOS.map(e => <option key={e} value={e}>{e}</option>)}
                 </select>
               </div>
-
-              {/* Cidade */}
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Cidade</label>
-                <input type="text" value={filterCity} onChange={(e) => setFilterCity(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
+                <input type="text" value={filterCity} onChange={(e) => setFilterCity(e.target.value)} className={inputClass} />
               </div>
-
-              {/* Bairro */}
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Bairro</label>
-                <input type="text" value={filterNeighborhood} onChange={(e) => setFilterNeighborhood(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
+                <input type="text" value={filterNeighborhood} onChange={(e) => setFilterNeighborhood(e.target.value)} className={inputClass} />
               </div>
-
-              {/* Logradouro */}
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Logradouro</label>
-                <input type="text" value={filterAddress} onChange={(e) => setFilterAddress(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
+                <input type="text" value={filterAddress} onChange={(e) => setFilterAddress(e.target.value)} className={inputClass} />
               </div>
-
-              {/* Condição */}
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1.5">Condição</label>
                 <div className="flex gap-4">
                   {([["ativo", "Ativo"], ["inativo", "Inativo"], ["ambos", "Ambos"]] as const).map(([val, label]) => (
                     <label key={val} className="flex items-center gap-1.5 text-sm text-foreground cursor-pointer">
-                      <input type="radio" name="filterConditionObras" checked={filterCondition === val} onChange={() => setFilterCondition(val)} className="accent-primary" />
+                      <input type="radio" name="filterCondObras" checked={filterCondition === val} onChange={() => setFilterCondition(val)} className="accent-primary" />
                       {label}
                     </label>
                   ))}
                 </div>
               </div>
-
-              {/* Controla estoque */}
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1.5">Controla estoque</label>
                 <div className="flex gap-4">
@@ -370,7 +349,6 @@ export default function Obras() {
               </div>
             </div>
 
-            {/* Filter actions */}
             <div className="p-4 border-t border-border flex gap-2">
               <button onClick={handleClearFilters} className="flex-1 flex items-center justify-center px-3 py-2.5 rounded-lg bg-white border border-border text-muted-foreground hover:bg-muted transition-colors" title="Limpar filtros">
                 <Eraser className="h-5 w-5" />
@@ -382,14 +360,9 @@ export default function Obras() {
           </div>
         </div>
 
-        {/* Toggle filter panel button */}
         <div className="flex-shrink-0 relative z-10" style={{ width: "28px" }}>
           <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${filtersOpen ? "bg-primary" : "bg-amber-700"}`} />
-          <button
-            onClick={() => setFiltersOpen(!filtersOpen)}
-            className={`absolute left-0 top-1/2 -translate-y-1/2 w-7 py-4 flex items-center justify-center cursor-pointer hover:opacity-90 transition-all rounded-r-md ${filtersOpen ? "bg-primary" : "bg-amber-700"}`}
-            title={filtersOpen ? "Fechar filtros" : "Filtros de pesquisa"}
-          >
+          <button onClick={() => setFiltersOpen(!filtersOpen)} className={`absolute left-0 top-1/2 -translate-y-1/2 w-7 py-4 flex items-center justify-center cursor-pointer hover:opacity-90 transition-all rounded-r-md ${filtersOpen ? "bg-primary" : "bg-amber-700"}`} title={filtersOpen ? "Fechar filtros" : "Filtros de pesquisa"}>
             <span className="text-white text-[10px] font-bold uppercase tracking-wider whitespace-nowrap flex items-center gap-1" style={{ writingMode: "vertical-lr" }}>
               FILTROS DE PESQUISA {filtersOpen ? "‹" : "›"}
             </span>
@@ -432,7 +405,7 @@ export default function Obras() {
               </h3>
               <div className="flex items-center gap-2">
                 {filtered.length > 0 && (
-                  <button onClick={() => exportToCSV(filtered, tableFields, "obras")} className="flex items-center gap-2 px-3 py-2 border border-border text-foreground rounded-lg text-sm hover:bg-muted transition-colors">
+                  <button onClick={() => setExportOpen(true)} className="flex items-center gap-2 px-3 py-2 border border-border text-foreground rounded-lg text-sm hover:bg-muted transition-colors">
                     <Download className="h-4 w-4" /> Exportar
                   </button>
                 )}
@@ -453,36 +426,29 @@ export default function Obras() {
                     <thead className="sticky top-0">
                       <tr className="bg-muted/50">
                         <th className="w-16 px-4 py-3 font-medium text-muted-foreground">Ativo</th>
-                        {tableFields.map((f) => (
-                          <th key={f.name} className="text-left px-4 py-3 font-medium text-muted-foreground">{f.label}</th>
-                        ))}
+                        {tableFields.map(f => <th key={f.name} className="text-left px-4 py-3 font-medium text-muted-foreground">{f.label}</th>)}
                         <th className="w-24 px-4 py-3" />
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
                       {paginatedItems.map((item) => (
-                        <tr key={item.id} className={`hover:bg-muted/30 transition-colors ${!item.active ? "opacity-50" : ""}`}>
-                          <td className="px-4 py-3">
-                            <button
-                              onClick={() => toggleActive.mutate({ id: item.id, active: !item.active })}
-                              className={`relative h-6 w-11 rounded-full transition-colors ${item.active ? "bg-primary" : "bg-muted-foreground/30"}`}
-                            >
+                        <tr key={item.id} onClick={() => openEdit(item)} className={`cursor-pointer hover:bg-primary/5 transition-colors ${!item.active ? "opacity-50" : ""}`}>
+                          <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                            <button onClick={() => toggleActive.mutate({ id: item.id, active: !item.active })} className={`relative h-6 w-11 rounded-full transition-colors ${item.active ? "bg-primary" : "bg-muted-foreground/30"}`}>
                               <span className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white transition-transform shadow-sm ${item.active ? "translate-x-5" : ""}`} />
                             </button>
                           </td>
-                          {tableFields.map((f) => {
-                            let display: string = item[f.name] ?? "—";
+                          {tableFields.map(f => {
+                            let display = item[f.name] ?? "—";
                             if (f.name === "client_id" && item[f.name]) display = getClientName(item[f.name]);
-                            else if (f.type === "select" && f.options && item[f.name]) {
-                              const opt = f.options.find((o) => o.value === item[f.name]);
-                              display = opt ? opt.label : item[f.name];
-                            }
+                            else if (f.name === "status" && item[f.name]) display = getStatusLabel(item[f.name]);
+                            else if (f.name === "category" && item[f.name]) display = getCategoryLabel(item[f.name]);
                             return <td key={f.name} className="px-4 py-3 text-foreground">{String(display)}</td>;
                           })}
-                          <td className="px-4 py-3">
+                          <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                             <div className="flex gap-1">
-                              <button onClick={() => openEdit(item)} className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground"><Pencil className="h-4 w-4" /></button>
-                              <button onClick={() => { if (confirm("Remover?")) deleteMutation.mutate(item.id); }} className="p-1.5 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive"><Trash2 className="h-4 w-4" /></button>
+                              <button onClick={() => openEdit(item)} className="p-1.5 rounded-md hover:bg-blue-100 text-blue-500 hover:text-blue-700" title="Editar"><Pencil className="h-4 w-4" /></button>
+                              <button onClick={() => { if (confirm("Remover?")) deleteMutation.mutate(item.id); }} className="p-1.5 rounded-md hover:bg-red-100 text-red-500 hover:text-red-700" title="Remover"><Trash2 className="h-4 w-4" /></button>
                             </div>
                           </td>
                         </tr>
@@ -495,11 +461,11 @@ export default function Obras() {
                   <div className="flex items-center justify-between text-sm text-muted-foreground mt-3">
                     <span>{filtered.length} registro{filtered.length !== 1 ? "s" : ""}</span>
                     <div className="flex items-center gap-2">
-                      <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={currentPage === 0} className="p-1.5 rounded-md hover:bg-accent disabled:opacity-30"><ChevronLeft className="h-4 w-4" /></button>
+                      <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={currentPage === 0} className="p-1.5 rounded-md hover:bg-accent disabled:opacity-30"><ChevronLeft className="h-4 w-4" /></button>
                       {Array.from({ length: totalPages }, (_, i) => (
                         <button key={i} onClick={() => setPage(i)} className={`h-8 w-8 rounded-md text-sm font-medium ${i === currentPage ? "bg-primary text-primary-foreground" : "hover:bg-accent text-foreground"}`}>{i + 1}</button>
                       )).slice(Math.max(0, currentPage - 2), Math.min(totalPages, currentPage + 3))}
-                      <button onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))} disabled={currentPage === totalPages - 1} className="p-1.5 rounded-md hover:bg-accent disabled:opacity-30"><ChevronRight className="h-4 w-4" /></button>
+                      <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={currentPage === totalPages - 1} className="p-1.5 rounded-md hover:bg-accent disabled:opacity-30"><ChevronRight className="h-4 w-4" /></button>
                     </div>
                   </div>
                 )}
@@ -512,44 +478,276 @@ export default function Obras() {
       {/* Edit/Create Modal */}
       {formOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={closeForm}>
-          <div className="bg-card border border-border rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-5 border-b border-border">
-              <h3 className="text-lg font-semibold text-card-foreground">{editing ? "Editar" : "Nova"} Obra</h3>
+          <div className="bg-card border border-border rounded-xl w-full max-w-4xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+              <h3 className="text-lg font-semibold text-primary">
+                {editing ? `Obra: ${editing.name}${editing.client_id ? ` - Cliente: ${getClientName(editing.client_id)}` : ""}` : "Nova obra"}
+              </h3>
               <button onClick={closeForm} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
             </div>
 
-            {allTabs.length > 1 && (
-              <div className="flex border-b border-border px-5 gap-1">
-                {allTabs.map((t) => (
-                  <button key={t.key} onClick={() => setActiveTab(t.key)} className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${activeTab === t.key ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
-                    {t.label}
-                  </button>
-                ))}
-              </div>
-            )}
+            {/* Tabs */}
+            <div className="grid border-b border-border" style={{ gridTemplateColumns: `repeat(${visibleTabs.length}, 1fr)` }}>
+              {visibleTabs.map(t => (
+                <button key={t.key} onClick={() => setActiveTab(t.key)} className={`py-3 text-sm font-medium border-b-2 transition-colors -mb-px text-center ${activeTab === t.key ? "border-primary text-primary bg-card" : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/80"}`}>
+                  {t.label}
+                </button>
+              ))}
+            </div>
 
-            {activeTab === "dados" && (
-              <form onSubmit={handleSubmit} className="p-5 space-y-4">
-                {fields.map((f) => (
-                  <div key={f.name}>
-                    <label className="block text-sm font-medium text-card-foreground mb-1">{f.label}</label>
-                    {renderFormInput(f)}
+            {/* Tab content - scrollable */}
+            <div className="flex-1 overflow-y-auto">
+              {/* ─── DADOS ─── */}
+              {activeTab === "dados" && (
+                <form id="obra-form" onSubmit={handleSubmit} className="p-5 space-y-5">
+                  {/* Cliente + Nome */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-1">Cliente *</label>
+                      <select value={form.client_id || ""} onChange={e => setForm(p => ({ ...p, client_id: e.target.value }))} required className={inputClass}>
+                        <option value="">Selecione...</option>
+                        {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      </select>
+                    </div>
                   </div>
-                ))}
-                <div className="flex justify-end gap-3 pt-2">
-                  <button type="button" onClick={closeForm} className="px-4 py-2 rounded-lg border border-border text-foreground hover:bg-muted">Cancelar</button>
-                  <button type="submit" disabled={saveMutation.isPending} className="px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 disabled:opacity-50">
-                    {saveMutation.isPending ? "Salvando..." : "Salvar"}
-                  </button>
-                </div>
-              </form>
-            )}
 
-            {activeTab === "anexos" && editing && (
-              <div className="p-5"><Attachments entityType="obras" entityId={editing.id} /></div>
-            )}
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1">Nome da obra *</label>
+                    <input value={form.name || ""} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} required className={inputClass} />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-1">Categoria *</label>
+                      <select value={form.category || ""} onChange={e => setForm(p => ({ ...p, category: e.target.value }))} required className={inputClass}>
+                        <option value="">Selecione...</option>
+                        {CATEGORIA_OBRAS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-1">Situação *</label>
+                      <select value={form.status || ""} onChange={e => setForm(p => ({ ...p, status: e.target.value }))} required className={inputClass}>
+                        <option value="">Selecione...</option>
+                        {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Observação */}
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1">Observação</label>
+                    <textarea value={form.notes || ""} onChange={e => { if (e.target.value.length <= OBS_MAX_LEN) setForm(p => ({ ...p, notes: e.target.value })); }} rows={5} className={inputClass} />
+                    <p className="text-xs text-muted-foreground text-right mt-1">{OBS_MAX_LEN - (form.notes?.length || 0)} caracteres restantes</p>
+                  </div>
+
+                  {/* Período */}
+                  <fieldset className="border border-border rounded-lg p-4 space-y-3">
+                    <legend className="px-2 text-sm font-medium text-foreground">Período</legend>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-foreground mb-1">Data início</label>
+                        <input type="date" value={form.start_date || ""} onChange={e => setForm(p => ({ ...p, start_date: e.target.value }))} className={inputClass} />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-foreground mb-1">Duração</label>
+                        <input type="number" value={form.duration || ""} onChange={e => setForm(p => ({ ...p, duration: e.target.value }))} className={inputClass} />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-foreground mb-1">Unidade</label>
+                        <select value={form.duration_unit || "meses"} onChange={e => setForm(p => ({ ...p, duration_unit: e.target.value }))} className={inputClass}>
+                          <option value="meses">Mês(es)</option>
+                          <option value="dias">Dia(s)</option>
+                          <option value="semanas">Semana(s)</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-foreground mb-1">Data fim</label>
+                        <input type="date" value={form.expected_end_date || ""} onChange={e => setForm(p => ({ ...p, expected_end_date: e.target.value }))} className={inputClass} />
+                      </div>
+                    </div>
+                  </fieldset>
+
+                  {/* Outras informações */}
+                  <fieldset className="border border-border rounded-lg p-4 space-y-3">
+                    <legend className="px-2 text-sm font-medium text-foreground">Outras informações</legend>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-foreground mb-1">CNO</label>
+                        <input value={form.cno || ""} onChange={e => setForm(p => ({ ...p, cno: e.target.value }))} className={inputClass} />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-foreground mb-1">Área (m²)</label>
+                        <input type="number" step="0.01" value={form.area_m2 || ""} onChange={e => setForm(p => ({ ...p, area_m2: e.target.value }))} className={inputClass} />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-foreground mb-1">Empreiteiro</label>
+                        <input value={form.empreiteiro || ""} onChange={e => setForm(p => ({ ...p, empreiteiro: e.target.value }))} className={inputClass} />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-foreground mb-1">Resp. técnico</label>
+                        <input value={form.resp_tecnico || ""} onChange={e => setForm(p => ({ ...p, resp_tecnico: e.target.value }))} className={inputClass} />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-foreground mb-1">ART nº</label>
+                        <input value={form.art_number || ""} onChange={e => setForm(p => ({ ...p, art_number: e.target.value }))} className={inputClass} />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-foreground mb-1">Resp. obra</label>
+                        <input value={form.resp_obra || ""} onChange={e => setForm(p => ({ ...p, resp_obra: e.target.value }))} className={inputClass} />
+                      </div>
+                    </div>
+                  </fieldset>
+                </form>
+              )}
+
+              {/* ─── ENDEREÇO ─── */}
+              {activeTab === "endereco" && (
+                <div className="p-5 space-y-6">
+                  {/* Endereço da obra */}
+                  <fieldset className="border border-border rounded-lg p-4 space-y-3">
+                    <legend className="px-2 text-sm font-medium text-foreground">Endereço da obra</legend>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-foreground mb-1">CEP</label>
+                        <div className="relative">
+                          <input value={form.cep || ""} onChange={e => setForm(p => ({ ...p, cep: formatCep(e.target.value) }))} onBlur={e => handleCepBlur(e.target.value)} placeholder="00000-000" className={inputClass} />
+                          {cepLoading && <div className="absolute right-3 top-2.5"><div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full" /></div>}
+                        </div>
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="block text-xs font-medium text-foreground mb-1">Logradouro</label>
+                        <input value={form.address || ""} onChange={e => setForm(p => ({ ...p, address: e.target.value }))} className={inputClass} />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-foreground mb-1">Número</label>
+                        <input value={form.address_number || ""} onChange={e => setForm(p => ({ ...p, address_number: e.target.value }))} className={inputClass} />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-foreground mb-1">Bairro</label>
+                        <input value={form.neighborhood || ""} onChange={e => setForm(p => ({ ...p, neighborhood: e.target.value }))} className={inputClass} />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-foreground mb-1">Complemento</label>
+                        <input value={form.complement || ""} onChange={e => setForm(p => ({ ...p, complement: e.target.value }))} className={inputClass} />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-foreground mb-1">Estado</label>
+                        <select value={form.state || ""} onChange={e => setForm(p => ({ ...p, state: e.target.value }))} className={inputClass}>
+                          <option value="">Selecione...</option>
+                          {ESTADOS.map(e => <option key={e} value={e}>{e}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-foreground mb-1">Cidade</label>
+                        <input value={form.city || ""} onChange={e => setForm(p => ({ ...p, city: e.target.value }))} className={inputClass} />
+                      </div>
+                    </div>
+                  </fieldset>
+
+                  {/* Endereço de cobrança */}
+                  <fieldset className="border border-border rounded-lg p-4 space-y-3">
+                    <legend className="px-2 text-sm font-medium text-foreground">Endereço de cobrança</legend>
+                    <div className="flex items-center gap-1 mb-2">
+                      <span className="text-sm text-foreground mr-2">Usar o mesmo de:</span>
+                      {(["obra", "cliente", "empresa", "outro"] as const).map(val => (
+                        <label key={val} className="flex items-center gap-1 text-sm cursor-pointer mr-3">
+                          <input type="radio" checked={form.billing_address_source === val} onChange={() => {
+                            setForm(p => ({ ...p, billing_address_source: val }));
+                            if (val === "obra") {
+                              setForm(p => ({
+                                ...p, billing_cep: p.cep, billing_address: p.address, billing_number: p.address_number,
+                                billing_neighborhood: p.neighborhood, billing_complement: p.complement, billing_state: p.state, billing_city: p.city,
+                              }));
+                            }
+                          }} className="accent-primary" />
+                          {val.charAt(0).toUpperCase() + val.slice(1)}
+                        </label>
+                      ))}
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-foreground mb-1">CEP</label>
+                        <input value={form.billing_cep || ""} onChange={e => setForm(p => ({ ...p, billing_cep: formatCep(e.target.value) }))} onBlur={e => handleCepBlur(e.target.value, "billing_")} placeholder="00000-000" className={inputClass} />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="block text-xs font-medium text-foreground mb-1">Logradouro</label>
+                        <input value={form.billing_address || ""} onChange={e => setForm(p => ({ ...p, billing_address: e.target.value }))} className={inputClass} />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-foreground mb-1">Número</label>
+                        <input value={form.billing_number || ""} onChange={e => setForm(p => ({ ...p, billing_number: e.target.value }))} className={inputClass} />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-foreground mb-1">Bairro</label>
+                        <input value={form.billing_neighborhood || ""} onChange={e => setForm(p => ({ ...p, billing_neighborhood: e.target.value }))} className={inputClass} />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-foreground mb-1">Complemento</label>
+                        <input value={form.billing_complement || ""} onChange={e => setForm(p => ({ ...p, billing_complement: e.target.value }))} className={inputClass} />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-foreground mb-1">Estado</label>
+                        <select value={form.billing_state || ""} onChange={e => setForm(p => ({ ...p, billing_state: e.target.value }))} className={inputClass}>
+                          <option value="">Selecione...</option>
+                          {ESTADOS.map(e => <option key={e} value={e}>{e}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-foreground mb-1">Cidade</label>
+                        <input value={form.billing_city || ""} onChange={e => setForm(p => ({ ...p, billing_city: e.target.value }))} className={inputClass} />
+                      </div>
+                    </div>
+                  </fieldset>
+                </div>
+              )}
+
+              {/* ─── CONTATOS ─── */}
+              {activeTab === "contatos" && editing && <ObraContacts obraId={editing.id} />}
+              {activeTab === "contatos" && !editing && <div className="p-5 text-muted-foreground text-center py-12">Salve a obra primeiro para gerenciar contatos.</div>}
+
+              {/* ─── DIA A DIA ─── */}
+              {activeTab === "diadia" && editing && <ObraDailyEntries obraId={editing.id} />}
+
+              {/* ─── PASTA DA OBRA ─── */}
+              {activeTab === "pasta" && editing && <div className="p-5"><Attachments entityType="obras" entityId={editing.id} /></div>}
+
+              {/* ─── ATENDIMENTO ─── */}
+              {activeTab === "atendimento" && editing && <ObraServiceMessages obraId={editing.id} />}
+
+              {/* ─── CONFIGURAÇÕES ─── */}
+              {activeTab === "config" && editing && <ObraConfig obraId={editing.id} form={form} setForm={setForm} />}
+            </div>
+
+            {/* Bottom bar */}
+            <div className="flex items-center justify-end gap-3 px-5 py-3 border-t border-border bg-muted rounded-b-xl">
+              <button type="button" onClick={closeForm} className="px-4 py-2 rounded-lg bg-white text-foreground border border-border hover:bg-muted/80 text-sm">
+                Cancelar
+              </button>
+              {(activeTab === "dados" || activeTab === "endereco" || activeTab === "config") && (
+                <button type="submit" form="obra-form" onClick={(e) => { if (activeTab !== "dados") { e.preventDefault(); saveMutation.mutate(form); } }} disabled={saveMutation.isPending} className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50">
+                  {saveMutation.isPending ? "Salvando..." : "Salvar"}
+                </button>
+              )}
+            </div>
           </div>
         </div>
+      )}
+
+      {/* Export Dialog */}
+      {exportOpen && (
+        <ExportDialog
+          onClose={() => setExportOpen(false)}
+          onSelect={async (format) => {
+            setExportOpen(false);
+            const company = user ? await fetchCompanyInfo(user.id) : null;
+            const expFields = tableFields.map(f => ({ name: f.name, label: f.label }));
+            if (format === "csv") exportCSV(filtered, expFields, "obras", company);
+            else if (format === "excel") exportExcel(filtered, expFields, "obras", company);
+            else if (format === "pdf") await exportPDF(filtered, expFields, "obras", company);
+            toast.success("Arquivo exportado!");
+          }}
+        />
       )}
     </div>
   );
