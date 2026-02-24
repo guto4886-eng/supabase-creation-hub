@@ -1098,6 +1098,18 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
               toast.success("Medição fechada!");
             };
 
+            const deleteMeasurement = async (medId: string) => {
+              if (!confirm("Deseja realmente excluir esta medição? Todos os lançamentos serão perdidos.")) return;
+              // Delete measurement items first, then the measurement
+              await supabase.from("budget_measurement_items").delete().eq("measurement_id", medId);
+              const { error } = await supabase.from("budget_measurements").delete().eq("id", medId);
+              if (error) { toast.error(error.message); return; }
+              if (activeMeasurement === medId) setActiveMeasurement(null);
+              qc.invalidateQueries({ queryKey: ["budget_measurements", budgetId] });
+              qc.invalidateQueries({ queryKey: ["budget_measurement_items", medId] });
+              toast.success("Medição excluída!");
+            };
+
             const activeMed = measurements.find((m: any) => m.id === activeMeasurement) as any;
 
             return (
@@ -1142,12 +1154,19 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                               </span>
                             </td>
                             <td className="px-3 py-2 text-muted-foreground">{new Date(med.created_at).toLocaleDateString("pt-BR")}</td>
-                            <td className="px-3 py-2 text-center">
+                            <td className="px-3 py-2 text-center flex items-center justify-center gap-1.5">
                               <button
                                 onClick={() => setActiveMeasurement(med.id)}
                                 className="px-3 py-1 text-xs bg-primary text-primary-foreground rounded hover:opacity-90"
                               >
                                 {med.status === "aberta" ? "Editar" : "Visualizar"}
+                              </button>
+                              <button
+                                onClick={() => deleteMeasurement(med.id)}
+                                className="px-2 py-1 text-xs bg-destructive text-destructive-foreground rounded hover:opacity-90"
+                                title="Excluir medição"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
                               </button>
                             </td>
                           </tr>
@@ -1167,10 +1186,16 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                       </div>
                       <div className="flex items-center gap-2">
                         {activeMed?.status === "aberta" && (
-                          <button onClick={closeMeasurement} className="px-3 py-1.5 text-xs bg-destructive text-destructive-foreground rounded-lg hover:opacity-90 font-medium">
+                          <button onClick={closeMeasurement} className="px-3 py-1.5 text-xs bg-amber-600 text-white rounded-lg hover:opacity-90 font-medium">
                             Fechar medição
                           </button>
                         )}
+                        <button
+                          onClick={() => deleteMeasurement(activeMeasurement!)}
+                          className="px-3 py-1.5 text-xs bg-destructive text-destructive-foreground rounded-lg hover:opacity-90 font-medium"
+                        >
+                          Excluir medição
+                        </button>
                         <button onClick={() => setActiveMeasurement(null)} className="px-3 py-1.5 text-xs border border-border rounded-lg hover:bg-muted text-foreground">
                           Voltar
                         </button>
