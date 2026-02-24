@@ -17,6 +17,7 @@ import SupplierContacts from "@/components/SupplierContacts";
 import SupplierCategories from "@/components/SupplierCategories";
 import SupplierQuality from "@/components/SupplierQuality";
 import SupplierCertifications from "@/components/SupplierCertifications";
+import SupplierPurchases from "@/components/SupplierPurchases";
 import CsvImport from "@/components/CsvImport";
 
 const ESTADOS = [
@@ -266,6 +267,7 @@ export default function Suppliers() {
     { key: "bancarios", label: "Dados bancários" },
     { key: "vendedores", label: "Vendedores" },
     { key: "categorias", label: "Categorias" },
+    { key: "compras", label: "Compras" },
     { key: "qualidade", label: "Qualidade" },
     ...(editing ? [{ key: "anexos", label: "Anexos" }] : []),
     { key: "certificacoes", label: "Certificações" },
@@ -697,6 +699,12 @@ export default function Suppliers() {
               )}
               {activeTab === "categorias" && !editing && (
                 <div className="p-6 text-center text-muted-foreground py-12">Salve o fornecedor primeiro para adicionar categorias</div>
+              )}
+              {activeTab === "compras" && editing && (
+                <SupplierPurchases supplierId={editing.id} />
+              )}
+              {activeTab === "compras" && !editing && (
+                <div className="p-6 text-center text-muted-foreground py-12">Salve o fornecedor primeiro para registrar compras</div>
               )}
               {activeTab === "qualidade" && editing && (
                 <SupplierQuality supplierId={editing.id} />
