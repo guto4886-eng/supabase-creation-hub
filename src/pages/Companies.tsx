@@ -372,7 +372,9 @@ export default function Companies() {
           />
         )}
 
-        {activeSection && activeSection !== "matriz_filiais" && (
+        {activeSection === "feriados" && <HolidaysContent user={user} />}
+
+        {activeSection && activeSection !== "matriz_filiais" && activeSection !== "feriados" && (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
               <div className="h-20 w-20 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
@@ -752,6 +754,161 @@ function CompanyFormModal({
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/* ───── Federal Holidays ───── */
+const FEDERAL_HOLIDAYS = [
+  { name: "Confraternização Universal", date: "01-01" },
+  { name: "Carnaval", date: "03-04" },
+  { name: "Sexta-feira Santa", date: "04-18" },
+  { name: "Tiradentes", date: "04-21" },
+  { name: "Dia do Trabalho", date: "05-01" },
+  { name: "Corpus Christi", date: "06-19" },
+  { name: "Independência do Brasil", date: "09-07" },
+  { name: "Nossa Senhora Aparecida", date: "10-12" },
+  { name: "Finados", date: "11-02" },
+  { name: "Proclamação da República", date: "11-15" },
+  { name: "Consciência Negra", date: "11-20" },
+  { name: "Natal", date: "12-25" },
+];
+
+function HolidaysContent({ user }: { user: any }) {
+  const qc = useQueryClient();
+  const [year, setYear] = useState(new Date().getFullYear());
+
+  const { data: holidays = [], isLoading } = useQuery({
+    queryKey: ["holidays", user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("holidays").select("*").order("holiday_date", { ascending: true });
+      if (error) throw error;
+      return data as any[];
+    },
+    enabled: !!user,
+  });
+
+  const seedMutation = useMutation({
+    mutationFn: async () => {
+      const existing = holidays.map((h: any) => `${h.name}|${h.holiday_date}`);
+      const toInsert = FEDERAL_HOLIDAYS
+        .map((h) => ({
+          user_id: user!.id,
+          name: h.name,
+          holiday_date: `${year}-${h.date}`,
+          type: "federal",
+          active: true,
+        }))
+        .filter((h) => !existing.includes(`${h.name}|${h.holiday_date}`));
+      if (toInsert.length === 0) {
+        toast.info("Feriados deste ano já estão cadastrados.");
+        return;
+      }
+      const { error } = await supabase.from("holidays").insert(toInsert as any);
+      if (error) throw error;
+      toast.success(`${toInsert.length} feriado(s) adicionados para ${year}!`);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["holidays"] }),
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("holidays").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["holidays"] });
+      toast.success("Feriado removido!");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const toggleActive = useMutation({
+    mutationFn: async ({ id, active }: { id: string; active: boolean }) => {
+      const { error } = await supabase.from("holidays").update({ active } as any).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["holidays"] });
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const filteredByYear = holidays.filter((h: any) => h.holiday_date?.startsWith(String(year)));
+
+  return (
+    <div className="flex-1 flex flex-col overflow-hidden p-4">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-semibold text-foreground">Feriados</h3>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <button onClick={() => setYear((y) => y - 1)} className="px-2 py-1 rounded border border-border hover:bg-accent text-sm">&lt;</button>
+            <span className="text-sm font-medium text-foreground w-12 text-center">{year}</span>
+            <button onClick={() => setYear((y) => y + 1)} className="px-2 py-1 rounded border border-border hover:bg-accent text-sm">&gt;</button>
+          </div>
+          <button
+            onClick={() => seedMutation.mutate()}
+            disabled={seedMutation.isPending}
+            className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50"
+          >
+            <CalendarDays className="h-4 w-4" />
+            {seedMutation.isPending ? "Adicionando..." : `Gerar Feriados ${year}`}
+          </button>
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="flex justify-center py-12"><div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" /></div>
+      ) : filteredByYear.length === 0 ? (
+        <div className="text-center py-12 text-muted-foreground">
+          Nenhum feriado cadastrado para {year}. Clique em "Gerar Feriados" para adicionar os feriados federais.
+        </div>
+      ) : (
+        <div className="flex-1 overflow-auto border border-border rounded-xl">
+          <table className="w-full text-sm">
+            <thead className="sticky top-0 z-10">
+              <tr className="bg-muted">
+                <th className="px-4 py-3 font-medium text-muted-foreground text-left" style={{ width: 80 }}>Ativo</th>
+                <th className="px-4 py-3 font-medium text-muted-foreground text-left">Data</th>
+                <th className="px-4 py-3 font-medium text-muted-foreground text-left">Nome</th>
+                <th className="px-4 py-3 font-medium text-muted-foreground text-left" style={{ width: 100 }}>Tipo</th>
+                <th className="px-4 py-3" style={{ width: 60 }} />
+              </tr>
+            </thead>
+            <tbody>
+              {filteredByYear.map((h: any, idx: number) => {
+                const d = new Date(h.holiday_date + "T12:00:00");
+                const dateStr = d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+                const weekday = d.toLocaleDateString("pt-BR", { weekday: "long" });
+                return (
+                  <tr key={h.id} className={`${idx % 2 === 0 ? "bg-background" : "bg-muted/30"} ${!h.active ? "opacity-50" : ""}`}>
+                    <td className="px-4 py-3">
+                      <button
+                        onClick={() => toggleActive.mutate({ id: h.id, active: !h.active })}
+                        className={`relative w-14 h-7 rounded-full transition-colors duration-500 ${h.active ? "bg-primary" : "bg-destructive"}`}
+                        style={{ minWidth: 56 }}
+                      >
+                        <span className="absolute top-[3px] h-[22px] w-[22px] rounded-full bg-white shadow-lg transition-[left] duration-500" style={{ left: h.active ? 29 : 3 }} />
+                      </button>
+                    </td>
+                    <td className="px-4 py-3 text-foreground">{dateStr} <span className="text-muted-foreground capitalize">({weekday})</span></td>
+                    <td className="px-4 py-3 text-foreground font-medium">{h.name}</td>
+                    <td className="px-4 py-3">
+                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary capitalize">{h.type}</span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <button onClick={() => { if (confirm("Remover feriado?")) deleteMutation.mutate(h.id); }} className="p-1.5 rounded-md hover:bg-accent text-destructive" title="Remover">
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
