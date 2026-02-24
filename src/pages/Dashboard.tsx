@@ -56,7 +56,7 @@ export default function Dashboard() {
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-4 lg:p-6">
       <div>
         <h2 className="text-2xl font-bold text-foreground">Visão Geral</h2>
         <p className="text-muted-foreground">Resumo das suas obras e finanças</p>

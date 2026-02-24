@@ -209,7 +209,7 @@ export default function Quotations() {
   const inputClass = "w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring";
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 p-4 lg:p-6">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <h2 className="text-2xl font-bold text-foreground">Cotações</h2>
         <button onClick={openNew} className="flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90">

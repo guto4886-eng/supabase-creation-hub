@@ -91,7 +91,7 @@ export default function Layout() {
           </h1>
           <NotificationBell />
         </header>
-        <div className="p-4 lg:p-6">
+        <div className="flex-1 overflow-hidden">
           <Outlet />
         </div>
       </main>

@@ -231,7 +231,7 @@ export default function Budgets() {
   const inputClass = "w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring";
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 p-4 lg:p-6">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <h2 className="text-2xl font-bold text-foreground">Orçamentos</h2>
         <div className="flex items-center gap-2">
