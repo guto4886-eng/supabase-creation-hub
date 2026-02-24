@@ -406,8 +406,8 @@ export default function Clients() {
                     </thead>
                     <tbody>
                       {paginatedItems.map((item, idx) => (
-                        <tr key={item.id} className={`transition-colors ${!item.active ? "opacity-50" : ""} ${idx % 2 === 0 ? "bg-background" : "bg-muted/30"} hover:bg-primary/5`}>
-                          <td className="px-4 py-3">
+                        <tr key={item.id} onClick={() => openEdit(item)} className={`transition-colors cursor-pointer ${!item.active ? "opacity-50" : ""} ${idx % 2 === 0 ? "bg-background" : "bg-muted/30"} hover:bg-primary/5`}>
+                          <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                             <button
                               onClick={() => toggleActive.mutate({ id: item.id, active: !item.active })}
                               className={`relative w-14 h-7 rounded-full transition-colors duration-500 ease-in-out ${item.active ? "bg-blue-500" : "bg-orange-500"}`}
@@ -427,7 +427,7 @@ export default function Clients() {
                             }
                             return <td key={f.name} className="px-4 py-3 text-foreground overflow-hidden text-ellipsis whitespace-nowrap" title={String(display)}>{String(display)}</td>;
                           })}
-                          <td className="px-4 py-3">
+                          <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                             <div className="flex gap-1">
                               <button onClick={() => openEdit(item)} className="p-1.5 rounded-md hover:bg-blue-100 text-blue-500 hover:text-blue-700" title="Editar"><Pencil className="h-4 w-4" /></button>
                               <button onClick={() => { if (confirm("Remover?")) deleteMutation.mutate(item.id); }} className="p-1.5 rounded-md hover:bg-red-100 text-red-500 hover:text-red-700" title="Remover"><Trash2 className="h-4 w-4" /></button>
