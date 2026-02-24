@@ -48,10 +48,17 @@ export default function Budgets() {
   const [filterCompany, setFilterCompany] = useState("");
   const [searched, setSearched] = useState(false);
 
+  // New budget wizard
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [wizardCompany, setWizardCompany] = useState("");
+  const [wizardObra, setWizardObra] = useState("");
+  const [wizardContent, setWizardContent] = useState<"blank" | "copy">("blank");
+  const [wizardCopyFrom, setWizardCopyFrom] = useState("");
+
   // Budget form
   const [budgetFormOpen, setBudgetFormOpen] = useState(false);
   const [editingBudget, setEditingBudget] = useState<Budget | null>(null);
-  const [budgetForm, setBudgetForm] = useState({ name: "", status: "rascunho", description: "", obra_id: "" });
+  const [budgetForm, setBudgetForm] = useState({ name: "", status: "rascunho", description: "", obra_id: "", company_id: "" });
 
   // Item form
   const [editingItem, setEditingItem] = useState<BudgetItem | null>(null);
@@ -108,16 +115,39 @@ export default function Budgets() {
   // Budget CRUD
   const saveBudget = useMutation({
     mutationFn: async () => {
-      const payload = { name: budgetForm.name, status: budgetForm.status, description: budgetForm.description || null, obra_id: budgetForm.obra_id };
+      const payload = { name: budgetForm.name, status: budgetForm.status, description: budgetForm.description || null, obra_id: budgetForm.obra_id, company_id: budgetForm.company_id || null };
       if (editingBudget) {
         const { error } = await supabase.from("budgets").update(payload).eq("id", editingBudget.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("budgets").insert({ ...payload, user_id: user!.id });
+        const { data: newBudget, error } = await supabase.from("budgets").insert({ ...payload, user_id: user!.id }).select("id").single();
         if (error) throw error;
+        // Copy items from another budget if selected
+        if (wizardContent === "copy" && wizardCopyFrom && newBudget) {
+          const sourceItems = allItems.filter((i) => i.budget_id === wizardCopyFrom);
+          if (sourceItems.length > 0) {
+            const copies = sourceItems.map((item) => ({
+              budget_id: newBudget.id,
+              description: item.description,
+              category: item.category,
+              quantity: item.quantity,
+              unit: item.unit,
+              unit_price: item.unit_price,
+              total_price: item.total_price,
+              sort_order: item.sort_order,
+            }));
+            const { error: copyError } = await supabase.from("budget_items").insert(copies);
+            if (copyError) throw copyError;
+          }
+        }
       }
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["budgets"] }); toast.success(editingBudget ? "Orçamento atualizado!" : "Orçamento criado!"); closeBudgetForm(); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["budgets"] });
+      qc.invalidateQueries({ queryKey: ["budget_items"] });
+      toast.success(editingBudget ? "Orçamento atualizado!" : "Orçamento criado!");
+      closeBudgetForm();
+    },
     onError: (e: any) => toast.error(e.message),
   });
 
@@ -127,9 +157,9 @@ export default function Budgets() {
     onError: (e: any) => toast.error(e.message),
   });
 
-  const openNewBudget = () => { setEditingBudget(null); setBudgetForm({ name: "", status: "rascunho", description: "", obra_id: "" }); setBudgetFormOpen(true); };
-  const openEditBudget = (b: Budget) => { setEditingBudget(b); setBudgetForm({ name: b.name, status: b.status, description: b.description ?? "", obra_id: b.obra_id ?? "" }); setBudgetFormOpen(true); };
-  const closeBudgetForm = () => { setBudgetFormOpen(false); setEditingBudget(null); };
+  const openNewBudget = () => { setWizardCompany(""); setWizardObra(""); setWizardContent("blank"); setWizardCopyFrom(""); setWizardOpen(true); };
+  const openEditBudget = (b: Budget) => { setEditingBudget(b); setBudgetForm({ name: b.name, status: b.status, description: b.description ?? "", obra_id: b.obra_id ?? "", company_id: (b as any).company_id ?? "" }); setBudgetFormOpen(true); };
+  const closeBudgetForm = () => { setBudgetFormOpen(false); setEditingBudget(null); setWizardOpen(false); };
 
   // Item CRUD
   const saveItem = useMutation({
@@ -358,12 +388,83 @@ export default function Budgets() {
         )}
       </div>
 
+      {/* Wizard modal - New budget */}
+      {wizardOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setWizardOpen(false)}>
+          <div className="bg-card border border-border rounded-xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-5 border-b border-border bg-muted rounded-t-xl">
+              <h3 className="text-lg font-semibold text-primary">Novo orçamento</h3>
+              <button onClick={() => setWizardOpen(false)} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-card-foreground mb-1">Empresa *</label>
+                <select value={wizardCompany} onChange={(e) => setWizardCompany(e.target.value)} required className={inputClass}>
+                  <option value="">Selecione...</option>
+                  {companiesList.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.company_type === "filial" ? "↳ " : ""}{c.name}
+                      {c.company_type === "matriz" ? " (Matriz)" : " (Filial)"}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-card-foreground mb-1">Obra *</label>
+                <select value={wizardObra} onChange={(e) => setWizardObra(e.target.value)} required className={inputClass}>
+                  <option value="">Selecione...</option>
+                  {obras.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-card-foreground mb-1">Conteúdo</label>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-1.5 text-sm text-foreground cursor-pointer">
+                    <input type="radio" name="wizardContent" checked={wizardContent === "blank"} onChange={() => { setWizardContent("blank"); setWizardCopyFrom(""); }} className="accent-primary" />
+                    Em branco
+                  </label>
+                  <label className="flex items-center gap-1.5 text-sm text-foreground cursor-pointer">
+                    <input type="radio" name="wizardContent" checked={wizardContent === "copy"} onChange={() => setWizardContent("copy")} className="accent-primary" />
+                    Copiar de outro orçamento
+                  </label>
+                </div>
+              </div>
+              {wizardContent === "copy" && (
+                <div>
+                  <label className="block text-sm font-medium text-card-foreground mb-1">Orçamento de origem *</label>
+                  <select value={wizardCopyFrom} onChange={(e) => setWizardCopyFrom(e.target.value)} required className={inputClass}>
+                    <option value="">Selecione...</option>
+                    {budgets.map((b) => <option key={b.id} value={b.id}>{b.name} — {getObraName(b.obra_id)}</option>)}
+                  </select>
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end gap-3 px-5 py-4 border-t border-border bg-muted rounded-b-xl">
+              <button
+                onClick={() => {
+                  if (!wizardCompany) { toast.error("Selecione uma empresa"); return; }
+                  if (!wizardObra) { toast.error("Selecione uma obra"); return; }
+                  if (wizardContent === "copy" && !wizardCopyFrom) { toast.error("Selecione o orçamento de origem"); return; }
+                  setWizardOpen(false);
+                  setEditingBudget(null);
+                  setBudgetForm({ name: "", status: "rascunho", description: "", obra_id: wizardObra, company_id: wizardCompany });
+                  setBudgetFormOpen(true);
+                }}
+                className="px-5 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 flex items-center gap-2"
+              >
+                💾 Continuar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Budget form modal */}
       {budgetFormOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={closeBudgetForm}>
           <div className="bg-card border border-border rounded-xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-5 border-b border-border">
-              <h3 className="text-lg font-semibold text-card-foreground">{editingBudget ? "Editar" : "Novo"} Orçamento</h3>
+            <div className="flex items-center justify-between p-5 border-b border-border bg-muted rounded-t-xl">
+              <h3 className="text-lg font-semibold text-primary">{editingBudget ? "Editar" : "Novo"} Orçamento</h3>
               <button onClick={closeBudgetForm} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
             </div>
             <form onSubmit={(e) => { e.preventDefault(); saveBudget.mutate(); }} className="p-5 space-y-4">
@@ -379,6 +480,17 @@ export default function Budgets() {
                 </select>
               </div>
               <div>
+                <label className="block text-sm font-medium text-card-foreground mb-1">Empresa</label>
+                <select value={budgetForm.company_id} onChange={(e) => setBudgetForm((p) => ({ ...p, company_id: e.target.value }))} className={inputClass}>
+                  <option value="">Nenhuma</option>
+                  {companiesList.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.company_type === "filial" ? "↳ " : ""}{c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-card-foreground mb-1">Status</label>
                 <select value={budgetForm.status} onChange={(e) => setBudgetForm((p) => ({ ...p, status: e.target.value }))} className={inputClass}>
                   {statusOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -389,9 +501,9 @@ export default function Budgets() {
                 <textarea value={budgetForm.description} onChange={(e) => setBudgetForm((p) => ({ ...p, description: e.target.value }))} rows={3} className={inputClass} />
               </div>
               <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={closeBudgetForm} className="px-4 py-2 rounded-lg border border-border text-foreground hover:bg-muted">Cancelar</button>
+                <button type="button" onClick={closeBudgetForm} className="px-4 py-2 rounded-lg border border-border bg-background text-foreground hover:bg-muted">Cancelar</button>
                 <button type="submit" disabled={saveBudget.isPending} className="px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 disabled:opacity-50">
-                  {saveBudget.isPending ? "Salvando..." : "Salvar"}
+                  {saveBudget.isPending ? "Salvando..." : "💾 Salvar"}
                 </button>
               </div>
             </form>
