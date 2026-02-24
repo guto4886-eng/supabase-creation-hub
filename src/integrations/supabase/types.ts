@@ -469,6 +469,36 @@ export type Database = {
           },
         ]
       }
+      insumos: {
+        Row: {
+          category: string | null
+          created_at: string
+          id: string
+          is_default: boolean
+          name: string
+          unit: string
+          user_id: string | null
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          name: string
+          unit?: string
+          user_id?: string | null
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          name?: string
+          unit?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           created_at: string
@@ -1031,6 +1061,69 @@ export type Database = {
             columns: ["obra_id"]
             isOneToOne: false
             referencedRelation: "obras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quotation_items: {
+        Row: {
+          brand: string | null
+          complement: string | null
+          created_at: string
+          description: string
+          id: string
+          insumo_id: string | null
+          item_type: string
+          phase: string | null
+          quantity: number
+          quotation_id: string
+          service: string | null
+          unit: string
+          unit_price: number | null
+        }
+        Insert: {
+          brand?: string | null
+          complement?: string | null
+          created_at?: string
+          description: string
+          id?: string
+          insumo_id?: string | null
+          item_type?: string
+          phase?: string | null
+          quantity?: number
+          quotation_id: string
+          service?: string | null
+          unit?: string
+          unit_price?: number | null
+        }
+        Update: {
+          brand?: string | null
+          complement?: string | null
+          created_at?: string
+          description?: string
+          id?: string
+          insumo_id?: string | null
+          item_type?: string
+          phase?: string | null
+          quantity?: number
+          quotation_id?: string
+          service?: string | null
+          unit?: string
+          unit_price?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quotation_items_insumo_id_fkey"
+            columns: ["insumo_id"]
+            isOneToOne: false
+            referencedRelation: "insumos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quotation_items_quotation_id_fkey"
+            columns: ["quotation_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_quotations"
             referencedColumns: ["id"]
           },
         ]
