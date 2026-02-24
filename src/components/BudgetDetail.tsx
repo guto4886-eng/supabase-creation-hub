@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { X, Plus, Pencil, Trash2, FileText, ChevronDown, Settings, Upload, ClipboardList, Download } from "lucide-react";
 import BudgetImportModal from "./BudgetImportModal";
 import { fetchCompanyInfo, type CompanyInfo } from "@/utils/exportWithHeader";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from "recharts";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
@@ -1627,16 +1628,176 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
             );
           })()}
 
-          {activeTab === "previsto_realizado" && (
-            <div className="space-y-4">
-              <h4 className="text-sm font-semibold text-foreground">Previsto x Realizado</h4>
-              <div className="text-center py-16 text-muted-foreground border border-border rounded-lg bg-muted/10">
-                <Settings className="h-10 w-10 mx-auto mb-3 text-muted-foreground/50" />
-                <p className="text-sm">Módulo previsto x realizado em desenvolvimento.</p>
-                <p className="text-xs mt-1">Aqui será possível comparar valores previstos com os realizados.</p>
+          {activeTab === "previsto_realizado" && (() => {
+            const getPrefixPR = (desc: string) => {
+              const m = desc.trim().match(/^(\d+(?:\.\d+)*)/);
+              return m ? m[1] : null;
+            };
+            const phaseItemsPR = items.filter((i) => (i.category || "").toLowerCase() === "fase");
+            const serviceItemsPR = items.filter((i) => ["serviço", "servico"].includes((i.category || "").toLowerCase()));
+            const rootPhasesPR = phaseItemsPR.filter((p) => {
+              const pfx = getPrefixPR(p.description);
+              return pfx && !pfx.includes(".");
+            });
+
+            // Per-phase data
+            const phaseChartData = rootPhasesPR.map((phase) => {
+              const rootIdx = getPrefixPR(phase.description)!;
+              const children = serviceItemsPR.filter((s) => {
+                const sp = getPrefixPR(s.description);
+                return sp ? sp.split(".")[0] === rootIdx : false;
+              });
+              const previsto = children.reduce((sum, s) => sum + (s.total_price || 0), 0);
+              const realizado = children.reduce((sum, s) => {
+                const accPct = (allMeasurementItems as any[])
+                  .filter((mi: any) => mi.budget_item_id === s.id)
+                  .reduce((a: number, mi: any) => a + (mi.measured_percentage || 0), 0);
+                return sum + (s.total_price || 0) * (accPct / 100);
+              }, 0);
+              return {
+                name: phase.description.replace(/^\d+(\.\d+)*\s*[-–.]?\s*/, "").substring(0, 20),
+                Previsto: Math.round(previsto * 100) / 100,
+                Realizado: Math.round(realizado * 100) / 100,
+              };
+            }).filter(d => d.Previsto > 0);
+
+            // Per-measurement (timeline) data
+            const sortedMeasurements = [...measurements].sort((a: any, b: any) => a.measurement_number - b.measurement_number);
+            let cumulativeValue = 0;
+            const timelineData = sortedMeasurements.map((med: any) => {
+              const medItems = (allMeasurementItems as any[]).filter((mi: any) => mi.measurement_id === med.id);
+              const medValue = medItems.reduce((sum: number, mi: any) => {
+                const svc = serviceItemsPR.find(s => s.id === mi.budget_item_id);
+                return sum + ((svc?.total_price || 0) * ((mi.measured_percentage || 0) / 100));
+              }, 0);
+              cumulativeValue += medValue;
+              return {
+                name: med.reference_period || `#${med.measurement_number}`,
+                Realizado: Math.round(cumulativeValue * 100) / 100,
+                Previsto: Math.round(serviceItemsPR.reduce((s, svc) => s + (svc.total_price || 0), 0) * 100) / 100,
+              };
+            });
+
+            // Totals
+            const totalPrevisto = serviceItemsPR.reduce((s, svc) => s + (svc.total_price || 0), 0);
+            const totalRealizado = serviceItemsPR.reduce((sum, svc) => {
+              const accPct = (allMeasurementItems as any[])
+                .filter((mi: any) => mi.budget_item_id === svc.id)
+                .reduce((a: number, mi: any) => a + (mi.measured_percentage || 0), 0);
+              return sum + (svc.total_price || 0) * (accPct / 100);
+            }, 0);
+            const desvio = totalRealizado - totalPrevisto;
+            const devPct = totalPrevisto > 0 ? (totalRealizado / totalPrevisto) * 100 : 0;
+
+            return (
+              <div className="space-y-6">
+                <h4 className="text-sm font-semibold text-foreground">Previsto x Realizado</h4>
+
+                {/* Summary cards */}
+                <div className="grid grid-cols-4 gap-3">
+                  <div className="bg-muted/50 rounded-lg border border-border p-3 text-center">
+                    <div className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">Previsto</div>
+                    <div className="text-lg font-bold text-foreground mt-1">{fmt(totalPrevisto)}</div>
+                  </div>
+                  <div className="bg-muted/50 rounded-lg border border-border p-3 text-center">
+                    <div className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">Realizado</div>
+                    <div className="text-lg font-bold text-primary mt-1">{fmt(totalRealizado)}</div>
+                  </div>
+                  <div className="bg-muted/50 rounded-lg border border-border p-3 text-center">
+                    <div className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">Desvio</div>
+                    <div className={`text-lg font-bold mt-1 ${desvio > 0 ? "text-destructive" : desvio < 0 ? "text-green-600" : "text-foreground"}`}>
+                      {desvio > 0 ? "+" : ""}{fmt(desvio)}
+                    </div>
+                  </div>
+                  <div className="bg-muted/50 rounded-lg border border-border p-3 text-center">
+                    <div className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">% Realizado</div>
+                    <div className={`text-lg font-bold mt-1 ${devPct > 100 ? "text-destructive" : "text-primary"}`}>
+                      {devPct.toFixed(1)}%
+                    </div>
+                  </div>
+                </div>
+
+                {phaseChartData.length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground border border-border rounded-lg bg-muted/10">
+                    <Settings className="h-8 w-8 mx-auto mb-2 text-muted-foreground/50" />
+                    <p className="text-sm">Sem dados para exibir. Cadastre itens e lance medições.</p>
+                  </div>
+                ) : (
+                  <>
+                    {/* Bar chart: per phase */}
+                    <div className="border border-border rounded-lg p-4 bg-background">
+                      <h5 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Previsto x Realizado por Fase</h5>
+                      <div style={{ width: "100%", height: 320 }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={phaseChartData} margin={{ top: 5, right: 20, bottom: 30, left: 20 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                            <XAxis dataKey="name" tick={{ fontSize: 10 }} angle={-20} textAnchor="end" />
+                            <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `R$${(v / 1000).toFixed(0)}k`} />
+                            <Tooltip formatter={(value: any) => fmt(value)} />
+                            <Legend wrapperStyle={{ fontSize: 12 }} />
+                            <Bar dataKey="Previsto" fill="hsl(var(--muted-foreground))" radius={[4, 4, 0, 0]} />
+                            <Bar dataKey="Realizado" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+
+                    {/* Line chart: timeline */}
+                    {timelineData.length > 0 && (
+                      <div className="border border-border rounded-lg p-4 bg-background">
+                        <h5 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Evolução Acumulada por Período</h5>
+                        <div style={{ width: "100%", height: 280 }}>
+                          <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={timelineData} margin={{ top: 5, right: 20, bottom: 5, left: 20 }}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                              <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                              <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `R$${(v / 1000).toFixed(0)}k`} />
+                              <Tooltip formatter={(value: any) => fmt(value)} />
+                              <Legend wrapperStyle={{ fontSize: 12 }} />
+                              <Line type="monotone" dataKey="Previsto" stroke="hsl(var(--muted-foreground))" strokeWidth={2} strokeDasharray="5 5" dot={false} />
+                              <Line type="monotone" dataKey="Realizado" stroke="hsl(var(--primary))" strokeWidth={2.5} dot={{ r: 4 }} />
+                            </LineChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Detail table */}
+                    <div className="border border-border rounded-lg overflow-hidden">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="bg-muted/50">
+                            <th className="text-left px-3 py-2.5 font-medium text-muted-foreground">Fase</th>
+                            <th className="text-right px-3 py-2.5 font-medium text-muted-foreground">Previsto</th>
+                            <th className="text-right px-3 py-2.5 font-medium text-muted-foreground">Realizado</th>
+                            <th className="text-right px-3 py-2.5 font-medium text-muted-foreground">Desvio</th>
+                            <th className="text-right px-3 py-2.5 font-medium text-muted-foreground">%</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border">
+                          {phaseChartData.map((d, idx) => {
+                            const dev = d.Realizado - d.Previsto;
+                            const pct = d.Previsto > 0 ? (d.Realizado / d.Previsto) * 100 : 0;
+                            return (
+                              <tr key={idx} className={idx % 2 === 0 ? "bg-background" : "bg-muted/20"}>
+                                <td className="px-3 py-2 text-foreground">{d.name}</td>
+                                <td className="px-3 py-2 text-right text-foreground tabular-nums">{fmt(d.Previsto)}</td>
+                                <td className="px-3 py-2 text-right text-primary tabular-nums">{fmt(d.Realizado)}</td>
+                                <td className={`px-3 py-2 text-right tabular-nums ${dev > 0 ? "text-destructive" : dev < 0 ? "text-green-600" : "text-foreground"}`}>
+                                  {dev > 0 ? "+" : ""}{fmt(dev)}
+                                </td>
+                                <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{pct.toFixed(1)}%</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                )}
               </div>
-            </div>
-          )}
+            );
+          })()}
         </div>
 
         {/* Footer */}
