@@ -646,6 +646,77 @@ export type Database = {
         }
         Relationships: []
       }
+      letterhead_configs: {
+        Row: {
+          company_id: string | null
+          created_at: string
+          id: string
+          image_align_h: string | null
+          image_align_v: string | null
+          image_fill: boolean | null
+          image_mode: string | null
+          image_opacity: number | null
+          image_url: string | null
+          text_bold: boolean | null
+          text_color: string | null
+          text_direction: string | null
+          text_italic: boolean | null
+          text_message: string | null
+          text_opacity: number | null
+          text_size: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          company_id?: string | null
+          created_at?: string
+          id?: string
+          image_align_h?: string | null
+          image_align_v?: string | null
+          image_fill?: boolean | null
+          image_mode?: string | null
+          image_opacity?: number | null
+          image_url?: string | null
+          text_bold?: boolean | null
+          text_color?: string | null
+          text_direction?: string | null
+          text_italic?: boolean | null
+          text_message?: string | null
+          text_opacity?: number | null
+          text_size?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          company_id?: string | null
+          created_at?: string
+          id?: string
+          image_align_h?: string | null
+          image_align_v?: string | null
+          image_fill?: boolean | null
+          image_mode?: string | null
+          image_opacity?: number | null
+          image_url?: string | null
+          text_bold?: boolean | null
+          text_color?: string | null
+          text_direction?: string | null
+          text_italic?: boolean | null
+          text_message?: string | null
+          text_opacity?: number | null
+          text_size?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "letterhead_configs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           created_at: string
