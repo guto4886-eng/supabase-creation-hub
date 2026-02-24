@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import {
   Search, Plus, ChevronLeft, ChevronRight, Pencil, Trash2, X, Eraser, Paperclip
 } from "lucide-react";
+import { useCompanies, CompanyFilterSelect } from "@/hooks/useCompanies";
 
 const PAGE_SIZE = 15;
 
@@ -59,6 +60,7 @@ export default function PurchaseRequests() {
   const [filterDateTo, setFilterDateTo] = useState("");
   const [filterNeededFrom, setFilterNeededFrom] = useState("");
   const [filterNeededTo, setFilterNeededTo] = useState("");
+  const [filterCompany, setFilterCompany] = useState("");
   const [searched, setSearched] = useState(false);
   const [page, setPage] = useState(0);
 
@@ -73,6 +75,8 @@ export default function PurchaseRequests() {
   const [newItem, setNewItem] = useState<RequestItem>({ item_type: "livre", item: "", complement: "", quantity: 1, unit: "un", unit_price: 0, phase: "", service: "" });
 
   // --- Queries ---
+  const { data: companiesList = [] } = useCompanies();
+
   const { data: obras = [] } = useQuery({
     queryKey: ["obras_list_pr"],
     queryFn: async () => {
@@ -114,6 +118,7 @@ export default function PurchaseRequests() {
         if (filterDateTo && item.created_at > filterDateTo + "T23:59:59") return false;
         if (filterNeededFrom && item.needed_by && item.needed_by < filterNeededFrom) return false;
         if (filterNeededTo && item.needed_by && item.needed_by > filterNeededTo) return false;
+        if (filterCompany && item.company_id !== filterCompany) return false;
         return true;
       })
     : [];
@@ -240,7 +245,7 @@ export default function PurchaseRequests() {
     setFilterStatuses(prev => prev.includes(val) ? prev.filter(s => s !== val) : [...prev, val]);
   };
   const handleClearFilters = () => {
-    setFilterNumber(""); setFilterStatuses([]); setFilterObra(""); setFilterDateFrom(""); setFilterDateTo(""); setFilterNeededFrom(""); setFilterNeededTo(""); setSearched(false); setPage(0);
+    setFilterNumber(""); setFilterStatuses([]); setFilterObra(""); setFilterCompany(""); setFilterDateFrom(""); setFilterDateTo(""); setFilterNeededFrom(""); setFilterNeededTo(""); setSearched(false); setPage(0);
   };
 
   const priorityColor = (p: string) => {
@@ -323,6 +328,7 @@ export default function PurchaseRequests() {
                   <input type="date" value={filterNeededTo} onChange={e => setFilterNeededTo(e.target.value)} className={inputClass} />
                 </div>
               </div>
+              <CompanyFilterSelect value={filterCompany} onChange={setFilterCompany} companies={companiesList} className={inputClass} />
             </div>
             <div className="p-4 border-t border-border flex gap-2">
               <button onClick={handleClearFilters} className="flex-1 flex items-center justify-center px-3 py-2.5 rounded-lg bg-background border border-border text-muted-foreground hover:bg-muted transition-colors" title="Limpar filtros">

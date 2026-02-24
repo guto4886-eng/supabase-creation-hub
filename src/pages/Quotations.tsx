@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { Plus, ChevronRight, ChevronDown, Pencil, Trash2, X, Download, Search, CheckCircle } from "lucide-react";
 import { exportToCSV } from "@/utils/exportCsv";
+import { useCompanies } from "@/hooks/useCompanies";
 
 interface Quotation {
   id: string;
