@@ -379,6 +379,7 @@ export default function Obras() {
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              <CompanyFilterSelect value={filterCompany} onChange={setFilterCompany} companies={companiesList} className={inputClass} />
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Nome (obra)</label>
                 <input type="text" value={filterName} onChange={(e) => setFilterName(e.target.value)} className={inputClass} />
@@ -452,7 +453,6 @@ export default function Obras() {
                   ))}
                 </div>
               </div>
-              <CompanyFilterSelect value={filterCompany} onChange={setFilterCompany} companies={companiesList} className={inputClass} />
             </div>
 
             <div className="p-4 border-t border-border flex gap-2">

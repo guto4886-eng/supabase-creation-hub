@@ -285,6 +285,7 @@ export default function PurchaseRequests() {
               <p className="text-xs text-muted-foreground mt-1">Faça sua pesquisa aqui</p>
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              <CompanyFilterSelect value={filterCompany} onChange={setFilterCompany} companies={companiesList} className={inputClass} />
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Número</label>
                 <input type="text" value={filterNumber} onChange={e => setFilterNumber(e.target.value)} className={inputClass} />
@@ -328,7 +329,6 @@ export default function PurchaseRequests() {
                   <input type="date" value={filterNeededTo} onChange={e => setFilterNeededTo(e.target.value)} className={inputClass} />
                 </div>
               </div>
-              <CompanyFilterSelect value={filterCompany} onChange={setFilterCompany} companies={companiesList} className={inputClass} />
             </div>
             <div className="p-4 border-t border-border flex gap-2">
               <button onClick={handleClearFilters} className="flex-1 flex items-center justify-center px-3 py-2.5 rounded-lg bg-background border border-border text-muted-foreground hover:bg-muted transition-colors" title="Limpar filtros">
