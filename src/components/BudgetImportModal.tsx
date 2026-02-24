@@ -96,24 +96,22 @@ export default function BudgetImportModal({ budgetId, onClose }: Props) {
         console.log("[BudgetImport] Headers found at row", headerRowIdx, ":", headers);
 
         // More flexible column detection with many aliases
-        const iDesc = findCol(headers, ["descricao", "descrição", "servico", "serviço", "atividade", "item", "composicao", "composição", "discriminacao", "discriminação", "especificacao", "especificação"]);
+        const iDesc = findCol(headers, ["descricao", "descrição", "servico", "serviço", "atividade", "composicao", "composição", "discriminacao", "discriminação", "especificacao", "especificação"]);
         const iPhase = findCol(headers, ["fase", "fase da obra", "etapa", "fase/etapa", "grupo", "capitulo", "capítulo"]);
-        const iCode = findCol(headers, ["codigo", "cod", "código", "cod.", "item", "num", "ref"]);
+        const iIndex = findCol(headers, ["indice", "índice", "index", "item", "cod", "codigo", "código", "cod.", "num", "ref", "id"]);
         const iQty = findCol(headers, ["quantidade", "qtd", "quant", "qtde", "qtd.", "quant."]);
         const iUnit = findCol(headers, ["unidade", "un", "und", "un.", "und.", "unid"]);
         const iPrice = findCol(headers, ["preco unitario", "valor unitario", "preco unit", "valor unit", "preço unitário", "valor unitário", "p. unit", "p.unit", "p unit", "custo unitario", "custo unit", "preco", "preço", "vlr unit", "vlr. unit"]);
-        const iTotal = findCol(headers, ["total", "preco total", "valor total", "preço total", "subtotal", "custo total", "vlr total", "vlr. total"]);
 
-        console.log("[BudgetImport] Column indices - desc:", iDesc, "phase:", iPhase, "code:", iCode, "qty:", iQty, "unit:", iUnit, "price:", iPrice, "total:", iTotal);
+        console.log("[BudgetImport] Column indices - desc:", iDesc, "phase:", iPhase, "index:", iIndex, "qty:", iQty, "unit:", iUnit, "price:", iPrice);
 
         // If no description column found, try to use the first text-heavy column
         let descIdx = iDesc;
         if (descIdx === -1) {
-          // Use the column with the longest average text content (skip first col if it looks like codes)
           let bestCol = -1;
           let bestAvgLen = 0;
           for (let c = 0; c < headers.length; c++) {
-            if (c === iQty || c === iUnit || c === iPrice || c === iTotal) continue;
+            if (c === iQty || c === iUnit || c === iPrice || c === iIndex) continue;
             let totalLen = 0;
             let count = 0;
             for (let r = headerRowIdx + 1; r < Math.min(rows.length, headerRowIdx + 20); r++) {
@@ -147,31 +145,51 @@ export default function BudgetImportModal({ budgetId, onClose }: Props) {
           const desc = String(row[descIdx] || "").trim();
           if (!desc) continue;
 
+          // Read the index column to detect phases/subphases
+          const indexVal = iIndex !== -1 ? String(row[iIndex] || "").trim() : "";
+
+          // Read phase column if available
           if (iPhase !== -1 && row[iPhase]) {
             currentPhase = String(row[iPhase]).trim();
           }
 
           const qty = iQty !== -1 ? parseNum(row[iQty]) : 0;
           const price = iPrice !== -1 ? parseNum(row[iPrice]) : 0;
-          
-          // Phase header detection: no qty AND no price AND no dedicated phase column
-          if (qty === 0 && price === 0 && iPhase === -1) {
+
+          // Use index to detect phase hierarchy: "1" or "1." = phase, "1.1" = subphase, "1.1.1"+ = item
+          if (indexVal && iPhase === -1) {
+            const cleanIdx = indexVal.replace(/\.$/, "");
+            const parts = cleanIdx.split(".");
+            if (parts.length === 1 && /^\d+$/.test(parts[0]) && qty === 0 && price === 0) {
+              currentPhase = `${indexVal} - ${desc}`;
+              continue;
+            }
+            if (parts.length === 2 && parts.every((p) => /^\d+$/.test(p)) && qty === 0 && price === 0) {
+              // Subphase header — keep as part of phase name
+              currentPhase = `${indexVal} - ${desc}`;
+              continue;
+            }
+          }
+
+          // Fallback phase detection from description
+          if (!indexVal && qty === 0 && price === 0 && iPhase === -1) {
             if (/^\d+[\s.\-]/.test(desc) && desc.length < 120) {
               currentPhase = desc;
               continue;
             }
           }
 
-          const total = iTotal !== -1 ? parseNum(row[iTotal]) : (qty || 1) * price;
+          // Total is always calculated: qty * unit_price
+          const total = (qty || 1) * price;
 
           items.push({
             phase: currentPhase,
-            code: iCode !== -1 && iCode !== descIdx ? String(row[iCode] || "").trim() : "",
+            code: indexVal,
             description: desc,
             quantity: qty || 1,
             unit: iUnit !== -1 ? String(row[iUnit] || "un").trim() || "un" : "un",
             unit_price: price,
-            total_price: total || (qty || 1) * price,
+            total_price: total,
           });
         }
 
