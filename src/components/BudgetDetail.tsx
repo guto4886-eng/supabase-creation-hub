@@ -1015,8 +1015,28 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
           )}
 
           {activeTab === "medicao" && (() => {
+            const getPrefixMed = (desc: string) => {
+              const m = desc.trim().match(/^(\d+(?:\.\d+)*)/);
+              return m ? m[1] : null;
+            };
+            const phaseItemsMed = items.filter((i) => (i.category || "").toLowerCase() === "fase");
             const serviceItemsMed = items
               .filter((i) => (i.category || "").toLowerCase() === "serviço" || (i.category || "").toLowerCase() === "servico");
+
+            const rootPhasesMed = phaseItemsMed.filter((p) => {
+              const pfx = getPrefixMed(p.description);
+              return pfx && !pfx.includes(".");
+            });
+
+            const phaseDataMed = rootPhasesMed.map((phase) => {
+              const rootIdx = getPrefixMed(phase.description)!;
+              const children = serviceItemsMed.filter((s) => {
+                const sp = getPrefixMed(s.description);
+                return sp ? sp.split(".")[0] === rootIdx : false;
+              });
+              const total = children.reduce((sum, s) => sum + (s.total_price || 0), 0);
+              return { rootIdx, label: phase.description, total, services: children };
+            }).filter((p) => p.services.length > 0).sort((a, b) => parseInt(a.rootIdx) - parseInt(b.rootIdx));
 
             const createMeasurement = async () => {
               if (!user) return;
@@ -1035,7 +1055,6 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                 .single();
               if (error) { toast.error(error.message); return; }
 
-              // Create measurement items for each service
               const itemsToInsert = serviceItemsMed.map((svc) => ({
                 measurement_id: (data as any).id,
                 budget_item_id: svc.id,
@@ -1051,14 +1070,23 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
               toast.success(`Medição #${nextNum} criada!`);
             };
 
-            const updateMeasuredPct = async (itemId: string, pct: number) => {
-              const svcItem = serviceItemsMed.find((s) => {
-                const mi = measurementItems.find((m: any) => m.budget_item_id === s.id && m.id === itemId);
-                return !!mi;
-              });
-              const mi = measurementItems.find((m: any) => m.id === itemId) as any;
-              const qty = svcItem ? (svcItem.quantity || 0) * (pct / 100) : 0;
-              await supabase.from("budget_measurement_items").update({ measured_percentage: pct, measured_quantity: qty } as any).eq("id", itemId);
+            const updateMeasuredField = async (itemId: string, budgetItemId: string, field: "pct" | "value", val: number) => {
+              const svc = serviceItemsMed.find((s) => s.id === budgetItemId);
+              if (!svc) return;
+              let pct: number, qty: number;
+              if (field === "pct") {
+                pct = val;
+                qty = (svc.quantity || 0) * (pct / 100);
+              } else {
+                const totalP = svc.total_price || 0;
+                pct = totalP > 0 ? (val / totalP) * 100 : 0;
+                qty = (svc.quantity || 0) * (pct / 100);
+              }
+              await supabase.from("budget_measurement_items").update({
+                measured_percentage: pct,
+                measured_quantity: qty,
+                measured_at: new Date().toISOString(),
+              } as any).eq("id", itemId);
               qc.invalidateQueries({ queryKey: ["budget_measurement_items", activeMeasurement] });
             };
 
@@ -1085,7 +1113,6 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                   </button>
                 </div>
 
-                {/* List of measurements */}
                 {measurements.length === 0 && !activeMeasurement ? (
                   <div className="text-center py-16 text-muted-foreground border border-border rounded-lg bg-muted/10">
                     <ClipboardList className="h-10 w-10 mx-auto mb-3 text-muted-foreground/50" />
@@ -1129,7 +1156,6 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                     </table>
                   </div>
                 ) : (
-                  /* Active measurement detail */
                   <div className="space-y-3">
                     <div className="flex items-center justify-between bg-muted/30 rounded-lg border border-border p-3">
                       <div className="flex items-center gap-4 text-sm">
@@ -1141,7 +1167,7 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                       </div>
                       <div className="flex items-center gap-2">
                         {activeMed?.status === "aberta" && (
-                          <button onClick={closeMeasurement} className="px-3 py-1.5 text-xs bg-amber-600 text-white rounded-lg hover:opacity-90 font-medium">
+                          <button onClick={closeMeasurement} className="px-3 py-1.5 text-xs bg-destructive text-destructive-foreground rounded-lg hover:opacity-90 font-medium">
                             Fechar medição
                           </button>
                         )}
@@ -1151,60 +1177,127 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                       </div>
                     </div>
 
-                    <div className="border border-border rounded-lg overflow-hidden">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="bg-muted/50">
-                            <th className="text-left px-3 py-2.5 font-medium text-muted-foreground">Serviço</th>
-                            <th className="text-right px-3 py-2.5 font-medium text-muted-foreground">Qtd Orçada</th>
-                            <th className="text-right px-3 py-2.5 font-medium text-muted-foreground">Qtd Medida</th>
-                            <th className="text-center px-3 py-2.5 font-medium text-muted-foreground w-32">% Medido</th>
-                            <th className="text-right px-3 py-2.5 font-medium text-muted-foreground">Valor Medido</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-border">
-                          {serviceItemsMed.map((svc, idx) => {
-                            const mi = measurementItems.find((m: any) => m.budget_item_id === svc.id) as any;
-                            const pct = mi?.measured_percentage || 0;
-                            const measuredQty = mi?.measured_quantity || 0;
-                            const measuredValue = (svc.total_price || 0) * (pct / 100);
+                    {/* Phase-based layout */}
+                    <div className="flex gap-4" style={{ minHeight: 400 }}>
+                      {/* Sidebar: phases */}
+                      <div className="w-72 border border-border rounded-lg overflow-hidden flex-shrink-0">
+                        <div className="bg-muted/50 px-3 py-2 text-xs font-semibold text-muted-foreground border-b border-border">Fases da Obra</div>
+                        <div className="divide-y divide-border">
+                          {phaseDataMed.map(({ rootIdx, label, total, services }) => {
+                            const measuredTotal = services.reduce((sum, svc) => {
+                              const mi = measurementItems.find((m: any) => m.budget_item_id === svc.id) as any;
+                              return sum + (svc.total_price || 0) * ((mi?.measured_percentage || 0) / 100);
+                            }, 0);
+                            const phasePct = total > 0 ? (measuredTotal / total) * 100 : 0;
+                            const isSelected = selectedPhase === rootIdx;
                             return (
-                              <tr key={svc.id} className={idx % 2 === 0 ? "bg-background" : "bg-muted/20"}>
-                                <td className="px-3 py-2 text-foreground">{svc.description}</td>
-                                <td className="px-3 py-2 text-right text-foreground tabular-nums">{svc.quantity ?? 0}</td>
-                                <td className="px-3 py-2 text-right text-foreground tabular-nums">{measuredQty.toFixed(2)}</td>
-                                <td className="px-3 py-2 text-center">
-                                  {activeMed?.status === "aberta" && mi ? (
-                                    <input
-                                      type="number"
-                                      min="0"
-                                      max="100"
-                                      step="0.01"
-                                      value={pct}
-                                      onChange={(e) => updateMeasuredPct(mi.id, parseFloat(e.target.value) || 0)}
-                                      className="w-20 px-2 py-1 text-center text-sm rounded border border-input bg-background text-foreground tabular-nums"
-                                    />
-                                  ) : (
-                                    <span className="tabular-nums">{pct.toFixed(2)}%</span>
-                                  )}
-                                </td>
-                                <td className="px-3 py-2 text-right font-medium text-foreground tabular-nums">{fmt(measuredValue)}</td>
-                              </tr>
+                              <button
+                                key={rootIdx}
+                                onClick={() => setSelectedPhase(isSelected ? null : rootIdx)}
+                                className={`w-full text-left px-3 py-2.5 text-sm hover:bg-muted/40 transition-colors ${isSelected ? "bg-primary/10 border-l-2 border-primary" : ""}`}
+                              >
+                                <div className="font-medium text-foreground truncate">{label}</div>
+                                <div className="flex items-center justify-between mt-1">
+                                  <span className="text-xs text-muted-foreground">{fmt(measuredTotal)} / {fmt(total)}</span>
+                                  <span className="text-xs font-medium text-primary">{phasePct.toFixed(1)}%</span>
+                                </div>
+                                <div className="w-full h-1.5 bg-muted rounded-full mt-1 overflow-hidden">
+                                  <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${Math.min(phasePct, 100)}%` }} />
+                                </div>
+                              </button>
                             );
                           })}
-                        </tbody>
-                        <tfoot>
-                          <tr className="bg-muted/50 border-t border-border">
-                            <td colSpan={4} className="px-3 py-2.5 text-right font-semibold text-foreground">Total Medido:</td>
-                            <td className="px-3 py-2.5 text-right font-bold text-foreground">
-                              {fmt(serviceItemsMed.reduce((sum, svc) => {
+                        </div>
+                      </div>
+
+                      {/* Right: services of selected phase */}
+                      <div className="flex-1 overflow-auto">
+                        {!selectedPhase ? (
+                          <div className="text-center py-16 text-muted-foreground border border-border rounded-lg bg-muted/10">
+                            <ClipboardList className="h-8 w-8 mx-auto mb-2 text-muted-foreground/50" />
+                            <p className="text-sm">Selecione uma fase ao lado para lançar medições.</p>
+                          </div>
+                        ) : (() => {
+                          const phaseData = phaseDataMed.find((p) => p.rootIdx === selectedPhase);
+                          if (!phaseData) return null;
+                          return (
+                            <div className="space-y-2">
+                              <h5 className="text-sm font-semibold text-foreground mb-2">{phaseData.label}</h5>
+                              {phaseData.services.map((svc, idx) => {
                                 const mi = measurementItems.find((m: any) => m.budget_item_id === svc.id) as any;
-                                return sum + (svc.total_price || 0) * ((mi?.measured_percentage || 0) / 100);
-                              }, 0))}
-                            </td>
-                          </tr>
-                        </tfoot>
-                      </table>
+                                const pct = mi?.measured_percentage || 0;
+                                const measuredValue = (svc.total_price || 0) * (pct / 100);
+                                const measuredAt = mi?.measured_at ? new Date(mi.measured_at).toLocaleDateString("pt-BR") : "—";
+                                const isEditable = activeMed?.status === "aberta" && mi;
+                                return (
+                                  <div key={svc.id} className={`border border-border rounded-lg p-3 ${idx % 2 === 0 ? "bg-background" : "bg-muted/10"}`}>
+                                    <div className="flex items-start justify-between mb-2">
+                                      <div className="flex-1">
+                                        <span className="text-sm font-medium text-foreground">{svc.description}</span>
+                                        <div className="flex gap-4 text-xs text-muted-foreground mt-0.5">
+                                          <span>Qtd: {svc.quantity ?? 0} {svc.unit}</span>
+                                          <span>Unit: {fmt(svc.unit_price)}</span>
+                                          <span>Total: {fmt(svc.total_price)}</span>
+                                        </div>
+                                      </div>
+                                      <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Lançamento: {measuredAt}</span>
+                                    </div>
+                                    <div className="grid grid-cols-3 gap-3">
+                                      <div>
+                                        <label className="block text-[10px] font-medium text-muted-foreground mb-0.5">% Medido</label>
+                                        {isEditable ? (
+                                          <input
+                                            type="number" min="0" max="100" step="0.01"
+                                            defaultValue={pct}
+                                            key={`pct-${mi.id}-${pct}`}
+                                            onBlur={(e) => updateMeasuredField(mi.id, svc.id, "pct", parseFloat(e.target.value) || 0)}
+                                            className="w-full px-2 py-1 text-sm rounded border border-input bg-background text-foreground tabular-nums"
+                                          />
+                                        ) : (
+                                          <span className="text-sm tabular-nums text-foreground">{pct.toFixed(2)}%</span>
+                                        )}
+                                      </div>
+                                      <div>
+                                        <label className="block text-[10px] font-medium text-muted-foreground mb-0.5">Valor Medido (R$)</label>
+                                        {isEditable ? (
+                                          <input
+                                            type="number" min="0" step="0.01"
+                                            defaultValue={measuredValue.toFixed(2)}
+                                            key={`val-${mi.id}-${measuredValue.toFixed(2)}`}
+                                            onBlur={(e) => updateMeasuredField(mi.id, svc.id, "value", parseFloat(e.target.value) || 0)}
+                                            className="w-full px-2 py-1 text-sm rounded border border-input bg-background text-foreground tabular-nums"
+                                          />
+                                        ) : (
+                                          <span className="text-sm tabular-nums text-foreground">{fmt(measuredValue)}</span>
+                                        )}
+                                      </div>
+                                      <div>
+                                        <label className="block text-[10px] font-medium text-muted-foreground mb-0.5">Progresso</label>
+                                        <div className="flex items-center gap-2 mt-1">
+                                          <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                                            <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${Math.min(pct, 100)}%` }} />
+                                          </div>
+                                          <span className="text-xs font-medium text-foreground tabular-nums">{pct.toFixed(1)}%</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    </div>
+
+                    <div className="bg-muted/50 rounded-lg border border-border px-4 py-3 flex items-center justify-between">
+                      <span className="text-sm font-semibold text-foreground">Total Medido</span>
+                      <span className="text-sm font-bold text-foreground">
+                        {fmt(serviceItemsMed.reduce((sum, svc) => {
+                          const mi = measurementItems.find((m: any) => m.budget_item_id === svc.id) as any;
+                          return sum + (svc.total_price || 0) * ((mi?.measured_percentage || 0) / 100);
+                        }, 0))}
+                      </span>
                     </div>
                   </div>
                 )}
