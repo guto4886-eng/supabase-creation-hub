@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import { X, Plus, Pencil, Trash2, FileText, ChevronDown, Settings, Upload } from "lucide-react";
+import { X, Plus, Pencil, Trash2, FileText, ChevronDown, Settings, Upload, ClipboardList } from "lucide-react";
 import BudgetImportModal from "./BudgetImportModal";
 
 interface BudgetDetailProps {
@@ -104,6 +105,7 @@ function DropdownButton({ label, icon: Icon, items, onSelect }: { label: string;
 }
 
 export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
+  const { user } = useAuth();
   const qc = useQueryClient();
   const [activeTab, setActiveTab] = useState("dados");
   const [editingItem, setEditingItem] = useState<BudgetItem | null>(null);
@@ -112,8 +114,35 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
   const [showImport, setShowImport] = useState(false);
   const [selectedPhase, setSelectedPhase] = useState<string | null>(null);
   const [expandedAbc, setExpandedAbc] = useState<string | null>(null);
+  const [activeMeasurement, setActiveMeasurement] = useState<string | null>(null);
 
-  // Fetch budget
+  // Fetch measurements for medicao tab
+  const { data: measurements = [] } = useQuery({
+    queryKey: ["budget_measurements", budgetId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("budget_measurements")
+        .select("*")
+        .eq("budget_id", budgetId)
+        .order("measurement_number", { ascending: true });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: measurementItems = [] } = useQuery({
+    queryKey: ["budget_measurement_items", activeMeasurement],
+    enabled: !!activeMeasurement,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("budget_measurement_items")
+        .select("*")
+        .eq("measurement_id", activeMeasurement!);
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const { data: budget, isLoading: budgetLoading } = useQuery({
     queryKey: ["budget_detail", budgetId],
     queryFn: async () => {
@@ -985,16 +1014,203 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
             </div>
           )}
 
-          {activeTab === "medicao" && (
-            <div className="space-y-4">
-              <h4 className="text-sm font-semibold text-foreground">Medição Física</h4>
-              <div className="text-center py-16 text-muted-foreground border border-border rounded-lg bg-muted/10">
-                <Settings className="h-10 w-10 mx-auto mb-3 text-muted-foreground/50" />
-                <p className="text-sm">Módulo de medição física em desenvolvimento.</p>
-                <p className="text-xs mt-1">Aqui será possível registrar medições de avanço físico por serviço.</p>
+          {activeTab === "medicao" && (() => {
+            const serviceItemsMed = items
+              .filter((i) => (i.category || "").toLowerCase() === "serviço" || (i.category || "").toLowerCase() === "servico");
+
+            const createMeasurement = async () => {
+              if (!user) return;
+              const nextNum = measurements.length > 0 ? Math.max(...measurements.map((m: any) => m.measurement_number)) + 1 : 1;
+              const now = new Date();
+              const period = `${String(now.getMonth() + 1).padStart(2, "0")}/${now.getFullYear()}`;
+              const { data, error } = await supabase
+                .from("budget_measurements")
+                .insert({
+                  budget_id: budgetId,
+                  measurement_number: nextNum,
+                  reference_period: period,
+                  user_id: user.id,
+                } as any)
+                .select()
+                .single();
+              if (error) { toast.error(error.message); return; }
+
+              // Create measurement items for each service
+              const itemsToInsert = serviceItemsMed.map((svc) => ({
+                measurement_id: (data as any).id,
+                budget_item_id: svc.id,
+                measured_quantity: 0,
+                measured_percentage: 0,
+              }));
+              if (itemsToInsert.length > 0) {
+                await supabase.from("budget_measurement_items").insert(itemsToInsert as any);
+              }
+
+              qc.invalidateQueries({ queryKey: ["budget_measurements", budgetId] });
+              setActiveMeasurement((data as any).id);
+              toast.success(`Medição #${nextNum} criada!`);
+            };
+
+            const updateMeasuredPct = async (itemId: string, pct: number) => {
+              const svcItem = serviceItemsMed.find((s) => {
+                const mi = measurementItems.find((m: any) => m.budget_item_id === s.id && m.id === itemId);
+                return !!mi;
+              });
+              const mi = measurementItems.find((m: any) => m.id === itemId) as any;
+              const qty = svcItem ? (svcItem.quantity || 0) * (pct / 100) : 0;
+              await supabase.from("budget_measurement_items").update({ measured_percentage: pct, measured_quantity: qty } as any).eq("id", itemId);
+              qc.invalidateQueries({ queryKey: ["budget_measurement_items", activeMeasurement] });
+            };
+
+            const closeMeasurement = async () => {
+              if (!activeMeasurement) return;
+              await supabase.from("budget_measurements").update({ status: "fechada", closed_at: new Date().toISOString() } as any).eq("id", activeMeasurement);
+              qc.invalidateQueries({ queryKey: ["budget_measurements", budgetId] });
+              setActiveMeasurement(null);
+              toast.success("Medição fechada!");
+            };
+
+            const activeMed = measurements.find((m: any) => m.id === activeMeasurement) as any;
+
+            return (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-semibold text-foreground">Medição Física</h4>
+                  <button
+                    onClick={createMeasurement}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Abrir medição
+                  </button>
+                </div>
+
+                {/* List of measurements */}
+                {measurements.length === 0 && !activeMeasurement ? (
+                  <div className="text-center py-16 text-muted-foreground border border-border rounded-lg bg-muted/10">
+                    <ClipboardList className="h-10 w-10 mx-auto mb-3 text-muted-foreground/50" />
+                    <p className="text-sm">Nenhuma medição cadastrada.</p>
+                    <p className="text-xs mt-1">Clique em "Abrir medição" para iniciar a primeira medição periódica.</p>
+                  </div>
+                ) : !activeMeasurement ? (
+                  <div className="border border-border rounded-lg overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-muted/50">
+                          <th className="text-left px-3 py-2.5 font-medium text-muted-foreground">Nº</th>
+                          <th className="text-left px-3 py-2.5 font-medium text-muted-foreground">Período</th>
+                          <th className="text-left px-3 py-2.5 font-medium text-muted-foreground">Status</th>
+                          <th className="text-left px-3 py-2.5 font-medium text-muted-foreground">Criação</th>
+                          <th className="text-center px-3 py-2.5 font-medium text-muted-foreground">Ações</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border">
+                        {measurements.map((med: any, idx: number) => (
+                          <tr key={med.id} className={idx % 2 === 0 ? "bg-background" : "bg-muted/20"}>
+                            <td className="px-3 py-2 font-medium text-foreground">#{med.measurement_number}</td>
+                            <td className="px-3 py-2 text-foreground">{med.reference_period || "—"}</td>
+                            <td className="px-3 py-2">
+                              <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${med.status === "aberta" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"}`}>
+                                {med.status === "aberta" ? "Aberta" : "Fechada"}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2 text-muted-foreground">{new Date(med.created_at).toLocaleDateString("pt-BR")}</td>
+                            <td className="px-3 py-2 text-center">
+                              <button
+                                onClick={() => setActiveMeasurement(med.id)}
+                                className="px-3 py-1 text-xs bg-primary text-primary-foreground rounded hover:opacity-90"
+                              >
+                                {med.status === "aberta" ? "Editar" : "Visualizar"}
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  /* Active measurement detail */
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between bg-muted/30 rounded-lg border border-border p-3">
+                      <div className="flex items-center gap-4 text-sm">
+                        <span className="font-semibold text-foreground">Medição #{activeMed?.measurement_number}</span>
+                        <span className="text-muted-foreground">Período: {activeMed?.reference_period || "—"}</span>
+                        <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${activeMed?.status === "aberta" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"}`}>
+                          {activeMed?.status === "aberta" ? "Aberta" : "Fechada"}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {activeMed?.status === "aberta" && (
+                          <button onClick={closeMeasurement} className="px-3 py-1.5 text-xs bg-amber-600 text-white rounded-lg hover:opacity-90 font-medium">
+                            Fechar medição
+                          </button>
+                        )}
+                        <button onClick={() => setActiveMeasurement(null)} className="px-3 py-1.5 text-xs border border-border rounded-lg hover:bg-muted text-foreground">
+                          Voltar
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="border border-border rounded-lg overflow-hidden">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="bg-muted/50">
+                            <th className="text-left px-3 py-2.5 font-medium text-muted-foreground">Serviço</th>
+                            <th className="text-right px-3 py-2.5 font-medium text-muted-foreground">Qtd Orçada</th>
+                            <th className="text-right px-3 py-2.5 font-medium text-muted-foreground">Qtd Medida</th>
+                            <th className="text-center px-3 py-2.5 font-medium text-muted-foreground w-32">% Medido</th>
+                            <th className="text-right px-3 py-2.5 font-medium text-muted-foreground">Valor Medido</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border">
+                          {serviceItemsMed.map((svc, idx) => {
+                            const mi = measurementItems.find((m: any) => m.budget_item_id === svc.id) as any;
+                            const pct = mi?.measured_percentage || 0;
+                            const measuredQty = mi?.measured_quantity || 0;
+                            const measuredValue = (svc.total_price || 0) * (pct / 100);
+                            return (
+                              <tr key={svc.id} className={idx % 2 === 0 ? "bg-background" : "bg-muted/20"}>
+                                <td className="px-3 py-2 text-foreground">{svc.description}</td>
+                                <td className="px-3 py-2 text-right text-foreground tabular-nums">{svc.quantity ?? 0}</td>
+                                <td className="px-3 py-2 text-right text-foreground tabular-nums">{measuredQty.toFixed(2)}</td>
+                                <td className="px-3 py-2 text-center">
+                                  {activeMed?.status === "aberta" && mi ? (
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      max="100"
+                                      step="0.01"
+                                      value={pct}
+                                      onChange={(e) => updateMeasuredPct(mi.id, parseFloat(e.target.value) || 0)}
+                                      className="w-20 px-2 py-1 text-center text-sm rounded border border-input bg-background text-foreground tabular-nums"
+                                    />
+                                  ) : (
+                                    <span className="tabular-nums">{pct.toFixed(2)}%</span>
+                                  )}
+                                </td>
+                                <td className="px-3 py-2 text-right font-medium text-foreground tabular-nums">{fmt(measuredValue)}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                        <tfoot>
+                          <tr className="bg-muted/50 border-t border-border">
+                            <td colSpan={4} className="px-3 py-2.5 text-right font-semibold text-foreground">Total Medido:</td>
+                            <td className="px-3 py-2.5 text-right font-bold text-foreground">
+                              {fmt(serviceItemsMed.reduce((sum, svc) => {
+                                const mi = measurementItems.find((m: any) => m.budget_item_id === svc.id) as any;
+                                return sum + (svc.total_price || 0) * ((mi?.measured_percentage || 0) / 100);
+                              }, 0))}
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {activeTab === "previsto_realizado" && (
             <div className="space-y-4">

@@ -106,6 +106,95 @@ export type Database = {
           },
         ]
       }
+      budget_measurement_items: {
+        Row: {
+          budget_item_id: string
+          created_at: string
+          id: string
+          measured_percentage: number | null
+          measured_quantity: number | null
+          measurement_id: string
+          notes: string | null
+        }
+        Insert: {
+          budget_item_id: string
+          created_at?: string
+          id?: string
+          measured_percentage?: number | null
+          measured_quantity?: number | null
+          measurement_id: string
+          notes?: string | null
+        }
+        Update: {
+          budget_item_id?: string
+          created_at?: string
+          id?: string
+          measured_percentage?: number | null
+          measured_quantity?: number | null
+          measurement_id?: string
+          notes?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_measurement_items_budget_item_id_fkey"
+            columns: ["budget_item_id"]
+            isOneToOne: false
+            referencedRelation: "budget_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_measurement_items_measurement_id_fkey"
+            columns: ["measurement_id"]
+            isOneToOne: false
+            referencedRelation: "budget_measurements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      budget_measurements: {
+        Row: {
+          budget_id: string
+          closed_at: string | null
+          created_at: string
+          id: string
+          measurement_number: number
+          notes: string | null
+          reference_period: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          budget_id: string
+          closed_at?: string | null
+          created_at?: string
+          id?: string
+          measurement_number?: number
+          notes?: string | null
+          reference_period?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          budget_id?: string
+          closed_at?: string | null
+          created_at?: string
+          id?: string
+          measurement_number?: number
+          notes?: string | null
+          reference_period?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_measurements_budget_id_fkey"
+            columns: ["budget_id"]
+            isOneToOne: false
+            referencedRelation: "budgets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       budgets: {
         Row: {
           budget_code: string | null
