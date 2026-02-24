@@ -440,7 +440,6 @@ export default function Obras() {
                   <table className="w-full text-sm">
                     <thead className="sticky top-0">
                       <tr className="bg-muted/50">
-                        <th className="w-16 px-4 py-3 font-medium text-muted-foreground">Ativo</th>
                         {tableFields.map(f => <th key={f.name} className="text-left px-4 py-3 font-medium text-muted-foreground">{f.label}</th>)}
                         <th className="w-24 px-4 py-3" />
                       </tr>
@@ -448,11 +447,6 @@ export default function Obras() {
                     <tbody className="divide-y divide-border">
                       {paginatedItems.map((item) => (
                         <tr key={item.id} onClick={() => openEdit(item)} className={`cursor-pointer hover:bg-primary/5 transition-colors ${!item.active ? "opacity-50" : ""}`}>
-                          <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
-                            <button onClick={() => toggleActive.mutate({ id: item.id, active: !item.active })} className={`relative h-6 w-11 rounded-full transition-colors ${item.active ? "bg-primary" : "bg-muted-foreground/30"}`}>
-                              <span className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white transition-transform shadow-sm ${item.active ? "translate-x-5" : ""}`} />
-                            </button>
-                          </td>
                           {tableFields.map(f => {
                             let display = item[f.name] ?? "—";
                             if (f.name === "client_id" && item[f.name]) display = getClientName(item[f.name]);
