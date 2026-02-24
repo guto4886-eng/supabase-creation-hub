@@ -69,6 +69,9 @@ export default function Budgets() {
 
   const { data: companiesList = [] } = useCompanies();
 
+  const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(26);
+
   const { data: budgets = [], isLoading } = useQuery({
     queryKey: ["budgets"],
     queryFn: async () => {
@@ -90,9 +93,36 @@ export default function Budgets() {
   const { data: obras = [] } = useQuery({
     queryKey: ["obras_select"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("obras").select("id, name").order("name");
+      const { data, error } = await supabase.from("obras").select("id, name, client_id").order("name");
+      if (error) throw error;
+      return data as { id: string; name: string; client_id: string | null }[];
+    },
+  });
+
+  const { data: clients = [] } = useQuery({
+    queryKey: ["clients_select"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("clients").select("id, name").order("name");
       if (error) throw error;
       return data as { id: string; name: string }[];
+    },
+  });
+
+  const { data: allMeasurements = [] } = useQuery({
+    queryKey: ["budget_measurements_all"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("budget_measurements").select("id, budget_id, status");
+      if (error) throw error;
+      return data as any[];
+    },
+  });
+
+  const { data: allMeasurementItems = [] } = useQuery({
+    queryKey: ["budget_measurement_items_all"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("budget_measurement_items").select("id, measurement_id, budget_item_id, measured_percentage");
+      if (error) throw error;
+      return data as any[];
     },
   });
 
@@ -145,8 +175,43 @@ export default function Budgets() {
   const openEditItem = (item: BudgetItem) => { setEditingItem(item); setAddingTo(null); setItemForm({ description: item.description, category: item.category || "", quantity: String(item.quantity ?? 1), unit: item.unit || "un", unit_price: String(item.unit_price ?? 0) }); };
 
   const statusColor: Record<string, string> = { rascunho: "bg-muted text-muted-foreground", aprovado: "bg-primary/10 text-primary", rejeitado: "bg-destructive/10 text-destructive" };
-  const fmt = (v: number | null) => (v != null ? v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "—");
+  const fmt = (v: number | null) => (v != null ? v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "0,00");
   const getObraName = (id: string) => obras.find((o) => o.id === id)?.name ?? "—";
+  const getClientName = (obraId: string) => {
+    const obra = obras.find((o) => o.id === obraId);
+    if (!obra?.client_id) return "—";
+    return clients.find((c) => c.id === obra.client_id)?.name ?? "—";
+  };
+  const getCompanyName = (id: string | null) => {
+    if (!id) return "—";
+    return companiesList.find((c) => c.id === id)?.name ?? "—";
+  };
+
+  // Compute measurement values per budget
+  const getBudgetMeasurement = (budgetId: string) => {
+    const budgetItems = allItems.filter((i) => i.budget_id === budgetId);
+    const budgetMeasIds = allMeasurements.filter((m: any) => m.budget_id === budgetId).map((m: any) => m.id);
+    const relevantMIs = allMeasurementItems.filter((mi: any) => budgetMeasIds.includes(mi.measurement_id));
+
+    // Custo total (sum of service items total_price)
+    const serviceItems = budgetItems.filter(i => ["serviço", "servico"].includes((i.category || "").toLowerCase()));
+    const custoTotal = serviceItems.reduce((s, i) => s + (i.total_price || 0), 0);
+
+    // Medido: accumulated measured percentage * total_price
+    let medidoTotal = 0;
+    serviceItems.forEach(svc => {
+      const accPct = relevantMIs
+        .filter((mi: any) => mi.budget_item_id === svc.id)
+        .reduce((a: number, mi: any) => a + (mi.measured_percentage || 0), 0);
+      medidoTotal += (svc.total_price || 0) * (accPct / 100);
+    });
+
+    const aMedir = custoTotal - medidoTotal;
+    // Medição type: check if tracking_method exists in budget items or use "Custo" as default
+    const medicaoType = custoTotal > 0 && medidoTotal > 0 ? "Venda ..." : "Custo";
+
+    return { custoTotal, medidoTotal, aMedir: aMedir > 0 ? aMedir : 0, medicaoType };
+  };
 
   const handleExport = () => {
     const rows = filtered.flatMap((b) => {
@@ -257,95 +322,97 @@ export default function Budgets() {
             </div>
           </div>
         ) : (
-          <div className="flex-1 flex flex-col overflow-hidden p-4">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-foreground">{filtered.length} resultado{filtered.length !== 1 ? "s" : ""}</h3>
-              <div className="flex items-center gap-2">
-                {filtered.length > 0 && (
-                  <button onClick={handleExport} className="flex items-center gap-2 px-3 py-2 border border-border text-foreground rounded-lg text-sm hover:bg-muted transition-colors">
-                    <Download className="h-4 w-4" /> Exportar
-                  </button>
-                )}
-                <button onClick={openNewBudget} className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90">
-                  <Plus className="h-4 w-4" /> Novo Orçamento
-                </button>
-              </div>
-            </div>
-
+          <div className="flex-1 flex flex-col overflow-hidden">
             {isLoading ? (
               <div className="flex justify-center py-12"><div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" /></div>
             ) : filtered.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">Nenhum orçamento encontrado.</div>
-            ) : (
-              <div className="flex-1 overflow-auto space-y-2">
-                {filtered.map((budget) => {
-                  const items = allItems.filter((i) => i.budget_id === budget.id);
-                  const isExpanded = expanded.has(budget.id);
-                  return (
-                    <div key={budget.id} className="border border-border rounded-xl overflow-hidden">
-                      <div className="flex items-center gap-3 px-4 py-3 bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => toggle(budget.id)}>
-                        <span className="text-muted-foreground">{isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}</span>
-                        <span className="font-medium text-foreground flex-1">{budget.budget_code ? `ORC-${budget.budget_code}` : ""} {budget.name || "Sem nome"}</span>
-                        <span className="text-xs text-muted-foreground">{getObraName(budget.obra_id)}</span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColor[budget.status] || "bg-muted text-muted-foreground"}`}>
-                          {statusOptions.find((s) => s.value === budget.status)?.label ?? budget.status}
-                        </span>
-                        <span className="text-sm font-semibold text-foreground">{fmt(budget.total_value)}</span>
-                        <span className="text-xs text-muted-foreground">{items.length} ite{items.length !== 1 ? "ns" : "m"}</span>
-                        <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-                          <button onClick={() => openEditBudget(budget)} className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground"><Pencil className="h-3.5 w-3.5" /></button>
-                          <button onClick={() => { if (confirm("Remover orçamento e todos os itens?")) deleteBudget.mutate(budget.id); }} className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"><Trash2 className="h-3.5 w-3.5" /></button>
-                        </div>
-                      </div>
-                      {isExpanded && (
-                        <div className="border-t border-border">
-                          {items.length === 0 ? (
-                            <div className="px-8 py-4 text-sm text-muted-foreground">Nenhum item neste orçamento</div>
-                          ) : (
-                            <table className="w-full text-sm">
-                              <thead>
-                                <tr className="bg-muted/20">
-                                  <th className="text-left px-8 py-2 font-medium text-muted-foreground">Descrição</th>
-                                  <th className="text-left px-3 py-2 font-medium text-muted-foreground">Categoria</th>
-                                  <th className="text-right px-3 py-2 font-medium text-muted-foreground">Qtd</th>
-                                  <th className="text-left px-3 py-2 font-medium text-muted-foreground">Un</th>
-                                  <th className="text-right px-3 py-2 font-medium text-muted-foreground">Preço Unit.</th>
-                                  <th className="text-right px-3 py-2 font-medium text-muted-foreground">Total</th>
-                                  <th className="w-20 px-3 py-2" />
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-border">
-                                {items.map((item) => (
-                                  <tr key={item.id} className="hover:bg-muted/20 transition-colors">
-                                    <td className="px-8 py-2 text-foreground">{item.description}</td>
-                                    <td className="px-3 py-2 text-muted-foreground">{item.category || "—"}</td>
-                                    <td className="px-3 py-2 text-right text-foreground">{item.quantity ?? "—"}</td>
-                                    <td className="px-3 py-2 text-muted-foreground">{item.unit || "—"}</td>
-                                    <td className="px-3 py-2 text-right text-foreground">{fmt(item.unit_price)}</td>
-                                    <td className="px-3 py-2 text-right font-medium text-foreground">{fmt(item.total_price)}</td>
-                                    <td className="px-3 py-2">
-                                      <div className="flex gap-1">
-                                        <button onClick={() => openEditItem(item)} className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground"><Pencil className="h-3.5 w-3.5" /></button>
-                                        <button onClick={() => { if (confirm("Remover item?")) deleteItem.mutate(item.id); }} className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"><Trash2 className="h-3.5 w-3.5" /></button>
-                                      </div>
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          )}
-                          <div className="px-8 py-2 border-t border-border">
-                            <button onClick={() => openAddItem(budget.id)} className="flex items-center gap-1.5 text-xs text-primary hover:underline font-medium">
-                              <Plus className="h-3.5 w-3.5" /> Adicionar item
-                            </button>
-                          </div>
-                        </div>
-                      )}
+            ) : (() => {
+              const totalPages = Math.ceil(filtered.length / perPage);
+              const paginated = filtered.slice((page - 1) * perPage, page * perPage);
+              return (
+                <>
+                  <div className="flex-1 overflow-auto">
+                    <table className="w-full text-xs border-collapse">
+                      <thead className="sticky top-0 z-10">
+                        <tr className="bg-amber-700 text-white">
+                          <th className="text-left px-3 py-2 font-semibold whitespace-nowrap">Empresa</th>
+                          <th className="text-left px-3 py-2 font-semibold whitespace-nowrap">Núm.</th>
+                          <th className="text-left px-3 py-2 font-semibold whitespace-nowrap">Tipo</th>
+                          <th className="text-left px-3 py-2 font-semibold whitespace-nowrap">Reg. vinc.</th>
+                          <th className="text-left px-3 py-2 font-semibold whitespace-nowrap">Cliente</th>
+                          <th className="text-left px-3 py-2 font-semibold whitespace-nowrap">Obra</th>
+                          <th className="text-right px-3 py-2 font-semibold whitespace-nowrap">Custo (R$)</th>
+                          <th className="text-right px-3 py-2 font-semibold whitespace-nowrap">Venda+taxas (R$)</th>
+                          <th className="text-left px-3 py-2 font-semibold whitespace-nowrap">Medição</th>
+                          <th className="text-right px-3 py-2 font-semibold whitespace-nowrap">Medido (R$)</th>
+                          <th className="text-right px-3 py-2 font-semibold whitespace-nowrap">A medir (R$)</th>
+                          <th className="text-center px-3 py-2 font-semibold whitespace-nowrap">Ações</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {paginated.map((budget, idx) => {
+                          const meas = getBudgetMeasurement(budget.id);
+                          return (
+                            <tr
+                              key={budget.id}
+                              className={`border-b border-border cursor-pointer hover:bg-muted/40 transition-colors ${idx % 2 === 0 ? "bg-background" : "bg-muted/10"}`}
+                              onClick={() => openEditBudget(budget)}
+                            >
+                              <td className="px-3 py-2 text-foreground truncate max-w-[130px]" title={getCompanyName(budget.company_id)}>{getCompanyName(budget.company_id)}</td>
+                              <td className="px-3 py-2 text-foreground">{budget.budget_code || "—"}</td>
+                              <td className="px-3 py-2 text-foreground">Orçamento</td>
+                              <td className="px-3 py-2 text-muted-foreground"></td>
+                              <td className="px-3 py-2 text-foreground truncate max-w-[140px]" title={getClientName(budget.obra_id)}>{getClientName(budget.obra_id)}</td>
+                              <td className="px-3 py-2 text-foreground truncate max-w-[160px]" title={getObraName(budget.obra_id)}>{getObraName(budget.obra_id)}</td>
+                              <td className="px-3 py-2 text-right text-foreground tabular-nums">{fmt(meas.custoTotal || budget.total_value)}</td>
+                              <td className="px-3 py-2 text-right text-foreground tabular-nums">{fmt(meas.custoTotal || budget.total_value)}</td>
+                              <td className="px-3 py-2 text-foreground">{meas.medidoTotal > 0 ? "Venda ..." : "Custo"}</td>
+                              <td className="px-3 py-2 text-right text-foreground tabular-nums">{fmt(meas.medidoTotal)}</td>
+                              <td className="px-3 py-2 text-right text-foreground tabular-nums">{fmt(meas.aMedir)}</td>
+                              <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+                                <div className="flex items-center justify-center gap-1">
+                                  <button onClick={() => openEditBudget(budget)} className="p-1 rounded hover:bg-primary/10 text-primary" title="Editar"><Pencil className="h-3.5 w-3.5" /></button>
+                                  <button onClick={() => { if (confirm("Remover orçamento e todos os itens?")) deleteBudget.mutate(budget.id); }} className="p-1 rounded hover:bg-destructive/10 text-destructive" title="Excluir"><Trash2 className="h-3.5 w-3.5" /></button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Bottom bar */}
+                  <div className="flex items-center justify-between px-4 py-2.5 border-t border-border bg-muted/30 flex-shrink-0">
+                    <div className="flex items-center gap-3">
+                      <button onClick={openNewBudget} className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded text-xs font-semibold hover:opacity-90">
+                        <Plus className="h-3.5 w-3.5" /> Novo
+                      </button>
+                      <button onClick={handleExport} className="flex items-center gap-1.5 px-3 py-1.5 border border-border text-foreground rounded text-xs hover:bg-muted transition-colors">
+                        <Download className="h-3.5 w-3.5" /> Exportar
+                      </button>
                     </div>
-                  );
-                })}
-              </div>
-            )}
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                      <span>{filtered.length} registro{filtered.length !== 1 ? "s" : ""}</span>
+                      <div className="flex items-center gap-1">
+                        <button onClick={() => setPage(1)} disabled={page <= 1} className="px-1.5 py-1 rounded border border-border hover:bg-muted disabled:opacity-30" title="Primeira">|&lt;</button>
+                        <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1} className="px-1.5 py-1 rounded border border-border hover:bg-muted disabled:opacity-30" title="Anterior">&lt;</button>
+                        <span className="px-2 py-1 rounded border border-border bg-background text-foreground font-medium min-w-[28px] text-center">{page}</span>
+                        <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages} className="px-1.5 py-1 rounded border border-border hover:bg-muted disabled:opacity-30" title="Próxima">&gt;</button>
+                        <button onClick={() => setPage(totalPages)} disabled={page >= totalPages} className="px-1.5 py-1 rounded border border-border hover:bg-muted disabled:opacity-30" title="Última">&gt;|</button>
+                      </div>
+                      <select value={perPage} onChange={(e) => { setPerPage(Number(e.target.value)); setPage(1); }} className="px-2 py-1 rounded border border-border bg-background text-foreground text-xs">
+                        <option value={10}>10/pág.</option>
+                        <option value={26}>26/pág.</option>
+                        <option value={50}>50/pág.</option>
+                        <option value={100}>100/pág.</option>
+                      </select>
+                    </div>
+                  </div>
+                </>
+              );
+            })()}
           </div>
         )}
       </div>
