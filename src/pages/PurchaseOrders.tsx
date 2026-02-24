@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import {
   Search, Plus, ChevronLeft, ChevronRight, Pencil, Trash2, X, Eraser
 } from "lucide-react";
+import { useCompanies, CompanyFilterSelect } from "@/hooks/useCompanies";
 
 const PAGE_SIZE = 15;
 
@@ -29,12 +30,15 @@ export default function PurchaseOrders() {
   const [filterStatus, setFilterStatus] = useState("");
   const [filterDateFrom, setFilterDateFrom] = useState("");
   const [filterDateTo, setFilterDateTo] = useState("");
+  const [filterCompany, setFilterCompany] = useState("");
   const [searched, setSearched] = useState(false);
   const [page, setPage] = useState(0);
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState<Record<string, any>>({});
+
+  const { data: companiesList = [] } = useCompanies();
 
   const { data: suppliers = [] } = useQuery({
     queryKey: ["suppliers_list_po"],
@@ -73,6 +77,7 @@ export default function PurchaseOrders() {
         if (filterStatus && item.status !== filterStatus) return false;
         if (filterDateFrom && item.order_date < filterDateFrom) return false;
         if (filterDateTo && item.order_date > filterDateTo) return false;
+        if (filterCompany && item.company_id !== filterCompany) return false;
         return true;
       })
     : [];
@@ -134,7 +139,7 @@ export default function PurchaseOrders() {
   };
 
   const handleSearch = () => { setSearched(true); setPage(0); };
-  const handleClearFilters = () => { setFilterCode(""); setFilterSupplier(""); setFilterStatus(""); setFilterDateFrom(""); setFilterDateTo(""); setSearched(false); setPage(0); };
+  const handleClearFilters = () => { setFilterCode(""); setFilterSupplier(""); setFilterStatus(""); setFilterCompany(""); setFilterDateFrom(""); setFilterDateTo(""); setSearched(false); setPage(0); };
 
   const formatCurrency = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -182,6 +187,7 @@ export default function PurchaseOrders() {
                   <input type="date" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} className={inputClass} />
                 </div>
               </div>
+              <CompanyFilterSelect value={filterCompany} onChange={setFilterCompany} companies={companiesList} className={inputClass} />
             </div>
             <div className="p-4 border-t border-border flex gap-2">
               <button onClick={handleClearFilters} className="flex-1 flex items-center justify-center px-3 py-2.5 rounded-lg bg-background border border-border text-muted-foreground hover:bg-muted transition-colors"><Eraser className="h-5 w-5" /></button>

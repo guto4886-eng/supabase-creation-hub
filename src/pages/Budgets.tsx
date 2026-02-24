@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { Plus, ChevronRight, ChevronDown, Pencil, Trash2, X, Download, Search, Eraser } from "lucide-react";
 import { exportToCSV } from "@/utils/exportCsv";
+import { useCompanies, CompanyFilterSelect } from "@/hooks/useCompanies";
 
 interface Budget {
   id: string;
@@ -44,6 +45,7 @@ export default function Budgets() {
   const [filterName, setFilterName] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [filterObra, setFilterObra] = useState("");
+  const [filterCompany, setFilterCompany] = useState("");
   const [searched, setSearched] = useState(false);
 
   // Budget form
@@ -55,6 +57,8 @@ export default function Budgets() {
   const [editingItem, setEditingItem] = useState<BudgetItem | null>(null);
   const [addingTo, setAddingTo] = useState<string | null>(null);
   const [itemForm, setItemForm] = useState({ description: "", category: "", quantity: "1", unit: "un", unit_price: "0" });
+
+  const { data: companiesList = [] } = useCompanies();
 
   const { data: budgets = [], isLoading } = useQuery({
     queryKey: ["budgets"],
@@ -88,6 +92,7 @@ export default function Budgets() {
         if (filterName && !b.name.toLowerCase().includes(filterName.toLowerCase())) return false;
         if (filterStatus && b.status !== filterStatus) return false;
         if (filterObra && b.obra_id !== filterObra) return false;
+        if (filterCompany && (b as any).company_id !== filterCompany) return false;
         return true;
       })
     : [];
@@ -166,7 +171,7 @@ export default function Budgets() {
   };
 
   const handleSearch = () => { setSearched(true); };
-  const handleClearFilters = () => { setFilterName(""); setFilterStatus(""); setFilterObra(""); setSearched(false); };
+  const handleClearFilters = () => { setFilterName(""); setFilterStatus(""); setFilterObra(""); setFilterCompany(""); setSearched(false); };
 
   const inputClass = "w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring";
 
@@ -203,6 +208,7 @@ export default function Budgets() {
                   {obras.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
                 </select>
               </div>
+              <CompanyFilterSelect value={filterCompany} onChange={setFilterCompany} companies={companiesList} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
             </div>
 
             <div className="p-4 border-t border-border flex gap-2">

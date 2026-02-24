@@ -15,6 +15,7 @@ import ObraContacts from "@/components/ObraContacts";
 import ObraDailyEntries from "@/components/ObraDailyEntries";
 import ObraServiceMessages from "@/components/ObraServiceMessages";
 import ObraConfig from "@/components/ObraConfig";
+import { useCompanies, CompanyFilterSelect } from "@/hooks/useCompanies";
 
 const ESTADOS = [
   "AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG",
@@ -66,6 +67,7 @@ export default function Obras() {
   const [filterAddress, setFilterAddress] = useState("");
   const [filterCondition, setFilterCondition] = useState<"ativo" | "inativo" | "ambos">("ativo");
   const [filterStock, setFilterStock] = useState<"sim" | "nao" | "ambos">("ambos");
+  const [filterCompany, setFilterCompany] = useState("");
   const [searched, setSearched] = useState(false);
 
   // Pagination
@@ -81,6 +83,8 @@ export default function Obras() {
   const [reportMenuOpen, setReportMenuOpen] = useState(false);
 
   // Data
+  const { data: companiesList = [] } = useCompanies();
+
   const { data: clients = [] } = useQuery({
     queryKey: ["clients_select"],
     queryFn: async () => {
@@ -146,6 +150,7 @@ export default function Obras() {
         if (filterAddress && !item.address?.toLowerCase().includes(filterAddress.toLowerCase())) return false;
         if (filterCondition === "ativo" && !item.active) return false;
         if (filterCondition === "inativo" && item.active) return false;
+        if (filterCompany && item.company_id !== filterCompany) return false;
         return true;
       })
     : [];
@@ -343,7 +348,7 @@ export default function Obras() {
   const handleClearFilters = () => {
     setFilterName(""); setFilterClient(""); setFilterStatuses([]); setFilterCategory("");
     setFilterState(""); setFilterCity(""); setFilterNeighborhood(""); setFilterAddress("");
-    setFilterCondition("ativo"); setFilterStock("ambos"); setSearched(false); setPage(0);
+    setFilterCondition("ativo"); setFilterStock("ambos"); setFilterCompany(""); setSearched(false); setPage(0);
   };
 
   const getClientName = (id: string) => clients.find((c) => c.id === id)?.name ?? "—";
@@ -447,6 +452,7 @@ export default function Obras() {
                   ))}
                 </div>
               </div>
+              <CompanyFilterSelect value={filterCompany} onChange={setFilterCompany} companies={companiesList} className={inputClass} />
             </div>
 
             <div className="p-4 border-t border-border flex gap-2">

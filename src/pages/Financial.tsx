@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, X, Search, Download, ChevronLeft, ChevronRight } from "lucide-react";
 import { exportToCSV } from "@/utils/exportCsv";
+import { useCompanies } from "@/hooks/useCompanies";
 
 interface FinancialDoc {
   id: string;
@@ -38,6 +39,7 @@ export default function Financial() {
   const { user } = useAuth();
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
+  const [filterCompany, setFilterCompany] = useState("");
   const [editing, setEditing] = useState<FinancialDoc | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [form, setForm] = useState({
@@ -45,6 +47,8 @@ export default function Financial() {
     due_date: "", payment_date: "", category: "", notes: "", obra_id: "", supplier_id: "",
   });
   const [page, setPage] = useState(0);
+
+  const { data: companiesList = [] } = useCompanies();
 
   const { data: items = [], isLoading } = useQuery({
     queryKey: ["financial_docs"],
@@ -140,7 +144,11 @@ export default function Financial() {
 
   const closeForm = () => { setFormOpen(false); setEditing(null); };
 
-  const filtered = items.filter((item) => item.description.toLowerCase().includes(search.toLowerCase()));
+  const filtered = items.filter((item) => {
+    if (!item.description.toLowerCase().includes(search.toLowerCase())) return false;
+    if (filterCompany && (item as any).company_id !== filterCompany) return false;
+    return true;
+  });
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages - 1);
   const paginatedItems = filtered.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
@@ -179,9 +187,19 @@ export default function Financial() {
         </div>
       </div>
 
-      <div className="relative">
-        <Search className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
-        <input type="text" placeholder="Pesquisar..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring" />
+      <div className="flex gap-3 items-end">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
+          <input type="text" placeholder="Pesquisar..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring" />
+        </div>
+        <div className="w-56">
+          <select value={filterCompany} onChange={(e) => { setFilterCompany(e.target.value); setPage(0); }} className="w-full px-3 py-2.5 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm">
+            <option value="">Todas empresas</option>
+            {companiesList.map((c) => (
+              <option key={c.id} value={c.id}>{c.company_type === "filial" ? "↳ " : ""}{c.name}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {isLoading ? (

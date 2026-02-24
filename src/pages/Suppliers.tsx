@@ -19,6 +19,7 @@ import SupplierQuality from "@/components/SupplierQuality";
 import SupplierCertifications from "@/components/SupplierCertifications";
 import SupplierPurchases from "@/components/SupplierPurchases";
 import CsvImport from "@/components/CsvImport";
+import { useCompanies, CompanyFilterSelect } from "@/hooks/useCompanies";
 
 const ESTADOS = [
   "AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG",
@@ -44,6 +45,7 @@ export default function Suppliers() {
   const [filterNeighborhood, setFilterNeighborhood] = useState("");
   const [filterRecommended, setFilterRecommended] = useState<"sim" | "nao" | "ambos">("ambos");
   const [filterCondition, setFilterCondition] = useState<"ativo" | "inativo" | "ambos">("ativo");
+  const [filterCompany, setFilterCompany] = useState("");
   const [filterDateFrom, setFilterDateFrom] = useState("");
   const [filterDateTo, setFilterDateTo] = useState("");
   const [searched, setSearched] = useState(false);
@@ -57,6 +59,8 @@ export default function Suppliers() {
   const [cepLoading, setCepLoading] = useState(false);
   const [cnpjLoading, setCnpjLoading] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+
+  const { data: companiesList = [] } = useCompanies();
 
   const { data: items = [], isLoading } = useQuery({
     queryKey: ["suppliers"],
@@ -104,6 +108,7 @@ export default function Suppliers() {
         if (filterCondition === "inativo" && item.active) return false;
         if (filterDateFrom && item.created_at < filterDateFrom) return false;
         if (filterDateTo && item.created_at > filterDateTo + "T23:59:59") return false;
+        if (filterCompany && item.company_id !== filterCompany) return false;
         return true;
       })
     : [];
@@ -234,7 +239,7 @@ export default function Suppliers() {
   const handleSearch = () => { setSearched(true); setPage(0); };
 
   const handleClearFilters = () => {
-    setFilterPersonType("ambas"); setFilterName(""); setFilterTradeName(""); setFilterVendor(""); setFilterDocument(""); setFilterCategory(""); setFilterState(""); setFilterCity(""); setFilterNeighborhood(""); setFilterRecommended("ambos"); setFilterCondition("ativo"); setFilterDateFrom(""); setFilterDateTo(""); setSearched(false); setPage(0);
+    setFilterPersonType("ambas"); setFilterName(""); setFilterTradeName(""); setFilterVendor(""); setFilterDocument(""); setFilterCategory(""); setFilterState(""); setFilterCity(""); setFilterNeighborhood(""); setFilterRecommended("ambos"); setFilterCondition("ativo"); setFilterCompany(""); setFilterDateFrom(""); setFilterDateTo(""); setSearched(false); setPage(0);
   };
 
   const renderFormInput = (f: typeof fields[0]) => {
@@ -370,6 +375,7 @@ export default function Suppliers() {
                   <input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} className="flex-1 px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
                 </div>
               </div>
+              <CompanyFilterSelect value={filterCompany} onChange={setFilterCompany} companies={companiesList} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
             </div>
 
             <div className="p-4 border-t border-border flex gap-2">

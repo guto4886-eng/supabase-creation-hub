@@ -16,6 +16,7 @@ import CsvImport from "@/components/CsvImport";
 import ClientContacts from "@/components/ClientContacts";
 import ClientMessages from "@/components/ClientMessages";
 import ClientPortalPermissions from "@/components/ClientPortalPermissions";
+import { useCompanies, CompanyFilterSelect } from "@/hooks/useCompanies";
 
 const ESTADOS = [
   "AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG",
@@ -59,6 +60,7 @@ export default function Clients() {
   const [filterState, setFilterState] = useState("");
   const [filterCity, setFilterCity] = useState("");
   const [filterCondition, setFilterCondition] = useState<"ativo" | "inativo" | "ambos">("ativo");
+  const [filterCompany, setFilterCompany] = useState("");
   const [searched, setSearched] = useState(false);
 
   // Pagination
@@ -97,6 +99,9 @@ export default function Clients() {
     document.addEventListener("mouseup", onUp);
   }, [colWidths]);
 
+  // Companies for filter
+  const { data: companies = [] } = useCompanies();
+
   // Data
   const { data: items = [], isLoading } = useQuery({
     queryKey: ["clients"],
@@ -118,6 +123,7 @@ export default function Clients() {
         if (filterCity && !item.city?.toLowerCase().includes(filterCity.toLowerCase())) return false;
         if (filterCondition === "ativo" && !item.active) return false;
         if (filterCondition === "inativo" && item.active) return false;
+        if (filterCompany && item.company_id !== filterCompany) return false;
         return true;
       })
     : [];
@@ -234,6 +240,7 @@ export default function Clients() {
     setFilterState("");
     setFilterCity("");
     setFilterCondition("ativo");
+    setFilterCompany("");
     setSearched(false);
     setPage(0);
   };
@@ -305,6 +312,7 @@ export default function Clients() {
                   ))}
                 </div>
               </div>
+              <CompanyFilterSelect value={filterCompany} onChange={setFilterCompany} companies={companies} className={inputClass} />
             </div>
 
             <div className="p-4 border-t border-border flex gap-2">
