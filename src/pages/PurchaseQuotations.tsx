@@ -12,8 +12,10 @@ import QuotationSuppliers from "@/components/quotation/QuotationSuppliers";
 import QuotationSending from "@/components/quotation/QuotationSending";
 import QuotationLinkedRecords from "@/components/quotation/QuotationLinkedRecords";
 import QuotationMessages from "@/components/quotation/QuotationMessages";
+import ExportDialog from "@/components/ExportDialog";
+import { exportCSV, exportExcel, exportPDF, fetchCompanyInfo as fetchCompanyForExport } from "@/utils/exportWithHeader";
 import {
-  Search, Plus, ChevronLeft, ChevronRight, Pencil, Trash2, X, Eraser, Paperclip, FileDown, Share2
+  Search, Plus, ChevronLeft, ChevronRight, Pencil, Trash2, X, Eraser, Paperclip, FileDown, Share2, Download
 } from "lucide-react";
 
 const PAGE_SIZE = 15;
@@ -84,6 +86,7 @@ export default function PurchaseQuotations() {
   const [newInsumoUnit, setNewInsumoUnit] = useState("un");
   const [newInsumoCategory, setNewInsumoCategory] = useState("");
   const insumoRef = useRef<HTMLDivElement>(null);
+  const [showExportDialog, setShowExportDialog] = useState(false);
 
   // --- Queries ---
   const { data: obras = [] } = useQuery({
@@ -451,6 +454,37 @@ export default function PurchaseQuotations() {
     } catch (e: any) { if (e.name !== "AbortError") toast.error("Erro: " + e.message); }
   };
 
+  const EXPORT_FIELDS = [
+    { name: "title", label: "Título" },
+    { name: "obra_name", label: "Obra" },
+    { name: "status_label", label: "Situação" },
+    { name: "deadline_fmt", label: "Prazo" },
+    { name: "needed_by_fmt", label: "Entrega" },
+    { name: "response_deadline_fmt", label: "Resposta até" },
+    { name: "description", label: "Descrição" },
+    { name: "created_fmt", label: "Criado em" },
+  ];
+
+  const handleExport = async (format: "csv" | "pdf" | "excel") => {
+    setShowExportDialog(false);
+    if (!user) return;
+    const company = await fetchCompanyForExport(user.id);
+    const exportData = filtered.map((item: any) => ({
+      title: item.title || "",
+      obra_name: item.obras?.name || "",
+      status_label: STATUS_OPTIONS.find(s => s.value === item.status)?.label || item.status || "",
+      deadline_fmt: item.deadline ? new Date(item.deadline + "T00:00:00").toLocaleDateString("pt-BR") : "",
+      needed_by_fmt: item.needed_by ? new Date(item.needed_by + "T00:00:00").toLocaleDateString("pt-BR") : "",
+      response_deadline_fmt: item.response_deadline ? new Date(item.response_deadline + "T00:00:00").toLocaleDateString("pt-BR") : "",
+      description: item.description || "",
+      created_fmt: new Date(item.created_at).toLocaleDateString("pt-BR"),
+    }));
+    if (format === "csv") exportCSV(exportData, EXPORT_FIELDS, "cotacoes_compra", company);
+    else if (format === "excel") exportExcel(exportData, EXPORT_FIELDS, "cotacoes_compra", company);
+    else await exportPDF(exportData, EXPORT_FIELDS, "cotacoes_compra", company);
+    toast.success("Exportação concluída!");
+  };
+
   const now = new Date();
 
   const TABS = [
@@ -516,7 +550,7 @@ export default function PurchaseQuotations() {
       </div>
 
       {/* Main */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden pb-14">
         {!searched ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="flex items-center gap-16 max-w-4xl px-8">
@@ -593,7 +627,18 @@ export default function PurchaseQuotations() {
         )}
       </div>
 
-      {/* Modal */}
+      {/* Footer bar */}
+      <div className="absolute bottom-0 left-0 right-0 border-t border-border bg-card px-6 py-3 flex items-center justify-between z-20">
+        <button onClick={openNew} className="flex items-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90">
+          <Plus className="h-4 w-4" /> Nova Cotação
+        </button>
+        <button onClick={() => setShowExportDialog(true)} disabled={filtered.length === 0} className="flex items-center gap-2 px-5 py-2.5 bg-amber-700 text-white rounded-lg text-sm font-medium hover:bg-amber-800 disabled:opacity-40">
+          <Download className="h-4 w-4" /> Exportar
+        </button>
+      </div>
+
+      {showExportDialog && <ExportDialog onSelect={handleExport} onClose={() => setShowExportDialog(false)} />}
+
       {formOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={closeForm}>
           <div className="bg-card border border-border rounded-xl w-full max-w-4xl flex flex-col" style={{ height: "85vh" }} onClick={e => e.stopPropagation()}>
