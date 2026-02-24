@@ -174,6 +174,9 @@ export default function PurchaseQuotations() {
           delivery_city: values.delivery_city || null,
           delivery_state: values.delivery_state || null,
           delivery_address_source: values.delivery_address_source || "obra",
+          needed_by: values.needed_by || null,
+          response_deadline: values.response_deadline || null,
+          sending_notes: values.sending_notes || null,
         }).eq("id", editing.id);
         if (error) throw error;
         quotationId = editing.id;
@@ -194,6 +197,9 @@ export default function PurchaseQuotations() {
           delivery_city: values.delivery_city || null,
           delivery_state: values.delivery_state || null,
           delivery_address_source: values.delivery_address_source || "obra",
+          needed_by: values.needed_by || null,
+          response_deadline: values.response_deadline || null,
+          sending_notes: values.sending_notes || null,
           user_id: user!.id,
         }).select("id").single();
         if (error) throw error;
@@ -668,7 +674,7 @@ export default function PurchaseQuotations() {
               ) : activeTab === "fornecedores" ? (
                 <QuotationSuppliers quotationId={editing?.id || null} />
               ) : activeTab === "envio" ? (
-                <QuotationSending quotationId={editing?.id || null} />
+                <QuotationSending quotationId={editing?.id || null} form={form} setForm={setForm} />
               ) : activeTab === "vinculos" ? (
                 <QuotationLinkedRecords quotationId={editing?.id || null} />
               ) : activeTab === "mensagens" ? (
