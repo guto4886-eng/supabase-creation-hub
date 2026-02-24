@@ -429,67 +429,40 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
 
           {activeTab === "valores_custo" && (() => {
             const allCategories = [...new Set(items.map((i) => i.category || "Geral"))];
-            
-            // Detect hierarchy from category prefixes (e.g. "1 - X" parent of "1.1 - Y")
+
             const getPhasePrefix = (cat: string) => {
               const match = cat.match(/^(\d+(?:\.\d+)*)/);
               return match ? match[1] : null;
             };
-            const getParentPrefix = (prefix: string) => {
-              const parts = prefix.split(".");
-              return parts.length > 1 ? parts.slice(0, -1).join(".") : null;
-            };
 
-            interface PhaseNode { name: string; children: string[]; total: number; count: number; }
-            const phaseMap = new Map<string, PhaseNode>();
-            const rootPhases: string[] = [];
-
-            allCategories.forEach((cat) => {
-              const catItems = items.filter((i) => (i.category || "Geral") === cat);
-              const total = catItems.reduce((s, i) => s + (i.total_price || 0), 0);
-              phaseMap.set(cat, { name: cat, children: [], total, count: catItems.length });
-            });
-
-            allCategories.forEach((cat) => {
+            const getRootIndex = (cat: string) => {
               const prefix = getPhasePrefix(cat);
-              if (!prefix) { rootPhases.push(cat); return; }
-              const parentPrefix = getParentPrefix(prefix);
-              if (parentPrefix) {
-                const parent = allCategories.find((c) => getPhasePrefix(c) === parentPrefix);
-                if (parent && parent !== cat) {
-                  phaseMap.get(parent)!.children.push(cat);
-                  return;
-                }
-              }
-              rootPhases.push(cat);
-            });
-
-            const getDeepTotal = (cat: string): number => {
-              const node = phaseMap.get(cat);
-              if (!node) return 0;
-              return node.total + node.children.reduce((s, c) => s + getDeepTotal(c), 0);
-            };
-            const getDeepCount = (cat: string): number => {
-              const node = phaseMap.get(cat);
-              if (!node) return 0;
-              return node.count + node.children.reduce((s, c) => s + getDeepCount(c), 0);
+              return prefix ? prefix.split(".")[0] : null;
             };
 
-            const activePhase = selectedPhase || (allCategories.length > 0 ? null : "Geral");
+            const rootPhaseRows = Array.from(
+              new Set(allCategories.map((cat) => getRootIndex(cat)).filter((value): value is string => !!value))
+            )
+              .map((rootIndex) => {
+                const categoriesForRoot = allCategories.filter((cat) => getRootIndex(cat) === rootIndex);
+                const exactPhaseCategory = categoriesForRoot.find((cat) => getPhasePrefix(cat) === rootIndex);
+                const label = exactPhaseCategory || categoriesForRoot[0] || rootIndex;
+                const total = items
+                  .filter((i) => getRootIndex(i.category || "Geral") === rootIndex)
+                  .reduce((sum, i) => sum + (i.total_price || 0), 0);
 
-            // Collect all descendant categories of the selected phase
-            const getDescendants = (cat: string): string[] => {
-              const node = phaseMap.get(cat);
-              if (!node) return [];
-              const result: string[] = [];
-              node.children.forEach((c) => { result.push(c); result.push(...getDescendants(c)); });
-              return result;
-            };
+                return { rootIndex, label, total };
+              })
+              .sort((a, b) => Number.parseInt(a.rootIndex, 10) - Number.parseInt(b.rootIndex, 10));
 
-            const displayItems = activePhase ? items.filter((i) => {
-              const cat = i.category || "Geral";
-              return cat === activePhase || getDescendants(activePhase).includes(cat);
-            }) : items;
+            const selectedRootIndex = selectedPhase ? getRootIndex(selectedPhase) : null;
+            const activePhaseLabel = selectedRootIndex
+              ? rootPhaseRows.find((phase) => phase.rootIndex === selectedRootIndex)?.label || selectedPhase
+              : null;
+
+            const displayItems = selectedRootIndex
+              ? items.filter((i) => getRootIndex(i.category || "Geral") === selectedRootIndex)
+              : items;
 
             return (
               <div className="flex gap-0 h-full">
@@ -502,19 +475,18 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                   <div className="flex-1 overflow-y-auto">
                     <table className="w-full text-xs">
                       <tbody>
-                        {allCategories.map((cat, idx) => {
-                          const catTotal = items.filter((i) => (i.category || "Geral") === cat).reduce((s, i) => s + (i.total_price || 0), 0);
-                          const isActive = activePhase === cat;
+                        {rootPhaseRows.map((phase, idx) => {
+                          const isActive = selectedRootIndex === phase.rootIndex;
                           return (
                             <tr
-                              key={cat}
-                              onClick={() => setSelectedPhase(cat)}
+                              key={phase.rootIndex}
+                              onClick={() => setSelectedPhase(phase.label)}
                               className={`cursor-pointer border-b border-border transition-colors ${
                                 isActive ? "bg-primary/10 font-bold text-primary" : idx % 2 === 0 ? "bg-background hover:bg-muted/50" : "bg-muted/20 hover:bg-muted/50"
                               }`}
                             >
-                              <td className="px-3 py-2.5 text-left leading-snug">{cat}</td>
-                              <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap font-medium">{catTotal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td>
+                              <td className="px-3 py-2.5 text-left leading-snug">{phase.label}</td>
+                              <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap font-medium">{phase.total.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td>
                             </tr>
                           );
                         })}
@@ -533,8 +505,8 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                 <div className="flex-1 border border-l-0 border-border rounded-r-lg flex flex-col">
                   {/* Phase title header */}
                   <div className="px-4 py-3 border-b border-border bg-muted/20 flex items-center justify-between">
-                    <h4 className="text-sm font-bold text-foreground uppercase tracking-wide">{activePhase || "Todos os serviços"}</h4>
-                    <button onClick={() => { setItemForm({ description: "", category: activePhase || "", quantity: "1", unit: "un", unit_price: "0" }); setEditingItem(null); setAddingItem(true); }} className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-lg text-xs font-medium hover:opacity-90">
+                    <h4 className="text-sm font-bold text-foreground uppercase tracking-wide">{activePhaseLabel || "Todos os serviços"}</h4>
+                    <button onClick={() => { setItemForm({ description: "", category: activePhaseLabel || "", quantity: "1", unit: "un", unit_price: "0" }); setEditingItem(null); setAddingItem(true); }} className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-lg text-xs font-medium hover:opacity-90">
                       <Plus className="h-3.5 w-3.5" /> Adicionar item
                     </button>
                   </div>
@@ -605,7 +577,7 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                       <span className="text-xs font-semibold text-foreground">Total da obra:</span>
                       <span className="text-xs font-bold text-foreground">{fmt(totalCusto)}</span>
                     </div>
-                    {activePhase && (
+                    {activePhaseLabel && (
                       <div className="flex items-center gap-2 border border-border rounded px-3 py-1.5">
                         <span className="text-xs font-semibold text-foreground">Total da fase:</span>
                         <span className="text-xs font-bold text-foreground">{fmt(displayItems.reduce((s, i) => s + (i.total_price || 0), 0))}</span>
