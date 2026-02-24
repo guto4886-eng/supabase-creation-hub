@@ -1135,6 +1135,21 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                 .reduce((sum: number, mi: any) => sum + (mi.measured_percentage || 0), 0);
             };
 
+            // Helper: get accumulated percentage from all measurements BEFORE the active one
+            const getPreviousAccumulatedPct = (budgetItemId: string) => {
+              if (!activeMeasurement) return 0;
+              const prevMeasurementIds = measurements
+                .filter((m: any) => m.id !== activeMeasurement)
+                .filter((m: any) => {
+                  const activeMedObj = measurements.find((mm: any) => mm.id === activeMeasurement) as any;
+                  return activeMedObj ? m.measurement_number < activeMedObj.measurement_number : false;
+                })
+                .map((m: any) => m.id);
+              return (allMeasurementItems as any[])
+                .filter((mi: any) => mi.budget_item_id === budgetItemId && prevMeasurementIds.includes(mi.measurement_id))
+                .reduce((sum: number, mi: any) => sum + (mi.measured_percentage || 0), 0);
+            };
+
             const activeMed = measurements.find((m: any) => m.id === activeMeasurement) as any;
 
             return (
@@ -1279,6 +1294,8 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                                 const mi = measurementItems.find((m: any) => m.budget_item_id === svc.id) as any;
                                 const pct = mi?.measured_percentage || 0;
                                 const measuredValue = (svc.total_price || 0) * (pct / 100);
+                                const prevAccPct = getPreviousAccumulatedPct(svc.id);
+                                const prevAccValue = (svc.total_price || 0) * (prevAccPct / 100);
                                 const accPct = getAccumulatedPct(svc.id);
                                 const accValue = (svc.total_price || 0) * (accPct / 100);
                                 const saldoSvc = (svc.total_price || 0) - accValue;
@@ -1297,7 +1314,11 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                                       </div>
                                       <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Lançamento: {measuredAt}</span>
                                     </div>
-                                    <div className="grid grid-cols-5 gap-3">
+                                    <div className="grid grid-cols-6 gap-2">
+                                      <div>
+                                        <label className="block text-[10px] font-medium text-muted-foreground mb-0.5">Med. Anterior</label>
+                                        <span className="text-sm tabular-nums text-muted-foreground">{prevAccPct.toFixed(2)}% — {fmt(prevAccValue)}</span>
+                                      </div>
                                       <div>
                                         <label className="block text-[10px] font-medium text-muted-foreground mb-0.5">% Esta Medição</label>
                                         {isEditable ? (
@@ -1313,7 +1334,7 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                                         )}
                                       </div>
                                       <div>
-                                        <label className="block text-[10px] font-medium text-muted-foreground mb-0.5">Valor Esta Med. (R$)</label>
+                                        <label className="block text-[10px] font-medium text-muted-foreground mb-0.5">Valor Esta Med.</label>
                                         {isEditable ? (
                                           <input
                                             type="number" min="0" step="0.01"
