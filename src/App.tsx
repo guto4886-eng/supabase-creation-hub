@@ -10,6 +10,7 @@ import ResetPassword from "@/pages/ResetPassword";
 import Dashboard from "@/pages/Dashboard";
 import Clients from "@/pages/Clients";
 import Suppliers from "@/pages/Suppliers";
+import Purchases from "@/pages/Purchases";
 import Obras from "@/pages/Obras";
 import Budgets from "@/pages/Budgets";
 import Quotations from "@/pages/Quotations";
@@ -50,6 +51,7 @@ function App() {
                 <Route index element={<Dashboard />} />
                 <Route path="clients" element={<Clients />} />
                 <Route path="suppliers" element={<Suppliers />} />
+                <Route path="purchases" element={<Purchases />} />
                 <Route path="obras" element={<Obras />} />
                 <Route path="budgets" element={<Budgets />} />
                 <Route path="quotations" element={<Quotations />} />
