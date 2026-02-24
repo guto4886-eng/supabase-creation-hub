@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { User, Save, Camera, Lock, Bell, Eye, EyeOff, Check, X as XIcon, Building2 } from "lucide-react";
 import ImageCropper from "@/components/ImageCropper";
+import { useNavigate } from "react-router-dom";
 
 interface Profile {
   id: string;
@@ -23,6 +24,7 @@ interface UserPreferences {
 export default function ProfilePage() {
   const { user } = useAuth();
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const [form, setForm] = useState({ full_name: "", phone: "" });
   const [emailNotifications, setEmailNotifications] = useState(true);
 
@@ -33,9 +35,6 @@ export default function ProfilePage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [cropperSrc, setCropperSrc] = useState<string | null>(null);
-  const [companyForm, setCompanyForm] = useState<Record<string, string>>({
-    company_name: "", document: "", address: "", city: "", state: "", phone: "", email: "", logo_url: "",
-  });
 
   const passwordCriteria = {
     length: passwordForm.password.length >= 8,
@@ -51,11 +50,7 @@ export default function ProfilePage() {
     queryKey: ["profile", user?.id],
     enabled: !!user,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("user_id", user!.id)
-        .maybeSingle();
+      const { data, error } = await supabase.from("profiles").select("*").eq("user_id", user!.id).maybeSingle();
       if (error) throw error;
       return data as Profile | null;
     },
@@ -65,27 +60,19 @@ export default function ProfilePage() {
     queryKey: ["user_preferences", user?.id],
     enabled: !!user,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("user_preferences" as any)
-        .select("*")
-        .eq("user_id", user!.id)
-        .maybeSingle();
+      const { data, error } = await supabase.from("user_preferences" as any).select("*").eq("user_id", user!.id).maybeSingle();
       if (error) throw error;
       return data as unknown as UserPreferences | null;
     },
   });
 
-  const { data: companyData } = useQuery({
-    queryKey: ["company_settings", user?.id],
+  const { data: companies = [] } = useQuery({
+    queryKey: ["companies", user?.id],
     enabled: !!user,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("company_settings" as any)
-        .select("*")
-        .eq("user_id", user!.id)
-        .maybeSingle();
+      const { data, error } = await supabase.from("companies").select("id, name, company_type, city, state, document").eq("active", true).order("company_type").order("name");
       if (error) throw error;
-      return data as any;
+      return data as any[];
     },
   });
 
@@ -101,69 +88,27 @@ export default function ProfilePage() {
     }
   }, [preferences]);
 
-  useEffect(() => {
-    if (companyData) {
-      setCompanyForm({
-        company_name: companyData.company_name || "",
-        document: companyData.document || "",
-        address: companyData.address || "",
-        city: companyData.city || "",
-        state: companyData.state || "",
-        phone: companyData.phone || "",
-        email: companyData.email || "",
-        logo_url: companyData.logo_url || "",
-      });
-    }
-  }, [companyData]);
-
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!user) return;
-      // Save profile
       if (profile) {
-        const { error } = await supabase
-          .from("profiles")
-          .update({ full_name: form.full_name, phone: form.phone || null })
-          .eq("user_id", user.id);
+        const { error } = await supabase.from("profiles").update({ full_name: form.full_name, phone: form.phone || null }).eq("user_id", user.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase
-          .from("profiles")
-          .insert({ user_id: user.id, full_name: form.full_name, phone: form.phone || null });
+        const { error } = await supabase.from("profiles").insert({ user_id: user.id, full_name: form.full_name, phone: form.phone || null });
         if (error) throw error;
       }
-      // Save preferences
       if (preferences) {
-        const { error } = await supabase
-          .from("user_preferences" as any)
-          .update({ email_notifications: emailNotifications } as any)
-          .eq("user_id", user.id);
+        const { error } = await supabase.from("user_preferences" as any).update({ email_notifications: emailNotifications } as any).eq("user_id", user.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase
-          .from("user_preferences" as any)
-          .insert({ user_id: user.id, email_notifications: emailNotifications } as any);
-        if (error) throw error;
-      }
-      // Save company settings
-      const companyPayload = { ...companyForm, user_id: user.id } as any;
-      if (companyData) {
-        const { error } = await supabase
-          .from("company_settings" as any)
-          .update(companyPayload)
-          .eq("user_id", user.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from("company_settings" as any)
-          .insert(companyPayload);
+        const { error } = await supabase.from("user_preferences" as any).insert({ user_id: user.id, email_notifications: emailNotifications } as any);
         if (error) throw error;
       }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["profile"] });
       qc.invalidateQueries({ queryKey: ["user_preferences"] });
-      qc.invalidateQueries({ queryKey: ["company_settings"] });
       toast.success("Perfil atualizado!");
     },
     onError: (e: any) => toast.error(e.message),
@@ -183,25 +128,14 @@ export default function ProfilePage() {
     setCropperSrc(null);
     try {
       const path = `${user.id}/avatar.jpg`;
-      const { error: uploadError } = await supabase.storage
-        .from("attachments")
-        .upload(path, blob, { upsert: true, contentType: "image/jpeg" });
-
-      if (uploadError) {
-        toast.error("Erro ao enviar avatar");
-        return;
-      }
-
-      const { data: publicUrl } = supabase.storage
-        .from("attachments")
-        .getPublicUrl(path);
-
+      const { error: uploadError } = await supabase.storage.from("attachments").upload(path, blob, { upsert: true, contentType: "image/jpeg" });
+      if (uploadError) { toast.error("Erro ao enviar avatar"); return; }
+      const { data: publicUrl } = supabase.storage.from("attachments").getPublicUrl(path);
       if (profile) {
         await supabase.from("profiles").update({ avatar_url: publicUrl.publicUrl }).eq("user_id", user.id);
       } else {
         await supabase.from("profiles").insert({ user_id: user.id, full_name: form.full_name || "", avatar_url: publicUrl.publicUrl });
       }
-
       qc.invalidateQueries({ queryKey: ["profile"] });
       toast.success("Avatar atualizado!");
     } catch (error) {
@@ -224,20 +158,12 @@ export default function ProfilePage() {
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!Object.values(passwordCriteria).every(Boolean)) {
-      toast.error("A senha não atende aos critérios mínimos");
-      return;
-    }
-    if (passwordForm.password !== passwordForm.confirm) {
-      toast.error("As senhas não conferem");
-      return;
-    }
+    if (!Object.values(passwordCriteria).every(Boolean)) { toast.error("A senha não atende aos critérios mínimos"); return; }
+    if (passwordForm.password !== passwordForm.confirm) { toast.error("As senhas não conferem"); return; }
     setChangingPassword(true);
     try {
       const { error } = await supabase.auth.updateUser({ password: passwordForm.password });
-      if (error) {
-        toast.error(error.message);
-      } else {
+      if (error) { toast.error(error.message); } else {
         toast.success("Senha alterada com sucesso!");
         setPasswordOpen(false);
         setPasswordForm({ password: "", confirm: "" });
@@ -282,9 +208,7 @@ export default function ProfilePage() {
           <p className="font-medium text-foreground">{profile?.full_name || "Sem nome"}</p>
           <p className="text-sm text-muted-foreground">{user?.email}</p>
           {profile?.avatar_url && (
-            <button onClick={handleRemoveAvatar} className="text-xs text-destructive hover:underline mt-1">
-              Remover imagem
-            </button>
+            <button onClick={handleRemoveAvatar} className="text-xs text-destructive hover:underline mt-1">Remover imagem</button>
           )}
         </div>
       </div>
@@ -296,22 +220,11 @@ export default function ProfilePage() {
         </h3>
         <div>
           <label className="block text-sm font-medium text-foreground mb-1">Nome *</label>
-          <input
-            value={form.full_name}
-            onChange={(e) => setForm((p) => ({ ...p, full_name: e.target.value }))}
-            className={inputClass}
-            placeholder="Seu nome completo"
-          />
+          <input value={form.full_name} onChange={(e) => setForm((p) => ({ ...p, full_name: e.target.value }))} className={inputClass} placeholder="Seu nome completo" />
         </div>
         <div>
           <label className="block text-sm font-medium text-foreground mb-1">Celular *</label>
-          <input
-            type="tel"
-            value={form.phone}
-            onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))}
-            className={inputClass}
-            placeholder="(00) 00000-0000"
-          />
+          <input type="tel" value={form.phone} onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))} className={inputClass} placeholder="(00) 00000-0000" />
         </div>
         <div>
           <label className="block text-sm font-medium text-foreground mb-1">Login/e-mail *</label>
@@ -320,10 +233,7 @@ export default function ProfilePage() {
         </div>
         <div className="flex items-center justify-between">
           <label className="block text-sm font-medium text-foreground">Senha</label>
-          <button
-            onClick={() => setPasswordOpen(!passwordOpen)}
-            className="flex items-center gap-1.5 text-sm text-primary hover:underline font-medium"
-          >
+          <button onClick={() => setPasswordOpen(!passwordOpen)} className="flex items-center gap-1.5 text-sm text-primary hover:underline font-medium">
             <Lock className="h-3.5 w-3.5" /> Alterar senha
           </button>
         </div>
@@ -332,14 +242,7 @@ export default function ProfilePage() {
             <div>
               <label className="block text-xs font-medium text-foreground mb-1">Nova senha</label>
               <div className="relative">
-                <input
-                  type={showPassword ? "text" : "password"}
-                  value={passwordForm.password}
-                  onChange={(e) => setPasswordForm((p) => ({ ...p, password: e.target.value }))}
-                  required
-                  placeholder="Mínimo 8 caracteres"
-                  className={inputClass + " text-sm pr-9"}
-                />
+                <input type={showPassword ? "text" : "password"} value={passwordForm.password} onChange={(e) => setPasswordForm((p) => ({ ...p, password: e.target.value }))} required placeholder="Mínimo 8 caracteres" className={inputClass + " text-sm pr-9"} />
                 <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
@@ -348,21 +251,12 @@ export default function ProfilePage() {
             <div>
               <label className="block text-xs font-medium text-foreground mb-1">Confirmar senha</label>
               <div className="relative">
-                <input
-                  type={showConfirm ? "text" : "password"}
-                  value={passwordForm.confirm}
-                  onChange={(e) => setPasswordForm((p) => ({ ...p, confirm: e.target.value }))}
-                  required
-                  placeholder="Repita a senha"
-                  className={inputClass + " text-sm pr-9"}
-                />
+                <input type={showConfirm ? "text" : "password"} value={passwordForm.confirm} onChange={(e) => setPasswordForm((p) => ({ ...p, confirm: e.target.value }))} required placeholder="Repita a senha" className={inputClass + " text-sm pr-9"} />
                 <button type="button" onClick={() => setShowConfirm(!showConfirm)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
                   {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
             </div>
-
-            {/* Strength bar */}
             {passwordForm.password.length > 0 && (
               <div className="space-y-2">
                 <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
@@ -383,11 +277,8 @@ export default function ProfilePage() {
                 </ul>
               </div>
             )}
-
             <div className="flex justify-end gap-2">
-              <button type="button" onClick={() => setPasswordOpen(false)} className="px-3 py-1.5 rounded-lg border border-border text-xs hover:bg-muted">
-                Cancelar
-              </button>
+              <button type="button" onClick={() => setPasswordOpen(false)} className="px-3 py-1.5 rounded-lg border border-border text-xs hover:bg-muted">Cancelar</button>
               <button type="submit" disabled={changingPassword} className="px-3 py-1.5 bg-primary text-primary-foreground rounded-lg text-xs font-medium hover:opacity-90 disabled:opacity-50">
                 {changingPassword ? "Alterando..." : "Alterar"}
               </button>
@@ -396,70 +287,37 @@ export default function ProfilePage() {
         )}
       </div>
 
-      {/* Dados da Empresa */}
+      {/* Empresa vinculada */}
       <div className="border border-border rounded-xl p-6 space-y-4">
-        <h3 className="font-semibold text-foreground text-sm flex items-center gap-2">
-          <Building2 className="h-4 w-4" /> Dados da Empresa
-        </h3>
-        <p className="text-xs text-muted-foreground">Esses dados serão usados no cabeçalho das exportações (PDF, Excel, CSV).</p>
-        <div>
-          <label className="block text-sm font-medium text-foreground mb-1">Logomarca</label>
-          <div className="flex items-center gap-3">
-            {companyForm.logo_url ? (
-              <img src={companyForm.logo_url} alt="Logo" className="h-14 w-14 object-contain rounded border border-border" />
-            ) : (
-              <div className="h-14 w-14 rounded border border-dashed border-border flex items-center justify-center text-muted-foreground">
-                <Building2 className="h-6 w-6" />
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold text-foreground text-sm flex items-center gap-2">
+            <Building2 className="h-4 w-4" /> Empresa vinculada
+          </h3>
+          <button onClick={() => navigate("/companies")} className="text-xs text-primary hover:underline font-medium">
+            Gerenciar empresas
+          </button>
+        </div>
+        {companies.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nenhuma empresa cadastrada.</p>
+        ) : (
+          <div className="space-y-2">
+            {companies.map((c: any) => (
+              <div key={c.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 border border-border">
+                <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  <Building2 className="h-5 w-5 text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground truncate">{c.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {c.company_type === "matriz" ? "Matriz" : "Filial"}
+                    {c.city && c.state ? ` • ${c.city}/${c.state}` : ""}
+                    {c.document ? ` • ${c.document}` : ""}
+                  </p>
+                </div>
               </div>
-            )}
-            <label className="px-3 py-1.5 text-xs bg-muted rounded-lg cursor-pointer hover:bg-muted/80 border border-border">
-              Enviar logo
-              <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
-                const file = e.target.files?.[0];
-                if (!file || !user) return;
-                const path = `${user.id}/company-logo.jpg`;
-                const { error: upErr } = await supabase.storage.from("attachments").upload(path, file, { upsert: true });
-                if (upErr) { toast.error("Erro ao enviar logo"); return; }
-                const { data: pub } = supabase.storage.from("attachments").getPublicUrl(path);
-                setCompanyForm(p => ({ ...p, logo_url: pub.publicUrl }));
-                toast.success("Logo enviada!");
-              }} />
-            </label>
-            {companyForm.logo_url && (
-              <button onClick={() => setCompanyForm(p => ({ ...p, logo_url: "" }))} className="text-xs text-destructive hover:underline">Remover</button>
-            )}
+            ))}
           </div>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-1">Nome da Empresa</label>
-            <input value={companyForm.company_name} onChange={e => setCompanyForm(p => ({ ...p, company_name: e.target.value }))} className={inputClass} placeholder="Razão social" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-1">CPF/CNPJ</label>
-            <input value={companyForm.document} onChange={e => setCompanyForm(p => ({ ...p, document: e.target.value }))} className={inputClass} placeholder="00.000.000/0000-00" />
-          </div>
-          <div className="sm:col-span-2">
-            <label className="block text-sm font-medium text-foreground mb-1">Endereço</label>
-            <input value={companyForm.address} onChange={e => setCompanyForm(p => ({ ...p, address: e.target.value }))} className={inputClass} placeholder="Rua, número, bairro" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-1">Cidade</label>
-            <input value={companyForm.city} onChange={e => setCompanyForm(p => ({ ...p, city: e.target.value }))} className={inputClass} />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-1">Estado</label>
-            <input value={companyForm.state} onChange={e => setCompanyForm(p => ({ ...p, state: e.target.value }))} className={inputClass} placeholder="UF" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-1">Telefone</label>
-            <input value={companyForm.phone} onChange={e => setCompanyForm(p => ({ ...p, phone: e.target.value }))} className={inputClass} placeholder="(00) 0000-0000" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-1">E-mail</label>
-            <input value={companyForm.email} onChange={e => setCompanyForm(p => ({ ...p, email: e.target.value }))} className={inputClass} placeholder="empresa@email.com" />
-          </div>
-        </div>
+        )}
       </div>
 
       {/* Preferências */}
@@ -468,35 +326,20 @@ export default function ProfilePage() {
           <Bell className="h-4 w-4" /> Preferências
         </h3>
         <label className="flex items-center gap-3 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={emailNotifications}
-            onChange={(e) => setEmailNotifications(e.target.checked)}
-            className="h-4 w-4 rounded border-input text-primary focus:ring-ring"
-          />
+          <input type="checkbox" checked={emailNotifications} onChange={(e) => setEmailNotifications(e.target.checked)} className="h-4 w-4 rounded border-input text-primary focus:ring-ring" />
           <span className="text-sm text-foreground">Receber e-mails com notificações do sistema</span>
         </label>
       </div>
 
       <div className="flex justify-end">
-        <button
-          onClick={() => saveMutation.mutate()}
-          disabled={saveMutation.isPending}
-          className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 disabled:opacity-50"
-        >
+        <button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 disabled:opacity-50">
           <Save className="h-4 w-4" />
           {saveMutation.isPending ? "Salvando..." : "Salvar"}
         </button>
       </div>
 
-      {/* Image Cropper */}
       {cropperSrc && (
-        <ImageCropper
-          imageSrc={cropperSrc}
-          aspectRatio={1}
-          onCrop={handleCroppedAvatar}
-          onClose={() => setCropperSrc(null)}
-        />
+        <ImageCropper imageSrc={cropperSrc} aspectRatio={1} onCrop={handleCroppedAvatar} onClose={() => setCropperSrc(null)} />
       )}
     </div>
   );
