@@ -379,9 +379,12 @@ export default function Clients() {
                           <td className="px-4 py-3">
                             <button
                               onClick={() => toggleActive.mutate({ id: item.id, active: !item.active })}
-                              className={`w-12 h-7 rounded-full p-1 transition-colors duration-300 ${item.active ? "bg-primary" : "bg-muted-foreground/30"}`}
+                              className={`relative w-14 h-7 rounded-full transition-all duration-500 ease-in-out shadow-inner ${item.active ? "bg-blue-500" : "bg-orange-500"}`}
                             >
-                              <div className={`h-5 w-5 rounded-full bg-white shadow-md transition-transform duration-300 ${item.active ? "translate-x-5" : "translate-x-0"}`} />
+                              <div className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow-lg transition-all duration-500 ease-in-out ${item.active ? "left-8" : "left-1"}`} />
+                              <span className={`absolute inset-0 flex items-center text-[9px] font-bold text-white uppercase ${item.active ? "justify-start pl-1.5" : "justify-end pr-1.5"}`}>
+                                {item.active ? "ON" : "OFF"}
+                              </span>
                             </button>
                           </td>
                           {fields.map((f) => {
