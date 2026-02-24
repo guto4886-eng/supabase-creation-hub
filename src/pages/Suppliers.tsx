@@ -112,16 +112,25 @@ export default function Suppliers() {
   });
 
   const fields = [
-    { name: "name", label: "Nome", required: true },
+    { name: "name", label: "Razão social", required: true },
+    { name: "trade_name", label: "Nome fantasia" },
+    { name: "person_type", label: "Tipo" },
     { name: "document", label: "CPF/CNPJ", type: "cpfcnpj" as const },
-    { name: "email", label: "Email", type: "email" as const },
+    { name: "ie", label: "I.E." },
+    { name: "notes", label: "Observação", type: "textarea" as const },
+    { name: "recommended", label: "Parceiro recomendado", type: "checkbox" as const },
     { name: "phone", label: "Telefone", type: "tel" as const },
-    { name: "category", label: "Categoria" },
+    { name: "email", label: "E-mail", type: "email" as const },
+    { name: "cellphone", label: "Celular", type: "tel" as const },
+    { name: "site", label: "Site" },
     { name: "cep", label: "CEP", type: "cep" as const },
-    { name: "city", label: "Cidade" },
+    { name: "address", label: "Logradouro" },
+    { name: "address_number", label: "Número" },
+    { name: "complement", label: "Complemento" },
+    { name: "neighborhood", label: "Bairro" },
     { name: "state", label: "UF" },
-    { name: "address", label: "Endereço" },
-    { name: "notes", label: "Observações", type: "textarea" as const },
+    { name: "city", label: "Cidade" },
+    { name: "category", label: "Categoria" },
   ];
 
   const tableFields = [
@@ -161,7 +170,7 @@ export default function Suppliers() {
     const result = await fetchCep(value);
     setCepLoading(false);
     if (result) {
-      setForm((p) => ({ ...p, city: result.city, state: result.state, address: result.address }));
+      setForm((p) => ({ ...p, city: result.city, state: result.state, address: result.address, neighborhood: result.neighborhood }));
       toast.success("Endereço preenchido!");
     } else if (value.replace(/\D/g, "").length === 8) {
       toast.error("CEP não encontrado");
@@ -197,9 +206,16 @@ export default function Suppliers() {
     return <input type={f.type ?? "text"} value={form[f.name] ?? ""} onChange={(e) => setForm((p) => ({ ...p, [f.name]: e.target.value }))} required={f.required} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring" />;
   };
 
+  const OBS_MAX_LEN = 4000;
+
   const allTabs = [
     { key: "dados", label: "Dados" },
+    { key: "bancarios", label: "Dados bancários" },
+    { key: "vendedores", label: "Vendedores" },
+    { key: "categorias", label: "Categorias" },
+    { key: "qualidade", label: "Qualidade" },
     ...(editing ? [{ key: "anexos", label: "Anexos" }] : []),
+    { key: "certificacoes", label: "Certificações" },
   ];
 
   return (
@@ -383,39 +399,175 @@ export default function Suppliers() {
       {/* Edit/Create Modal */}
       {formOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={closeForm}>
-          <div className="bg-card border border-border rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-5 border-b border-border">
-              <h3 className="text-lg font-semibold text-card-foreground">{editing ? "Editar" : "Novo"} Fornecedor</h3>
+          <div className="bg-card border border-border rounded-xl w-full max-w-4xl flex flex-col" style={{ height: "85vh" }} onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-muted rounded-t-xl">
+              <h3 className="text-lg font-semibold text-primary">{editing ? "Editar" : "Novo"} fornecedor</h3>
               <button onClick={closeForm} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
             </div>
-            {allTabs.length > 1 && (
-              <div className="flex border-b border-border px-5 gap-1">
-                {allTabs.map((t) => (
-                  <button key={t.key} onClick={() => setActiveTab(t.key)} className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${activeTab === t.key ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
-                    {t.label}
-                  </button>
-                ))}
-              </div>
-            )}
-            {activeTab === "dados" && (
-              <form onSubmit={handleSubmit} className="p-5 space-y-4">
-                {fields.map((f) => (
-                  <div key={f.name}>
-                    <label className="block text-sm font-medium text-card-foreground mb-1">{f.label}</label>
-                    {renderFormInput(f)}
+
+            {/* Tabs */}
+            <div className="flex border-b border-border bg-muted/30">
+              {allTabs.map((t) => (
+                <button key={t.key} onClick={() => setActiveTab(t.key)} className={`flex-1 px-3 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px text-center ${activeTab === t.key ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+                  {t.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto">
+              {activeTab === "dados" && (
+                <form id="supplier-form" onSubmit={handleSubmit} className="p-6 space-y-6">
+                  {/* Row 1: Tipo + CNPJ/CPF + IE */}
+                  <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
+                    <div className="flex items-center gap-4">
+                      <span className="text-sm font-medium text-foreground">Tipo</span>
+                      <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+                        <input type="radio" name="person_type" checked={(form.person_type || "j") === "j"} onChange={() => setForm(p => ({ ...p, person_type: "j" }))} className="accent-primary" />
+                        Pessoa jurídica
+                      </label>
+                      <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+                        <input type="radio" name="person_type" checked={form.person_type === "f"} onChange={() => setForm(p => ({ ...p, person_type: "f" }))} className="accent-primary" />
+                        Pessoa física
+                      </label>
+                    </div>
+                    <div className="flex items-end gap-2 ml-auto">
+                      <div>
+                        <label className="block text-xs font-medium text-foreground mb-1">{form.person_type === "f" ? "CPF" : "CNPJ"}</label>
+                        <div className="flex items-center gap-1">
+                          {renderFormInput({ name: "document", label: "CPF/CNPJ", type: "cpfcnpj" })}
+                          <button type="button" className="p-2 rounded-lg border border-input hover:bg-muted text-muted-foreground"><Search className="h-4 w-4" /></button>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-foreground mb-1">I.E.</label>
+                        <input type="text" value={form.ie || ""} onChange={e => setForm(p => ({ ...p, ie: e.target.value }))} className="w-32 px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
+                      </div>
+                    </div>
                   </div>
-                ))}
-                <div className="flex justify-end gap-3 pt-2">
-                  <button type="button" onClick={closeForm} className="px-4 py-2 rounded-lg border border-border text-foreground hover:bg-muted">Cancelar</button>
-                  <button type="submit" disabled={saveMutation.isPending} className="px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 disabled:opacity-50">
-                    {saveMutation.isPending ? "Salvando..." : "Salvar"}
-                  </button>
-                </div>
-              </form>
-            )}
-            {activeTab === "anexos" && editing && (
-              <div className="p-5"><Attachments entityType="suppliers" entityId={editing.id} /></div>
-            )}
+
+                  {/* Row 2: Razão social + Nome fantasia */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-1">Razão social *</label>
+                      <input type="text" value={form.name || ""} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} required className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-1">Nome fantasia</label>
+                      <input type="text" value={form.trade_name || ""} onChange={e => setForm(p => ({ ...p, trade_name: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
+                    </div>
+                  </div>
+
+                  {/* Row 3: Observação + Parceiro recomendado */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-1">Observação</label>
+                      <textarea value={form.notes || ""} onChange={e => { if (e.target.value.length <= OBS_MAX_LEN) setForm(p => ({ ...p, notes: e.target.value })); }} rows={3} placeholder="Digite uma mensagem..." className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
+                      <p className="text-xs text-muted-foreground text-right mt-1">{(OBS_MAX_LEN - (form.notes?.length || 0)).toLocaleString("pt-BR")} caracteres restantes</p>
+                    </div>
+                    <div className="flex items-start pt-6">
+                      <label className="flex items-center gap-2 text-sm cursor-pointer">
+                        <input type="checkbox" checked={!!form.recommended} onChange={e => setForm(p => ({ ...p, recommended: e.target.checked }))} className="accent-primary h-4 w-4" />
+                        Parceiro recomendado (visível no Portal do cliente)
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Contato fieldset */}
+                  <fieldset className="border border-border rounded-lg p-4 space-y-3">
+                    <legend className="px-2 text-sm font-medium text-foreground italic">Contato</legend>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm font-medium text-foreground whitespace-nowrap w-16 text-right">Telefone</label>
+                        <input type="tel" value={form.phone || ""} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} className="flex-1 px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm font-medium text-foreground whitespace-nowrap">E-mail</label>
+                        <input type="email" value={form.email || ""} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} className="flex-1 px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm font-medium text-foreground whitespace-nowrap w-16 text-right">Celular</label>
+                        <input type="tel" value={form.cellphone || ""} onChange={e => setForm(p => ({ ...p, cellphone: e.target.value }))} className="flex-1 px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm font-medium text-foreground whitespace-nowrap">Site</label>
+                        <input type="text" value={form.site || ""} onChange={e => setForm(p => ({ ...p, site: e.target.value }))} className="flex-1 px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
+                      </div>
+                    </div>
+                  </fieldset>
+
+                  {/* Localização fieldset */}
+                  <fieldset className="border border-border rounded-lg p-4 space-y-3">
+                    <legend className="px-2 text-sm font-medium text-foreground italic">Localização</legend>
+                    <div className="grid grid-cols-[1fr_2fr_1fr] gap-4">
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm font-medium text-foreground whitespace-nowrap">CEP</label>
+                        {renderFormInput({ name: "cep", label: "CEP", type: "cep" })}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm font-medium text-foreground whitespace-nowrap">Logradouro</label>
+                        <input type="text" value={form.address || ""} onChange={e => setForm(p => ({ ...p, address: e.target.value }))} className="flex-1 px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm font-medium text-foreground whitespace-nowrap">Número</label>
+                        <input type="text" value={form.address_number || ""} onChange={e => setForm(p => ({ ...p, address_number: e.target.value }))} className="flex-1 px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-4 gap-4">
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm font-medium text-foreground whitespace-nowrap">Complemento</label>
+                        <input type="text" value={form.complement || ""} onChange={e => setForm(p => ({ ...p, complement: e.target.value }))} className="flex-1 px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm font-medium text-foreground whitespace-nowrap">Bairro</label>
+                        <input type="text" value={form.neighborhood || ""} onChange={e => setForm(p => ({ ...p, neighborhood: e.target.value }))} className="flex-1 px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm font-medium text-foreground whitespace-nowrap">UF</label>
+                        <select value={form.state || ""} onChange={e => setForm(p => ({ ...p, state: e.target.value }))} className="flex-1 px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm">
+                          <option value="">Selecione...</option>
+                          {ESTADOS.map(e => <option key={e} value={e}>{e}</option>)}
+                        </select>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm font-medium text-foreground whitespace-nowrap">Cidade</label>
+                        <input type="text" value={form.city || ""} onChange={e => setForm(p => ({ ...p, city: e.target.value }))} className="flex-1 px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
+                      </div>
+                    </div>
+                  </fieldset>
+                </form>
+              )}
+
+              {activeTab === "bancarios" && (
+                <div className="p-6 text-center text-muted-foreground py-12">Em breve</div>
+              )}
+              {activeTab === "vendedores" && (
+                <div className="p-6 text-center text-muted-foreground py-12">Em breve</div>
+              )}
+              {activeTab === "categorias" && (
+                <div className="p-6 text-center text-muted-foreground py-12">Em breve</div>
+              )}
+              {activeTab === "qualidade" && (
+                <div className="p-6 text-center text-muted-foreground py-12">Em breve</div>
+              )}
+              {activeTab === "anexos" && editing && (
+                <div className="p-6"><Attachments entityType="suppliers" entityId={editing.id} /></div>
+              )}
+              {activeTab === "certificacoes" && (
+                <div className="p-6 text-center text-muted-foreground py-12">Em breve</div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="flex justify-end gap-3 px-6 py-3 border-t border-border bg-muted rounded-b-xl">
+              <button type="button" onClick={closeForm} className="px-4 py-2 rounded-lg border border-border bg-background text-foreground hover:bg-muted">Cancelar</button>
+              <button type="submit" form="supplier-form" disabled={saveMutation.isPending} className="px-5 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 disabled:opacity-50 flex items-center gap-2">
+                {saveMutation.isPending ? "Salvando..." : "💾 Salvar"}
+              </button>
+            </div>
           </div>
         </div>
       )}

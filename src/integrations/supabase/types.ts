@@ -918,48 +918,78 @@ export type Database = {
         Row: {
           active: boolean
           address: string | null
+          address_number: string | null
           category: string | null
+          cellphone: string | null
+          cep: string | null
           city: string | null
+          complement: string | null
           created_at: string
           document: string | null
           email: string | null
           id: string
+          ie: string | null
           name: string
+          neighborhood: string | null
           notes: string | null
+          person_type: string | null
           phone: string | null
+          recommended: boolean | null
+          site: string | null
           state: string | null
+          trade_name: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
           active?: boolean
           address?: string | null
+          address_number?: string | null
           category?: string | null
+          cellphone?: string | null
+          cep?: string | null
           city?: string | null
+          complement?: string | null
           created_at?: string
           document?: string | null
           email?: string | null
           id?: string
+          ie?: string | null
           name: string
+          neighborhood?: string | null
           notes?: string | null
+          person_type?: string | null
           phone?: string | null
+          recommended?: boolean | null
+          site?: string | null
           state?: string | null
+          trade_name?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
           active?: boolean
           address?: string | null
+          address_number?: string | null
           category?: string | null
+          cellphone?: string | null
+          cep?: string | null
           city?: string | null
+          complement?: string | null
           created_at?: string
           document?: string | null
           email?: string | null
           id?: string
+          ie?: string | null
           name?: string
+          neighborhood?: string | null
           notes?: string | null
+          person_type?: string | null
           phone?: string | null
+          recommended?: boolean | null
+          site?: string | null
           state?: string | null
+          trade_name?: string | null
           updated_at?: string
           user_id?: string
         }
