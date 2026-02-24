@@ -333,7 +333,7 @@ export default function Budgets() {
               return (
                 <>
                   <div className="flex-1 overflow-auto">
-                    <table className="w-full text-xs" style={{ borderSpacing: "0 6px", borderCollapse: "separate" }}>
+                    <table className="w-full text-xs" style={{ borderSpacing: "0 48px", borderCollapse: "separate" }}>
                       <thead className="sticky top-0 z-10">
                         <tr className="bg-amber-700 text-white">
                           <th className="text-left px-3 py-2 font-semibold whitespace-nowrap">Empresa</th>
