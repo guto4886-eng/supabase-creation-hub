@@ -10,6 +10,7 @@ import {
 import { exportToCSV } from "@/utils/exportCsv";
 import { maskCpfCnpj, validateCpfCnpj } from "@/utils/cpfCnpj";
 import { fetchCep } from "@/utils/cep";
+import { fetchCnpj } from "@/utils/cnpjLookup";
 import Attachments from "@/components/Attachments";
 import CsvImport from "@/components/CsvImport";
 
@@ -41,6 +42,7 @@ export default function Suppliers() {
   const [form, setForm] = useState<Record<string, any>>({});
   const [activeTab, setActiveTab] = useState("dados");
   const [cepLoading, setCepLoading] = useState(false);
+  const [cnpjLoading, setCnpjLoading] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
 
   const { data: items = [], isLoading } = useQuery({
@@ -437,7 +439,34 @@ export default function Suppliers() {
                         <label className="block text-xs font-medium text-foreground mb-1">{form.person_type === "f" ? "CPF" : "CNPJ"}</label>
                         <div className="flex items-center gap-1">
                           {renderFormInput({ name: "document", label: "CPF/CNPJ", type: "cpfcnpj" })}
-                          <button type="button" className="p-2 rounded-lg border border-input hover:bg-muted text-muted-foreground"><Search className="h-4 w-4" /></button>
+                          <button type="button" disabled={cnpjLoading} onClick={async () => {
+                            const doc = (form.document || "").replace(/\D/g, "");
+                            if (doc.length !== 14) { toast.error("Informe um CNPJ válido com 14 dígitos"); return; }
+                            setCnpjLoading(true);
+                            const data = await fetchCnpj(form.document);
+                            setCnpjLoading(false);
+                            if (data) {
+                              setForm(p => ({
+                                ...p,
+                                name: data.razao_social || p.name,
+                                trade_name: data.nome_fantasia || p.trade_name,
+                                address: data.logradouro || p.address,
+                                address_number: data.numero || p.address_number,
+                                complement: data.complemento || p.complement,
+                                neighborhood: data.bairro || p.neighborhood,
+                                city: data.municipio || p.city,
+                                state: data.uf || p.state,
+                                cep: data.cep || p.cep,
+                                phone: data.telefone || p.phone,
+                                email: data.email || p.email,
+                              }));
+                              toast.success("Dados da empresa preenchidos!");
+                            } else {
+                              toast.error("CNPJ não encontrado");
+                            }
+                          }} className="p-2 rounded-lg border border-input hover:bg-muted text-muted-foreground disabled:opacity-50">
+                            {cnpjLoading ? <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full" /> : <Search className="h-4 w-4" />}
+                          </button>
                         </div>
                       </div>
                       <div>
