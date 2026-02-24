@@ -98,13 +98,16 @@ export default function Obras() {
   });
 
   const tableFields = useMemo(() => [
-    { name: "name", label: "Nome da Obra" },
+    { name: "name", label: "Nome" },
     { name: "client_id", label: "Cliente" },
-    { name: "status", label: "Situação" },
-    { name: "category", label: "Categoria" },
-    { name: "city", label: "Cidade" },
-    { name: "state", label: "UF" },
+    { name: "city_state", label: "Cidade - UF" },
     { name: "start_date", label: "Início" },
+    { name: "expected_end_date", label: "Fim" },
+    { name: "total_budget", label: "Orçamento" },
+    { name: "medido", label: "Medido" },
+    { name: "category", label: "Categoria" },
+    { name: "status", label: "Situação" },
+    { name: "stock_control", label: "Controla estoque" },
   ], []);
 
   // Filtered results
@@ -413,51 +416,54 @@ export default function Obras() {
             </div>
           </div>
         ) : (
-          <div className="flex-1 flex flex-col overflow-hidden p-4">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-foreground">
-                {filtered.length} resultado{filtered.length !== 1 ? "s" : ""} encontrado{filtered.length !== 1 ? "s" : ""}
-              </h3>
-              <div className="flex items-center gap-2">
-                {filtered.length > 0 && (
-                  <button onClick={() => setExportOpen(true)} className="flex items-center gap-2 px-3 py-2 border border-border text-foreground rounded-lg text-sm hover:bg-muted transition-colors">
-                    <Download className="h-4 w-4" /> Exportar
-                  </button>
-                )}
-                <button onClick={openNew} className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90">
-                  <Plus className="h-4 w-4" /> Novo
-                </button>
-              </div>
-            </div>
-
+          <div className="flex-1 flex flex-col overflow-hidden">
             {isLoading ? (
               <div className="flex justify-center py-12"><div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" /></div>
             ) : filtered.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">Nenhum registro encontrado com os filtros aplicados.</div>
             ) : (
               <>
-                <div className="flex-1 overflow-auto border border-border rounded-xl">
-                  <table className="w-full text-sm">
-                    <thead className="sticky top-0">
-                      <tr className="bg-muted/50">
-                        {tableFields.map(f => <th key={f.name} className="text-left px-4 py-3 font-medium text-muted-foreground">{f.label}</th>)}
-                        <th className="w-24 px-4 py-3" />
+                <div className="flex-1 overflow-auto">
+                  <table className="w-full text-xs">
+                    <thead className="sticky top-0 z-10">
+                      <tr className="bg-amber-700 text-white">
+                        {tableFields.map(f => <th key={f.name} className="text-left px-2 py-2 font-semibold whitespace-nowrap">{f.label}</th>)}
+                        <th className="px-2 py-2 font-semibold text-center whitespace-nowrap">Ações</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-border">
-                      {paginatedItems.map((item) => (
-                        <tr key={item.id} onClick={() => openEdit(item)} className={`cursor-pointer hover:bg-primary/5 transition-colors ${!item.active ? "opacity-50" : ""}`}>
+                    <tbody>
+                      {paginatedItems.map((item, idx) => (
+                        <tr key={item.id} onClick={() => openEdit(item)} className={`cursor-pointer hover:bg-primary/10 transition-colors ${idx % 2 === 0 ? "bg-background" : "bg-muted/30"}`}>
                           {tableFields.map(f => {
-                            let display = item[f.name] ?? "—";
-                            if (f.name === "client_id" && item[f.name]) display = getClientName(item[f.name]);
-                            else if (f.name === "status" && item[f.name]) display = getStatusLabel(item[f.name]);
-                            else if (f.name === "category" && item[f.name]) display = getCategoryLabel(item[f.name]);
-                            return <td key={f.name} className="px-4 py-3 text-foreground">{String(display)}</td>;
+                            let content: React.ReactNode = "—";
+                            if (f.name === "name") content = <span className="truncate max-w-[160px] block">{item.name || "—"}</span>;
+                            else if (f.name === "client_id") content = <span className="truncate max-w-[160px] block">{item.client_id ? getClientName(item.client_id) : "—"}</span>;
+                            else if (f.name === "city_state") content = [item.city, item.state].filter(Boolean).join("/") || "—";
+                            else if (f.name === "start_date" || f.name === "expected_end_date") {
+                              const d = item[f.name === "expected_end_date" ? "expected_end_date" : "start_date"];
+                              content = d ? new Date(d + "T00:00:00").toLocaleDateString("pt-BR") : "";
+                            }
+                            else if (f.name === "total_budget") content = item.total_budget ? `${String(item.total_budget).padStart(6, "0")}` : "";
+                            else if (f.name === "medido") {
+                              const pct = 0; // placeholder - no measured field yet
+                              content = (
+                                <div className="flex items-center gap-1.5 min-w-[100px]">
+                                  <div className="flex-1 h-4 bg-muted rounded-sm overflow-hidden">
+                                    <div className={`h-full rounded-sm ${pct >= 100 ? "bg-green-500" : pct > 0 ? "bg-yellow-400" : "bg-muted-foreground/20"}`} style={{ width: `${Math.min(pct, 100)}%` }} />
+                                  </div>
+                                  <span className="text-xs text-muted-foreground whitespace-nowrap">{pct.toFixed(2)}%</span>
+                                </div>
+                              );
+                            }
+                            else if (f.name === "category") content = item.category ? getCategoryLabel(item.category) : "—";
+                            else if (f.name === "status") content = item.status ? getStatusLabel(item.status) : "—";
+                            else if (f.name === "stock_control") content = item.stock_control ? "Sim" : "Não";
+                            return <td key={f.name} className="px-2 py-2 text-foreground">{content}</td>;
                           })}
-                          <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
-                            <div className="flex gap-1">
-                              <button onClick={() => openEdit(item)} className="p-1.5 rounded-md hover:bg-blue-100 text-blue-500 hover:text-blue-700" title="Editar"><Pencil className="h-4 w-4" /></button>
-                              <button onClick={() => { if (confirm("Remover?")) deleteMutation.mutate(item.id); }} className="p-1.5 rounded-md hover:bg-red-100 text-red-500 hover:text-red-700" title="Remover"><Trash2 className="h-4 w-4" /></button>
+                          <td className="px-2 py-2" onClick={e => e.stopPropagation()}>
+                            <div className="flex gap-0.5 justify-center">
+                              <button onClick={() => openEdit(item)} className="p-1 rounded hover:bg-primary/10 text-primary" title="Editar"><Pencil className="h-3.5 w-3.5" /></button>
+                              <button onClick={() => { if (confirm("Remover?")) deleteMutation.mutate(item.id); }} className="p-1 rounded hover:bg-destructive/10 text-destructive" title="Remover"><Trash2 className="h-3.5 w-3.5" /></button>
                             </div>
                           </td>
                         </tr>
@@ -466,18 +472,31 @@ export default function Obras() {
                   </table>
                 </div>
 
-                {totalPages > 1 && (
-                  <div className="flex items-center justify-between text-sm text-muted-foreground mt-3">
-                    <span>{filtered.length} registro{filtered.length !== 1 ? "s" : ""}</span>
-                    <div className="flex items-center gap-2">
-                      <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={currentPage === 0} className="p-1.5 rounded-md hover:bg-accent disabled:opacity-30"><ChevronLeft className="h-4 w-4" /></button>
-                      {Array.from({ length: totalPages }, (_, i) => (
-                        <button key={i} onClick={() => setPage(i)} className={`h-8 w-8 rounded-md text-sm font-medium ${i === currentPage ? "bg-primary text-primary-foreground" : "hover:bg-accent text-foreground"}`}>{i + 1}</button>
-                      )).slice(Math.max(0, currentPage - 2), Math.min(totalPages, currentPage + 3))}
-                      <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={currentPage === totalPages - 1} className="p-1.5 rounded-md hover:bg-accent disabled:opacity-30"><ChevronRight className="h-4 w-4" /></button>
-                    </div>
+                {/* Bottom bar */}
+                <div className="flex items-center justify-between px-3 py-2 border-t border-border bg-muted/50">
+                  <div className="flex items-center gap-3">
+                    <button onClick={openNew} className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded text-xs font-medium hover:opacity-90">
+                      <Plus className="h-3.5 w-3.5" /> Nova
+                    </button>
+                    {filtered.length > 0 && (
+                      <button onClick={() => setExportOpen(true)} className="flex items-center gap-1.5 px-3 py-1.5 text-primary text-xs hover:underline">
+                        <Download className="h-3.5 w-3.5" /> Exportar
+                      </button>
+                    )}
                   </div>
-                )}
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                    <span>{filtered.length} registro{filtered.length !== 1 ? "s" : ""}</span>
+                    {totalPages > 1 && (
+                      <div className="flex items-center gap-1">
+                        <button onClick={() => setPage(0)} disabled={currentPage === 0} className="p-1 rounded hover:bg-accent disabled:opacity-30">⟨</button>
+                        <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={currentPage === 0} className="p-1 rounded hover:bg-accent disabled:opacity-30"><ChevronLeft className="h-3.5 w-3.5" /></button>
+                        <span className="px-2 py-0.5 bg-primary text-primary-foreground rounded text-xs font-medium min-w-[24px] text-center">{currentPage + 1}</span>
+                        <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={currentPage === totalPages - 1} className="p-1 rounded hover:bg-accent disabled:opacity-30"><ChevronRight className="h-3.5 w-3.5" /></button>
+                        <button onClick={() => setPage(totalPages - 1)} disabled={currentPage === totalPages - 1} className="p-1 rounded hover:bg-accent disabled:opacity-30">⟩</button>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </>
             )}
           </div>
