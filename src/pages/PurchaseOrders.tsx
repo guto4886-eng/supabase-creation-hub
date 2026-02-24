@@ -57,7 +57,7 @@ export default function PurchaseOrders() {
   const { data: items = [], isLoading } = useQuery({
     queryKey: ["purchase_orders"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("purchase_orders")
         .select("*, suppliers(name), obras(name)")
         .order("created_at", { ascending: false });
@@ -85,10 +85,10 @@ export default function PurchaseOrders() {
   const saveMutation = useMutation({
     mutationFn: async (values: Record<string, any>) => {
       if (editing) {
-        const { error } = await supabase.from("purchase_orders").update(values).eq("id", editing.id);
+        const { error } = await (supabase as any).from("purchase_orders").update(values).eq("id", editing.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("purchase_orders").insert({ ...values, user_id: user!.id } as any);
+        const { error } = await (supabase as any).from("purchase_orders").insert({ ...values, user_id: user!.id });
         if (error) throw error;
       }
     },
@@ -102,7 +102,7 @@ export default function PurchaseOrders() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("purchase_orders").delete().eq("id", id);
+      const { error } = await (supabase as any).from("purchase_orders").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {

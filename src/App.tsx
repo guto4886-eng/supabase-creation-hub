@@ -11,6 +11,9 @@ import Dashboard from "@/pages/Dashboard";
 import Clients from "@/pages/Clients";
 import Suppliers from "@/pages/Suppliers";
 import Purchases from "@/pages/Purchases";
+import PurchaseRequests from "@/pages/PurchaseRequests";
+import PurchaseQuotations from "@/pages/PurchaseQuotations";
+import PurchaseOrders from "@/pages/PurchaseOrders";
 import Obras from "@/pages/Obras";
 import Budgets from "@/pages/Budgets";
 import Quotations from "@/pages/Quotations";
@@ -52,6 +55,9 @@ function App() {
                 <Route path="clients" element={<Clients />} />
                 <Route path="suppliers" element={<Suppliers />} />
                 <Route path="purchases" element={<Purchases />} />
+                <Route path="purchases/requests" element={<PurchaseRequests />} />
+                <Route path="purchases/quotations" element={<PurchaseQuotations />} />
+                <Route path="purchases/orders" element={<PurchaseOrders />} />
                 <Route path="obras" element={<Obras />} />
                 <Route path="budgets" element={<Budgets />} />
                 <Route path="quotations" element={<Quotations />} />
