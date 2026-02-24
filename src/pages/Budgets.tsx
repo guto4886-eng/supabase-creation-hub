@@ -376,7 +376,7 @@ export default function Budgets() {
                               {label}
                               {i < 11 && (
                                 <span
-                                  className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-white/30"
+                                  className="absolute right-0 top-0 bottom-0 w-[3px] cursor-col-resize bg-white/30 hover:bg-white/60 transition-colors"
                                   onMouseDown={(e) => onResizeStart(e, i)}
                                 />
                               )}
