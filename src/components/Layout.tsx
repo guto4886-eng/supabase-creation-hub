@@ -38,7 +38,7 @@ const navItems: NavItem[] = [
   { to: "/plans", label: "Meu Plano", icon: Crown },
 ];
 
-const HEADER_HEIGHT = 49;
+const HEADER_HEIGHT = 60;
 
 export default function Layout() {
   const { user, signOut } = useAuth();
@@ -92,7 +92,7 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      <header className="sticky top-0 z-50 bg-primary border-b border-primary px-4 py-3 flex items-center gap-4 lg:px-6" style={{ height: HEADER_HEIGHT }}>
+      <header className="sticky top-0 z-50 bg-primary border-b border-primary px-5 py-4 flex items-center gap-5 lg:px-8" style={{ height: HEADER_HEIGHT }}>
         <button onClick={() => setSidebarOpen(true)} className="lg:hidden text-primary-foreground">
           <Menu className="h-5 w-5" />
         </button>
@@ -110,7 +110,7 @@ export default function Layout() {
                 {displayName?.[0]?.toUpperCase() || "?"}
               </div>
             )}
-            <span className="text-sm font-medium hidden sm:inline max-w-[120px] truncate">{displayName}</span>
+            <span className="text-base font-medium hidden sm:inline max-w-[160px] truncate">{displayName}</span>
             <ChevronDown className="h-3.5 w-3.5" />
           </button>
 
@@ -144,7 +144,7 @@ export default function Layout() {
 
         {/* Center: App name */}
         <div className="flex-1 flex items-center justify-center">
-          <span className="text-lg font-bold text-primary-foreground">Toca a Obra</span>
+          <span className="text-xl font-bold text-primary-foreground">Toca a Obra</span>
         </div>
 
         {/* Right: Notifications */}
