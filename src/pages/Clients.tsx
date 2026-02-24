@@ -354,16 +354,23 @@ export default function Clients() {
           </div>
         </div>
 
-        {/* Toggle filter panel button - full height bar */}
-        <button
-          onClick={() => setFiltersOpen(!filtersOpen)}
-          className={`flex-shrink-0 w-6 text-white flex items-center justify-center hover:opacity-90 transition-all z-10 cursor-pointer ${filtersOpen ? "bg-primary" : "bg-amber-700"}`}
-          title={filtersOpen ? "Fechar filtros" : "Filtros de pesquisa"}
-        >
-          <span className="text-xs font-bold uppercase tracking-widest whitespace-nowrap" style={{ writingMode: "vertical-lr" }}>
-            {filtersOpen ? "‹ Fechar" : "FILTROS DE PESQUISA"}
-          </span>
-        </button>
+        {/* Toggle filter panel button - thin line with protruding tab */}
+        <div className="flex-shrink-0 relative flex flex-col items-center z-10">
+          {/* Top thin line */}
+          <div className={`w-1.5 flex-1 ${filtersOpen ? "bg-primary" : "bg-amber-700"}`} />
+          {/* Protruding tab with text */}
+          <button
+            onClick={() => setFiltersOpen(!filtersOpen)}
+            className={`w-7 py-4 flex items-center justify-center cursor-pointer hover:opacity-90 transition-all rounded-r-md ${filtersOpen ? "bg-primary" : "bg-amber-700"}`}
+            title={filtersOpen ? "Fechar filtros" : "Filtros de pesquisa"}
+          >
+            <span className="text-white text-[10px] font-bold uppercase tracking-wider whitespace-nowrap flex items-center gap-1" style={{ writingMode: "vertical-lr" }}>
+              FILTROS DE PESQUISA {filtersOpen ? "‹" : "›"}
+            </span>
+          </button>
+          {/* Bottom thin line */}
+          <div className={`w-1.5 flex-1 ${filtersOpen ? "bg-primary" : "bg-amber-700"}`} />
+        </div>
       </div>
 
       {/* Main content area */}
