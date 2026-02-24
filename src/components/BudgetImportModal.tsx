@@ -82,67 +82,103 @@ export default function BudgetImportModal({ budgetId, onClose }: Props) {
         const ws = wb.Sheets[wb.SheetNames[0]];
         const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
 
-        if (rows.length < 2) {
-          toast.error("Planilha vazia ou sem dados.");
-          return;
+        // Find the header row (first row with 3+ non-empty text cells)
+        let headerRowIdx = 0;
+        for (let r = 0; r < Math.min(rows.length, 15); r++) {
+          const nonEmpty = (rows[r] || []).filter((c: any) => c !== "" && c != null).length;
+          if (nonEmpty >= 3) {
+            headerRowIdx = r;
+            break;
+          }
         }
 
-        const headers = rows[0].map(String);
-        const iPhase = findCol(headers, ["fase", "fase da obra", "etapa", "fase/etapa"]);
-        const iCode = findCol(headers, ["codigo", "cod", "item", "código"]);
-        const iDesc = findCol(headers, ["descricao", "descrição", "servico", "serviço", "atividade"]);
-        const iQty = findCol(headers, ["quantidade", "qtd", "quant"]);
-        const iUnit = findCol(headers, ["unidade", "un", "und"]);
-        const iPrice = findCol(headers, ["preco unitario", "valor unitario", "preco unit", "valor unit", "preço unitário", "valor unitário", "p. unit"]);
-        const iTotal = findCol(headers, ["total", "preco total", "valor total", "preço total", "subtotal"]);
+        const headers = (rows[headerRowIdx] || []).map(String);
+        console.log("[BudgetImport] Headers found at row", headerRowIdx, ":", headers);
 
-        if (iDesc === -1) {
-          toast.error("Coluna de descrição não encontrada na planilha.");
+        // More flexible column detection with many aliases
+        const iDesc = findCol(headers, ["descricao", "descrição", "servico", "serviço", "atividade", "item", "composicao", "composição", "discriminacao", "discriminação", "especificacao", "especificação"]);
+        const iPhase = findCol(headers, ["fase", "fase da obra", "etapa", "fase/etapa", "grupo", "capitulo", "capítulo"]);
+        const iCode = findCol(headers, ["codigo", "cod", "código", "cod.", "item", "num", "ref"]);
+        const iQty = findCol(headers, ["quantidade", "qtd", "quant", "qtde", "qtd.", "quant."]);
+        const iUnit = findCol(headers, ["unidade", "un", "und", "un.", "und.", "unid"]);
+        const iPrice = findCol(headers, ["preco unitario", "valor unitario", "preco unit", "valor unit", "preço unitário", "valor unitário", "p. unit", "p.unit", "p unit", "custo unitario", "custo unit", "preco", "preço", "vlr unit", "vlr. unit"]);
+        const iTotal = findCol(headers, ["total", "preco total", "valor total", "preço total", "subtotal", "custo total", "vlr total", "vlr. total"]);
+
+        console.log("[BudgetImport] Column indices - desc:", iDesc, "phase:", iPhase, "code:", iCode, "qty:", iQty, "unit:", iUnit, "price:", iPrice, "total:", iTotal);
+
+        // If no description column found, try to use the first text-heavy column
+        let descIdx = iDesc;
+        if (descIdx === -1) {
+          // Use the column with the longest average text content (skip first col if it looks like codes)
+          let bestCol = -1;
+          let bestAvgLen = 0;
+          for (let c = 0; c < headers.length; c++) {
+            if (c === iQty || c === iUnit || c === iPrice || c === iTotal) continue;
+            let totalLen = 0;
+            let count = 0;
+            for (let r = headerRowIdx + 1; r < Math.min(rows.length, headerRowIdx + 20); r++) {
+              const val = String(rows[r]?.[c] || "").trim();
+              if (val) { totalLen += val.length; count++; }
+            }
+            const avgLen = count > 0 ? totalLen / count : 0;
+            if (avgLen > bestAvgLen) {
+              bestAvgLen = avgLen;
+              bestCol = c;
+            }
+          }
+          if (bestCol !== -1 && bestAvgLen > 5) {
+            descIdx = bestCol;
+            console.log("[BudgetImport] Auto-detected description column:", bestCol, "header:", headers[bestCol]);
+          }
+        }
+
+        if (descIdx === -1) {
+          toast.error("Coluna de descrição não encontrada. Headers: " + headers.slice(0, 8).join(", "));
           return;
         }
 
         const items: ParsedItem[] = [];
         let currentPhase = "Geral";
 
-        for (let r = 1; r < rows.length; r++) {
+        for (let r = headerRowIdx + 1; r < rows.length; r++) {
           const row = rows[r];
-          const desc = String(row[iDesc] || "").trim();
+          if (!row || row.every((c: any) => c === "" || c == null)) continue;
+          
+          const desc = String(row[descIdx] || "").trim();
           if (!desc) continue;
 
           if (iPhase !== -1 && row[iPhase]) {
             currentPhase = String(row[iPhase]).trim();
           }
 
-          // Detect phase-only rows (description but no qty/price)
           const qty = iQty !== -1 ? parseNum(row[iQty]) : 0;
           const price = iPrice !== -1 ? parseNum(row[iPrice]) : 0;
+          
+          // Phase header detection: no qty AND no price AND no dedicated phase column
           if (qty === 0 && price === 0 && iPhase === -1) {
-            // Could be a phase header row
-            const hasCode = iCode !== -1 && row[iCode];
-            const codeStr = hasCode ? String(row[iCode]).trim() : "";
-            // If it looks like "1 - PHASE NAME" or just a title row
-            if (/^\d+\s*[-.]?\s*\w/.test(desc) && desc.length < 120) {
+            if (/^\d+[\s.\-]/.test(desc) && desc.length < 120) {
               currentPhase = desc;
               continue;
             }
           }
 
-          const unitPrice = price;
-          const total = iTotal !== -1 ? parseNum(row[iTotal]) : qty * unitPrice;
+          const total = iTotal !== -1 ? parseNum(row[iTotal]) : (qty || 1) * price;
 
           items.push({
             phase: currentPhase,
-            code: iCode !== -1 ? String(row[iCode] || "").trim() : "",
+            code: iCode !== -1 && iCode !== descIdx ? String(row[iCode] || "").trim() : "",
             description: desc,
             quantity: qty || 1,
-            unit: iUnit !== -1 ? String(row[iUnit] || "un").trim() : "un",
-            unit_price: unitPrice,
-            total_price: total || qty * unitPrice,
+            unit: iUnit !== -1 ? String(row[iUnit] || "un").trim() || "un" : "un",
+            unit_price: price,
+            total_price: total || (qty || 1) * price,
           });
         }
 
+        console.log("[BudgetImport] Parsed items:", items.length);
+
         if (items.length === 0) {
-          toast.error("Nenhum item válido encontrado na planilha.");
+          toast.error("Nenhum item válido encontrado. Headers detectados: " + headers.slice(0, 8).join(", "));
           return;
         }
 
