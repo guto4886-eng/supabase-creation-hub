@@ -379,12 +379,13 @@ export default function Clients() {
                           <td className="px-4 py-3">
                             <button
                               onClick={() => toggleActive.mutate({ id: item.id, active: !item.active })}
-                              className={`relative w-14 h-7 rounded-full transition-all duration-500 ease-in-out shadow-inner ${item.active ? "bg-blue-500" : "bg-orange-500"}`}
+                              className={`relative w-14 h-7 rounded-full transition-colors duration-500 ease-in-out ${item.active ? "bg-blue-500" : "bg-orange-500"}`}
+                              style={{ minWidth: 56 }}
                             >
-                              <div className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow-lg transition-all duration-500 ease-in-out ${item.active ? "left-8" : "left-1"}`} />
-                              <span className={`absolute inset-0 flex items-center text-[9px] font-bold text-white uppercase ${item.active ? "justify-start pl-1.5" : "justify-end pr-1.5"}`}>
-                                {item.active ? "ON" : "OFF"}
-                              </span>
+                              <span
+                                className="absolute top-[3px] h-[22px] w-[22px] rounded-full bg-white shadow-lg transition-[left] duration-500 ease-in-out"
+                                style={{ left: item.active ? 29 : 3 }}
+                              />
                             </button>
                           </td>
                           {fields.map((f) => {
