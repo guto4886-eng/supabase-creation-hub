@@ -59,6 +59,10 @@ function parseNum(v: any): number {
   return isNaN(n) ? 0 : n;
 }
 
+function sanitizeText(v: any, fallback = ""): string {
+  return String(v ?? fallback).replace(/\u0000/g, "").trim();
+}
+
 export default function BudgetImportModal({ budgetId, onClose }: Props) {
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -212,31 +216,60 @@ export default function BudgetImportModal({ budgetId, onClose }: Props) {
   const phases = [...new Set(parsedItems.map((i) => i.phase))];
 
   const handleImport = async () => {
-    if (!user) return;
+    if (!user) {
+      toast.error("Sua sessão expirou. Faça login novamente para importar.");
+      return;
+    }
+    if (parsedItems.length === 0) {
+      toast.error("Nenhum item disponível para importar.");
+      return;
+    }
+
     setImporting(true);
     let success = 0;
     let errors = 0;
+    const errorMessages: string[] = [];
 
     // Batch insert
-    const records = parsedItems.map((item, idx) => ({
-      budget_id: budgetId,
-      description: item.code ? `${item.code} - ${item.description}` : item.description,
-      category: item.phase,
-      quantity: item.quantity,
-      unit: item.unit,
-      unit_price: item.unit_price,
-      total_price: item.total_price,
-      sort_order: idx,
-    }));
+    const records = parsedItems.map((item, idx) => {
+      const quantity = Number.isFinite(item.quantity) && item.quantity > 0 ? item.quantity : 1;
+      const unitPrice = Number.isFinite(item.unit_price) ? item.unit_price : 0;
+      const description = sanitizeText(item.description);
+      const code = sanitizeText(item.code);
 
-    // Insert in batches of 50
+      return {
+        budget_id: budgetId,
+        description: code ? `${code} - ${description}` : description,
+        category: sanitizeText(item.phase, "Geral") || "Geral",
+        quantity,
+        unit: sanitizeText(item.unit, "un") || "un",
+        unit_price: unitPrice,
+        total_price: quantity * unitPrice,
+        sort_order: idx,
+      };
+    });
+
+    // Insert in batches of 50 (with row fallback for detailed errors)
     for (let i = 0; i < records.length; i += 50) {
       const batch = records.slice(i, i + 50);
       const { error } = await supabase.from("budget_items").insert(batch as any);
-      if (error) {
-        errors += batch.length;
-      } else {
+
+      if (!error) {
         success += batch.length;
+        continue;
+      }
+
+      for (let j = 0; j < batch.length; j++) {
+        const row = batch[j];
+        const { error: rowError } = await supabase.from("budget_items").insert(row as any);
+        if (rowError) {
+          errors += 1;
+          if (errorMessages.length < 5) {
+            errorMessages.push(`Item ${i + j + 1}: ${rowError.message}`);
+          }
+        } else {
+          success += 1;
+        }
       }
     }
 
@@ -245,8 +278,13 @@ export default function BudgetImportModal({ budgetId, onClose }: Props) {
     setStep("result");
     qc.invalidateQueries({ queryKey: ["budget_items", budgetId] });
     qc.invalidateQueries({ queryKey: ["budgets"] });
+
     if (success > 0) toast.success(`${success} item(ns) importado(s)!`);
-    if (errors > 0) toast.error(`${errors} item(ns) com erro.`);
+    if (errors > 0) {
+      const detail = errorMessages[0] ? ` ${errorMessages[0]}` : "";
+      toast.error(`${errors} item(ns) com erro.${detail}`);
+      console.error("[BudgetImport] Import errors:", errorMessages);
+    }
   };
 
   const fmt = (v: number) => v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
