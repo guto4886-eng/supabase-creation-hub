@@ -546,39 +546,41 @@ export default function Suppliers() {
                   {/* Localização fieldset */}
                   <fieldset className="border border-border rounded-lg p-4 space-y-3">
                     <legend className="px-2 text-sm font-medium text-foreground italic">Localização</legend>
-                    <div className="grid grid-cols-[1fr_2fr_1fr] gap-4">
-                      <div className="flex items-center gap-2">
-                        <label className="text-sm font-medium text-foreground whitespace-nowrap">CEP</label>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-foreground mb-1">CEP</label>
                         {renderFormInput({ name: "cep", label: "CEP", type: "cep" })}
                       </div>
-                      <div className="flex items-center gap-2">
-                        <label className="text-sm font-medium text-foreground whitespace-nowrap">Logradouro</label>
-                        <input type="text" value={form.address || ""} onChange={e => setForm(p => ({ ...p, address: e.target.value }))} className="flex-1 px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <label className="text-sm font-medium text-foreground whitespace-nowrap">Número</label>
-                        <input type="text" value={form.address_number || ""} onChange={e => setForm(p => ({ ...p, address_number: e.target.value }))} className="flex-1 px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
+                      <div className="col-span-2">
+                        <label className="block text-xs font-medium text-foreground mb-1">Logradouro</label>
+                        <input type="text" value={form.address || ""} onChange={e => setForm(p => ({ ...p, address: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
                       </div>
                     </div>
-                    <div className="grid grid-cols-4 gap-4">
-                      <div className="flex items-center gap-2">
-                        <label className="text-sm font-medium text-foreground whitespace-nowrap">Complemento</label>
-                        <input type="text" value={form.complement || ""} onChange={e => setForm(p => ({ ...p, complement: e.target.value }))} className="flex-1 px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
+                    <div className="grid grid-cols-4 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-foreground mb-1">Número</label>
+                        <input type="text" value={form.address_number || ""} onChange={e => setForm(p => ({ ...p, address_number: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
                       </div>
-                      <div className="flex items-center gap-2">
-                        <label className="text-sm font-medium text-foreground whitespace-nowrap">Bairro</label>
-                        <input type="text" value={form.neighborhood || ""} onChange={e => setForm(p => ({ ...p, neighborhood: e.target.value }))} className="flex-1 px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
+                      <div>
+                        <label className="block text-xs font-medium text-foreground mb-1">Complemento</label>
+                        <input type="text" value={form.complement || ""} onChange={e => setForm(p => ({ ...p, complement: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
                       </div>
-                      <div className="flex items-center gap-2">
-                        <label className="text-sm font-medium text-foreground whitespace-nowrap">UF</label>
-                        <select value={form.state || ""} onChange={e => setForm(p => ({ ...p, state: e.target.value }))} className="flex-1 px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm">
+                      <div className="col-span-2">
+                        <label className="block text-xs font-medium text-foreground mb-1">Bairro</label>
+                        <input type="text" value={form.neighborhood || ""} onChange={e => setForm(p => ({ ...p, neighborhood: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-foreground mb-1">UF</label>
+                        <select value={form.state || ""} onChange={e => setForm(p => ({ ...p, state: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm">
                           <option value="">Selecione...</option>
                           {ESTADOS.map(e => <option key={e} value={e}>{e}</option>)}
                         </select>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <label className="text-sm font-medium text-foreground whitespace-nowrap">Cidade</label>
-                        <input type="text" value={form.city || ""} onChange={e => setForm(p => ({ ...p, city: e.target.value }))} className="flex-1 px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
+                      <div>
+                        <label className="block text-xs font-medium text-foreground mb-1">Cidade</label>
+                        <input type="text" value={form.city || ""} onChange={e => setForm(p => ({ ...p, city: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
                       </div>
                     </div>
                   </fieldset>
