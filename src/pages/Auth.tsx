@@ -49,7 +49,7 @@ export default function Auth() {
       <div className="hidden lg:flex lg:w-1/2 bg-sidebar items-center justify-center p-12">
         <div className="max-w-md text-center space-y-6">
           <Building2 className="h-16 w-16 text-sidebar-primary mx-auto" />
-          <h1 className="text-4xl font-bold text-sidebar-foreground">Obra Prima</h1>
+          <h1 className="text-4xl font-bold text-sidebar-foreground">Toca a Obra</h1>
           <p className="text-sidebar-foreground/70 text-lg">
             Gerencie suas obras com eficiência. Controle orçamentos, fornecedores, clientes e financeiro em um só lugar.
           </p>
@@ -61,7 +61,7 @@ export default function Auth() {
         <div className="w-full max-w-md space-y-8">
           <div className="text-center lg:hidden space-y-2">
             <Building2 className="h-10 w-10 text-primary mx-auto" />
-            <h1 className="text-2xl font-bold text-foreground">Obra Prima</h1>
+            <h1 className="text-2xl font-bold text-foreground">Toca a Obra</h1>
           </div>
 
           <div>

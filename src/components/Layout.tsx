@@ -33,7 +33,7 @@ export default function Layout() {
           <div className="p-5 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Building2 className="h-8 w-8 text-sidebar-primary" />
-              <span className="text-lg font-bold text-sidebar-foreground">Obra Prima</span>
+              <span className="text-lg font-bold text-sidebar-foreground">Toca a Obra</span>
             </div>
             <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-sidebar-foreground">
               <X className="h-5 w-5" />
@@ -87,7 +87,7 @@ export default function Layout() {
             <Menu className="h-5 w-5" />
           </button>
           <h1 className="text-lg font-semibold text-foreground flex-1">
-            {navItems.find((n) => n.to === location.pathname)?.label ?? "Obra Prima"}
+            {navItems.find((n) => n.to === location.pathname)?.label ?? "Toca a Obra"}
           </h1>
           <NotificationBell />
         </header>
