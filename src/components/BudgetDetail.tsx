@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { X, Plus, Pencil, Trash2 } from "lucide-react";
+import { X, Plus, Pencil, Trash2, FileText, ChevronDown, Settings } from "lucide-react";
 
 interface BudgetDetailProps {
   budgetId: string;
@@ -35,6 +35,67 @@ const statusOptions = [
 ];
 
 const inputClass = "w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm";
+
+const RELATORIOS = [
+  "Orçamento de custo",
+  "Orçamento de venda",
+  "Relatórios de planejamento",
+  "Previsto x Realizado - Custo",
+  "Previsto x Realizado de Insumos",
+  "Curva ABC",
+  "Formulário de orçamento",
+  "Prestação de serviço",
+  "Proposta comercial",
+  "Histograma de recursos",
+];
+
+const ACOES = [
+  "Novo orçamento",
+  "Importar orçamento",
+  "Gerar versão do orçamento",
+  "Tabelas de custo",
+  "Ajustar valores de custo",
+];
+
+function DropdownButton({ label, icon: Icon, items, onSelect }: { label: string; icon: any; items: string[]; onSelect: (item: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-border bg-background text-foreground hover:bg-muted text-sm font-medium"
+      >
+        <Icon className="h-4 w-4" />
+        {label}
+        <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div className="absolute bottom-full mb-1 right-0 w-64 bg-card border border-border rounded-lg shadow-lg z-[70] py-1 max-h-72 overflow-y-auto">
+          {items.map((item) => (
+            <button
+              key={item}
+              onClick={() => { onSelect(item); setOpen(false); }}
+              className="w-full text-left px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
+            >
+              {item}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
   const qc = useQueryClient();
@@ -516,7 +577,19 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
               {statusOptions.find((s) => s.value === budget.status)?.label || budget.status}
             </span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <DropdownButton
+              label="Relatórios"
+              icon={FileText}
+              items={RELATORIOS}
+              onSelect={(item) => toast.info(`Relatório "${item}" será implementado em breve.`)}
+            />
+            <DropdownButton
+              label="Ações"
+              icon={Settings}
+              items={ACOES}
+              onSelect={(item) => toast.info(`Ação "${item}" será implementada em breve.`)}
+            />
             <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg border border-border bg-background text-foreground hover:bg-muted text-sm">
               Fechar
             </button>
