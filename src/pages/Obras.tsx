@@ -219,7 +219,22 @@ export default function Obras() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name?.trim()) { toast.error("Nome da obra é obrigatório"); return; }
-    saveMutation.mutate(form);
+    // Clean form: convert empty strings to null for nullable fields, parse numbers
+    const numericFields = ["total_budget", "area_m2", "duration"];
+    const cleaned: Record<string, any> = {};
+    for (const [key, value] of Object.entries(form)) {
+      if (numericFields.includes(key)) {
+        cleaned[key] = value === "" || value === null || value === undefined ? null : Number(value);
+      } else if (value === "") {
+        cleaned[key] = null;
+      } else {
+        cleaned[key] = value;
+      }
+    }
+    // Ensure required fields are not null
+    cleaned.name = form.name.trim();
+    cleaned.status = form.status || "nao_iniciada";
+    saveMutation.mutate(cleaned);
   };
 
   const handleCepBlur = async (value: string, prefix = "") => {
