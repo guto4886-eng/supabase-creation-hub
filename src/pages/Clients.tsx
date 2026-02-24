@@ -427,13 +427,13 @@ export default function Clients() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={closeForm}>
           <div className="bg-card border border-border rounded-xl w-full max-w-4xl h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
             {/* Header */}
-            <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-muted/40 rounded-t-xl">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-muted rounded-t-xl">
               <h3 className="text-lg font-semibold text-card-foreground">{editing ? "Editar" : "Novo"} cliente</h3>
               <button onClick={closeForm} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
             </div>
 
             {/* Tabs bar - distinct background */}
-            <div className="flex bg-muted/60 px-5 gap-1 border-b border-border">
+            <div className="flex bg-muted px-5 gap-1 border-b border-border">
               {ALL_TABS.map((t) => (
                 <button
                   key={t.key}
@@ -616,7 +616,7 @@ export default function Clients() {
             </div>
 
             {/* Bottom bar - fixed */}
-            <div className="flex items-center justify-end gap-3 px-5 py-3 border-t border-border bg-muted/40 rounded-b-xl">
+            <div className="flex items-center justify-end gap-3 px-5 py-3 border-t border-border bg-muted rounded-b-xl">
               <button type="button" onClick={closeForm} className="px-4 py-2 rounded-lg border border-border text-foreground hover:bg-muted text-sm">
                 Cancelar
               </button>
