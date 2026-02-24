@@ -908,7 +908,7 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                           const pct = grandTotal > 0 ? (total / grandTotal) * 100 : 0;
                           cumPhase += pct;
                           const cls = cumPhase <= 80 ? "A" : cumPhase <= 95 ? "B" : "C";
-                          const clsColor = cls === "A" ? "text-red-600 font-bold" : cls === "B" ? "text-amber-600 font-semibold" : "text-muted-foreground";
+                          const clsBg = cls === "A" ? "bg-red-600 text-white" : cls === "B" ? "bg-amber-500 text-white" : "bg-gray-400 text-white";
                           const isOpen = expandedAbc === rootIdx;
                           const sortedSvc = [...services].sort((a, b) => (b.total_price || 0) - (a.total_price || 0));
                           const svcTotal = total;
@@ -921,7 +921,7 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                                 className={`cursor-pointer hover:bg-muted/40 ${idx % 2 === 0 ? "bg-background" : "bg-muted/20"}`}
                                 onClick={() => setExpandedAbc(isOpen ? null : rootIdx)}
                               >
-                                <td className={`px-3 py-2 ${clsColor}`}>{cls}</td>
+                                <td className="px-3 py-2"><span className={`inline-flex items-center justify-center w-7 h-7 rounded font-bold text-xs ${clsBg}`}>{cls}</span></td>
                                 <td className="px-3 py-2 text-foreground font-medium flex items-center gap-1.5">
                                   <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isOpen ? "rotate-0" : "-rotate-90"}`} />
                                   {label}
@@ -934,10 +934,10 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                                 const sPct = svcTotal > 0 ? ((svc.total_price || 0) / svcTotal) * 100 : 0;
                                 cumSvc += sPct;
                                 const sCls = cumSvc <= 80 ? "A" : cumSvc <= 95 ? "B" : "C";
-                                const sClsColor = sCls === "A" ? "text-red-500" : sCls === "B" ? "text-amber-500" : "text-muted-foreground";
+                                const sClsBg = sCls === "A" ? "bg-red-500 text-white" : sCls === "B" ? "bg-amber-400 text-white" : "bg-gray-300 text-foreground";
                                 return (
                                   <tr key={svc.id} className="bg-muted/10">
-                                    <td className={`px-3 py-1.5 pl-8 text-xs ${sClsColor}`}>{sCls}</td>
+                                    <td className="px-3 py-1.5 pl-8"><span className={`inline-flex items-center justify-center w-5 h-5 rounded text-[10px] font-bold ${sClsBg}`}>{sCls}</span></td>
                                     <td className="px-3 py-1.5 pl-10 text-foreground text-xs">{svc.description}</td>
                                     <td className="px-3 py-1.5 text-right text-foreground text-xs tabular-nums">{fmt(svc.total_price)}</td>
                                     <td className="px-3 py-1.5 text-right text-foreground text-xs tabular-nums">{sPct.toFixed(2)}%</td>
