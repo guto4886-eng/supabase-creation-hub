@@ -535,7 +535,7 @@ export default function PurchaseQuotations() {
                 </div>
               </div>
             </div>
-            <div className="p-4 pb-16 border-t border-border flex gap-2">
+            <div className="p-4 border-t border-border flex gap-2">
               <button onClick={handleClearFilters} className="flex-1 flex items-center justify-center px-3 py-2.5 rounded-lg bg-background border border-border text-muted-foreground hover:bg-muted transition-colors"><Eraser className="h-5 w-5" /></button>
               <button onClick={handleSearch} className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 bg-amber-700 text-white rounded-lg text-sm font-medium hover:bg-amber-800 transition-colors"><Search className="h-4 w-4" /> Pesquisar</button>
             </div>
@@ -550,7 +550,7 @@ export default function PurchaseQuotations() {
       </div>
 
       {/* Main */}
-      <div className="flex-1 flex overflow-hidden pb-14">
+      <div className="flex-1 flex flex-col overflow-hidden relative">
         {!searched ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="flex items-center gap-16 max-w-4xl px-8">
@@ -625,16 +625,15 @@ export default function PurchaseQuotations() {
             )}
           </div>
         )}
-      </div>
-
-      {/* Footer bar */}
-      <div className="absolute bottom-0 left-0 right-0 border-t border-border bg-card px-6 py-3 flex items-center justify-between z-20">
-        <button onClick={openNew} className="flex items-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90">
-          <Plus className="h-4 w-4" /> Nova Cotação
-        </button>
-        <button onClick={() => setShowExportDialog(true)} disabled={filtered.length === 0} className="flex items-center gap-2 px-5 py-2.5 bg-amber-700 text-white rounded-lg text-sm font-medium hover:bg-amber-800 disabled:opacity-40">
-          <Download className="h-4 w-4" /> Exportar
-        </button>
+        {/* Footer bar */}
+        <div className="border-t border-border bg-card px-6 py-3 flex items-center justify-between flex-shrink-0">
+          <button onClick={openNew} className="flex items-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90">
+            <Plus className="h-4 w-4" /> Nova Cotação
+          </button>
+          <button onClick={() => setShowExportDialog(true)} disabled={filtered.length === 0} className="flex items-center gap-2 px-5 py-2.5 bg-amber-700 text-white rounded-lg text-sm font-medium hover:bg-amber-800 disabled:opacity-40">
+            <Download className="h-4 w-4" /> Exportar
+          </button>
+        </div>
       </div>
 
       {showExportDialog && <ExportDialog onSelect={handleExport} onClose={() => setShowExportDialog(false)} />}
