@@ -149,6 +149,8 @@ export default function Suppliers() {
     setEditing(null);
     const initial: Record<string, any> = {};
     fields.forEach((f) => (initial[f.name] = ""));
+    initial.person_type = "j";
+    initial.recommended = false;
     setForm(initial);
     setActiveTab("dados");
     setFormOpen(true);
@@ -165,7 +167,15 @@ export default function Suppliers() {
 
   const closeForm = () => { setFormOpen(false); setEditing(null); setForm({}); setActiveTab("dados"); };
 
-  const handleSubmit = (e: React.FormEvent) => { e.preventDefault(); saveMutation.mutate(form); };
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleaned: Record<string, any> = {};
+    for (const [key, value] of Object.entries(form)) {
+      if (key === "recommended") { cleaned[key] = !!value; continue; }
+      cleaned[key] = value === "" ? null : value;
+    }
+    saveMutation.mutate(cleaned);
+  };
 
   const handleCepBlur = async (value: string) => {
     setCepLoading(true);
