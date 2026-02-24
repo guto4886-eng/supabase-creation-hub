@@ -143,6 +143,21 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
     },
   });
 
+  // Fetch ALL measurement items across all measurements for accumulated calculation
+  const allMeasurementIds = measurements.map((m: any) => m.id);
+  const { data: allMeasurementItems = [] } = useQuery({
+    queryKey: ["all_budget_measurement_items", budgetId, allMeasurementIds.join(",")],
+    enabled: allMeasurementIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("budget_measurement_items")
+        .select("*")
+        .in("measurement_id", allMeasurementIds);
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const { data: budget, isLoading: budgetLoading } = useQuery({
     queryKey: ["budget_detail", budgetId],
     queryFn: async () => {
@@ -1044,18 +1059,6 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
               const now = new Date();
               const period = `${String(now.getMonth() + 1).padStart(2, "0")}/${now.getFullYear()}`;
 
-              // Find the previous measurement to carry forward values
-              let previousItems: any[] = [];
-              if (measurements.length > 0) {
-                const sortedMeasurements = [...measurements].sort((a: any, b: any) => b.measurement_number - a.measurement_number);
-                const previousMeasurement = sortedMeasurements[0] as any;
-                const { data: prevItems } = await supabase
-                  .from("budget_measurement_items")
-                  .select("*")
-                  .eq("measurement_id", previousMeasurement.id);
-                previousItems = prevItems || [];
-              }
-
               const { data, error } = await supabase
                 .from("budget_measurements")
                 .insert({
@@ -1068,22 +1071,21 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                 .single();
               if (error) { toast.error(error.message); return; }
 
-              const itemsToInsert = serviceItemsMed.map((svc) => {
-                const prevItem = previousItems.find((pi: any) => pi.budget_item_id === svc.id);
-                return {
-                  measurement_id: (data as any).id,
-                  budget_item_id: svc.id,
-                  measured_quantity: prevItem?.measured_quantity || 0,
-                  measured_percentage: prevItem?.measured_percentage || 0,
-                };
-              });
+              // New measurement starts at 0 — each measurement records only the increment for that period
+              const itemsToInsert = serviceItemsMed.map((svc) => ({
+                measurement_id: (data as any).id,
+                budget_item_id: svc.id,
+                measured_quantity: 0,
+                measured_percentage: 0,
+              }));
               if (itemsToInsert.length > 0) {
                 await supabase.from("budget_measurement_items").insert(itemsToInsert as any);
               }
 
               qc.invalidateQueries({ queryKey: ["budget_measurements", budgetId] });
+              qc.invalidateQueries({ queryKey: ["all_budget_measurement_items", budgetId] });
               setActiveMeasurement((data as any).id);
-              toast.success(`Medição #${nextNum} criada com valores da medição anterior!`);
+              toast.success(`Medição #${nextNum} criada!`);
             };
 
             const updateMeasuredField = async (itemId: string, budgetItemId: string, field: "pct" | "value", val: number) => {
@@ -1104,6 +1106,7 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                 measured_at: new Date().toISOString(),
               } as any).eq("id", itemId);
               qc.invalidateQueries({ queryKey: ["budget_measurement_items", activeMeasurement] });
+              qc.invalidateQueries({ queryKey: ["all_budget_measurement_items", budgetId] });
             };
 
             const closeMeasurement = async () => {
@@ -1116,14 +1119,20 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
 
             const deleteMeasurement = async (medId: string) => {
               if (!confirm("Deseja realmente excluir esta medição? Todos os lançamentos serão perdidos.")) return;
-              // Delete measurement items first, then the measurement
               await supabase.from("budget_measurement_items").delete().eq("measurement_id", medId);
               const { error } = await supabase.from("budget_measurements").delete().eq("id", medId);
               if (error) { toast.error(error.message); return; }
               if (activeMeasurement === medId) setActiveMeasurement(null);
               qc.invalidateQueries({ queryKey: ["budget_measurements", budgetId] });
-              qc.invalidateQueries({ queryKey: ["budget_measurement_items", medId] });
+              qc.invalidateQueries({ queryKey: ["all_budget_measurement_items", budgetId] });
               toast.success("Medição excluída!");
+            };
+
+            // Helper: get accumulated measured percentage for a budget item across ALL measurements
+            const getAccumulatedPct = (budgetItemId: string) => {
+              return (allMeasurementItems as any[])
+                .filter((mi: any) => mi.budget_item_id === budgetItemId)
+                .reduce((sum: number, mi: any) => sum + (mi.measured_percentage || 0), 0);
             };
 
             const activeMed = measurements.find((m: any) => m.id === activeMeasurement) as any;
@@ -1225,12 +1234,12 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                         <div className="bg-muted/50 px-3 py-2 text-xs font-semibold text-muted-foreground border-b border-border">Fases da Obra</div>
                         <div className="divide-y divide-border">
                           {phaseDataMed.map(({ rootIdx, label, total, services }) => {
-                            const measuredTotal = services.reduce((sum, svc) => {
-                              const mi = measurementItems.find((m: any) => m.budget_item_id === svc.id) as any;
-                              return sum + (svc.total_price || 0) * ((mi?.measured_percentage || 0) / 100);
+                            const accumulatedTotal = services.reduce((sum, svc) => {
+                              const accPct = getAccumulatedPct(svc.id);
+                              return sum + (svc.total_price || 0) * (accPct / 100);
                             }, 0);
-                            const phasePct = total > 0 ? (measuredTotal / total) * 100 : 0;
-                            const saldo = total - measuredTotal;
+                            const phasePct = total > 0 ? (accumulatedTotal / total) * 100 : 0;
+                            const saldo = total - accumulatedTotal;
                             const isSelected = selectedPhase === rootIdx;
                             return (
                               <button
@@ -1240,7 +1249,7 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                               >
                                 <div className="font-medium text-foreground truncate">{label}</div>
                                 <div className="flex items-center justify-between mt-1">
-                                  <span className="text-xs text-muted-foreground">{fmt(measuredTotal)} / {fmt(total)}</span>
+                                  <span className="text-xs text-muted-foreground">{fmt(accumulatedTotal)} / {fmt(total)}</span>
                                   <span className="text-xs font-medium text-primary">{phasePct.toFixed(1)}%</span>
                                 </div>
                                 <div className="w-full h-1.5 bg-muted rounded-full mt-1 overflow-hidden">
@@ -1270,7 +1279,9 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                                 const mi = measurementItems.find((m: any) => m.budget_item_id === svc.id) as any;
                                 const pct = mi?.measured_percentage || 0;
                                 const measuredValue = (svc.total_price || 0) * (pct / 100);
-                                const saldoSvc = (svc.total_price || 0) - measuredValue;
+                                const accPct = getAccumulatedPct(svc.id);
+                                const accValue = (svc.total_price || 0) * (accPct / 100);
+                                const saldoSvc = (svc.total_price || 0) - accValue;
                                 const measuredAt = mi?.measured_at ? new Date(mi.measured_at).toLocaleDateString("pt-BR") : "—";
                                 const isEditable = activeMed?.status === "aberta" && mi;
                                 return (
@@ -1286,9 +1297,9 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                                       </div>
                                       <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Lançamento: {measuredAt}</span>
                                     </div>
-                                    <div className="grid grid-cols-4 gap-3">
+                                    <div className="grid grid-cols-5 gap-3">
                                       <div>
-                                        <label className="block text-[10px] font-medium text-muted-foreground mb-0.5">% Medido</label>
+                                        <label className="block text-[10px] font-medium text-muted-foreground mb-0.5">% Esta Medição</label>
                                         {isEditable ? (
                                           <input
                                             type="number" min="0" max="100" step="0.01"
@@ -1302,7 +1313,7 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                                         )}
                                       </div>
                                       <div>
-                                        <label className="block text-[10px] font-medium text-muted-foreground mb-0.5">Valor Medido (R$)</label>
+                                        <label className="block text-[10px] font-medium text-muted-foreground mb-0.5">Valor Esta Med. (R$)</label>
                                         {isEditable ? (
                                           <input
                                             type="number" min="0" step="0.01"
@@ -1316,6 +1327,10 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                                         )}
                                       </div>
                                       <div>
+                                        <label className="block text-[10px] font-medium text-muted-foreground mb-0.5">Acumulado</label>
+                                        <span className="text-sm tabular-nums font-medium text-primary">{accPct.toFixed(2)}% — {fmt(accValue)}</span>
+                                      </div>
+                                      <div>
                                         <label className="block text-[10px] font-medium text-muted-foreground mb-0.5">Saldo Restante</label>
                                         <span className={`text-sm tabular-nums font-medium ${saldoSvc > 0 ? "text-foreground" : saldoSvc === 0 ? "text-green-600" : "text-destructive"}`}>{fmt(saldoSvc)}</span>
                                       </div>
@@ -1323,9 +1338,9 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                                         <label className="block text-[10px] font-medium text-muted-foreground mb-0.5">Progresso</label>
                                         <div className="flex items-center gap-2 mt-1">
                                           <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-                                            <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${Math.min(pct, 100)}%` }} />
+                                            <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${Math.min(accPct, 100)}%` }} />
                                           </div>
-                                          <span className="text-xs font-medium text-foreground tabular-nums">{pct.toFixed(1)}%</span>
+                                          <span className="text-xs font-medium text-foreground tabular-nums">{accPct.toFixed(1)}%</span>
                                         </div>
                                       </div>
                                     </div>
@@ -1340,20 +1355,28 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
 
                     {(() => {
                       const totalOrcado = serviceItemsMed.reduce((s, svc) => s + (svc.total_price || 0), 0);
-                      const totalMedido = serviceItemsMed.reduce((sum, svc) => {
+                      const totalMedidoAcc = serviceItemsMed.reduce((sum, svc) => {
+                        const accPct = getAccumulatedPct(svc.id);
+                        return sum + (svc.total_price || 0) * (accPct / 100);
+                      }, 0);
+                      const totalMedidoEsta = serviceItemsMed.reduce((sum, svc) => {
                         const mi = measurementItems.find((m: any) => m.budget_item_id === svc.id) as any;
                         return sum + (svc.total_price || 0) * ((mi?.measured_percentage || 0) / 100);
                       }, 0);
-                      const totalSaldo = totalOrcado - totalMedido;
+                      const totalSaldo = totalOrcado - totalMedidoAcc;
                       return (
-                        <div className="bg-muted/50 rounded-lg border border-border px-4 py-3 grid grid-cols-3 gap-4 text-sm">
+                        <div className="bg-muted/50 rounded-lg border border-border px-4 py-3 grid grid-cols-4 gap-4 text-sm">
                           <div>
                             <span className="text-muted-foreground">Total Orçado: </span>
                             <span className="font-bold text-foreground">{fmt(totalOrcado)}</span>
                           </div>
                           <div>
-                            <span className="text-muted-foreground">Total Medido: </span>
-                            <span className="font-bold text-primary">{fmt(totalMedido)}</span>
+                            <span className="text-muted-foreground">Esta Medição: </span>
+                            <span className="font-bold text-foreground">{fmt(totalMedidoEsta)}</span>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Acumulado: </span>
+                            <span className="font-bold text-primary">{fmt(totalMedidoAcc)}</span>
                           </div>
                           <div>
                             <span className="text-muted-foreground">Saldo Restante: </span>
