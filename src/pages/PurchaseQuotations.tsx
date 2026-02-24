@@ -3,6 +3,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import { fetchCompanyInfo } from "@/utils/exportWithHeader";
 import Attachments from "@/components/Attachments";
 import QuotationDeliveryAddress from "@/components/quotation/QuotationDeliveryAddress";
 import QuotationSuppliers from "@/components/quotation/QuotationSuppliers";
@@ -10,7 +13,7 @@ import QuotationSending from "@/components/quotation/QuotationSending";
 import QuotationLinkedRecords from "@/components/quotation/QuotationLinkedRecords";
 import QuotationMessages from "@/components/quotation/QuotationMessages";
 import {
-  Search, Plus, ChevronLeft, ChevronRight, Pencil, Trash2, X, Eraser, Paperclip
+  Search, Plus, ChevronLeft, ChevronRight, Pencil, Trash2, X, Eraser, Paperclip, FileDown, Share2
 } from "lucide-react";
 
 const PAGE_SIZE = 15;
@@ -334,6 +337,96 @@ export default function PurchaseQuotations() {
     if (s === "enviada") return "text-amber-600 bg-amber-100";
     if (s === "cancelada") return "text-destructive bg-destructive/10";
     return "text-muted-foreground bg-muted";
+  };
+
+  const generatePDF = async () => {
+    if (quotationItems.length === 0) { toast.error("Nenhum item para gerar relatório"); return null; }
+    const company = user ? await fetchCompanyInfo(user.id) : null;
+    const obraName = obras.find((o: any) => o.id === form.obra_id)?.name || "—";
+    const doc = new jsPDF();
+    let y = 15;
+
+    if (company) {
+      if (company.logo_url) {
+        try {
+          const img = await new Promise<string>((resolve, reject) => {
+            const image = new Image();
+            image.crossOrigin = "anonymous";
+            image.onload = () => { const c = document.createElement("canvas"); c.width = image.width; c.height = image.height; c.getContext("2d")!.drawImage(image, 0, 0); resolve(c.toDataURL("image/jpeg")); };
+            image.onerror = reject;
+            image.src = company.logo_url!;
+          });
+          doc.addImage(img, "JPEG", 14, 10, 22, 22);
+          y = 12;
+        } catch { /* skip */ }
+      }
+      const tx = company.logo_url ? 40 : 14;
+      doc.setFontSize(13); doc.setFont("helvetica", "bold");
+      if (company.company_name) { doc.text(company.company_name, tx, y); y += 5; }
+      doc.setFontSize(9); doc.setFont("helvetica", "normal");
+      if (company.document) { doc.text(`CNPJ/CPF: ${company.document}`, tx, y); y += 4; }
+      const addr = [company.address, company.city, company.state].filter(Boolean).join(" - ");
+      if (addr) { doc.text(addr, tx, y); y += 4; }
+      if (company.phone) { doc.text(`Tel: ${company.phone}`, tx, y); y += 4; }
+      if (company.email) { doc.text(company.email, tx, y); y += 4; }
+      y += 4;
+    }
+
+    doc.setFontSize(14); doc.setFont("helvetica", "bold");
+    doc.text("COTAÇÃO DE COMPRA", 14, y); y += 8;
+    doc.setFontSize(9); doc.setFont("helvetica", "normal");
+    doc.text(`Obra: ${obraName}`, 14, y); y += 5;
+    if (form.description) { doc.text(`Descrição: ${form.description}`, 14, y); y += 5; }
+    if (form.needed_by) { doc.text(`Necessidade de entrega: ${new Date(form.needed_by + "T00:00:00").toLocaleDateString("pt-BR")}`, 14, y); y += 5; }
+    if (form.response_deadline) { doc.text(`Data limite para resposta: ${new Date(form.response_deadline + "T00:00:00").toLocaleDateString("pt-BR")}`, 14, y); y += 5; }
+    if (form.sending_notes) { doc.text(`Observações: ${form.sending_notes}`, 14, y); y += 5; }
+    y += 3;
+
+    autoTable(doc, {
+      startY: y,
+      head: [["#", "Tipo", "Insumo/Serviço", "Marca", "Complemento", "Qtd", "Un"]],
+      body: quotationItems.map((it, i) => [
+        String(i + 1), it.item_type === "insumo" ? "Insumo" : "Serviço",
+        it.description, it.brand || "—", it.complement || "—", String(it.quantity), it.unit,
+      ]),
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: "bold" },
+      alternateRowStyles: { fillColor: [245, 245, 245] },
+    });
+
+    const finalY = (doc as any).lastAutoTable?.finalY || y + 20;
+    if (form.delivery_address) {
+      let dy = finalY + 8;
+      doc.setFontSize(10); doc.setFont("helvetica", "bold");
+      doc.text("Endereço de entrega:", 14, dy); dy += 5;
+      doc.setFontSize(9); doc.setFont("helvetica", "normal");
+      doc.text([form.delivery_address, form.delivery_number, form.delivery_neighborhood, form.delivery_city, form.delivery_state].filter(Boolean).join(", "), 14, dy);
+    }
+    return doc;
+  };
+
+  const handleDownloadPDF = async () => {
+    try {
+      const doc = await generatePDF();
+      if (doc) { doc.save(`cotacao_${(form.title || "doc").replace(/\s+/g, "_")}.pdf`); toast.success("PDF gerado!"); }
+    } catch (e: any) { toast.error("Erro ao gerar PDF: " + e.message); }
+  };
+
+  const handleShareWhatsApp = async () => {
+    try {
+      const doc = await generatePDF();
+      if (!doc) return;
+      const blob = doc.output("blob");
+      const file = new File([blob], `cotacao_${(form.title || "doc").replace(/\s+/g, "_")}.pdf`, { type: "application/pdf" });
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ title: "Cotação de Compra", text: `Cotação: ${form.title || ""}`, files: [file] });
+      } else {
+        const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = file.name; a.click(); URL.revokeObjectURL(a.href);
+        const text = encodeURIComponent(`Cotação de Compra: ${form.title || ""}\nObra: ${obras.find((o: any) => o.id === form.obra_id)?.name || ""}\n${form.needed_by ? "Entrega: " + new Date(form.needed_by + "T00:00:00").toLocaleDateString("pt-BR") : ""}\n${form.response_deadline ? "Resposta até: " + new Date(form.response_deadline + "T00:00:00").toLocaleDateString("pt-BR") : ""}`);
+        window.open(`https://wa.me/?text=${text}`, "_blank");
+      }
+      toast.success("Compartilhamento iniciado!");
+    } catch (e: any) { if (e.name !== "AbortError") toast.error("Erro: " + e.message); }
   };
 
   const now = new Date();
@@ -693,8 +786,14 @@ export default function PurchaseQuotations() {
 
             {/* Footer */}
             <div className="flex items-center justify-between px-6 py-3 border-t border-border bg-muted rounded-b-xl">
-              <div className="text-sm text-muted-foreground">
-                Insumos: <strong className="text-foreground">{quotationItems.length}</strong>
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-muted-foreground">Insumos: <strong className="text-foreground">{quotationItems.length}</strong></span>
+                <button type="button" onClick={handleDownloadPDF} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-background text-foreground hover:bg-accent text-xs font-medium" title="Gerar PDF">
+                  <FileDown className="h-3.5 w-3.5" /> PDF
+                </button>
+                <button type="button" onClick={handleShareWhatsApp} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-600 text-white hover:bg-green-700 text-xs font-medium" title="Enviar via WhatsApp">
+                  <Share2 className="h-3.5 w-3.5" /> WhatsApp
+                </button>
               </div>
               <div className="flex gap-3">
                 <button type="button" onClick={closeForm} className="px-4 py-2 rounded-lg border border-border bg-background text-foreground hover:bg-muted">Cancelar</button>
