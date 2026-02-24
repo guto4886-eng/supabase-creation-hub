@@ -363,19 +363,19 @@ export default function Clients() {
             ) : (
               <>
                 <div className="flex-1 overflow-auto border border-border rounded-xl">
-                  <table className="w-full text-sm">
-                    <thead className="sticky top-0">
-                      <tr className="bg-muted/50">
-                        <th className="w-16 px-4 py-3 font-medium text-muted-foreground">Ativo</th>
+                  <table className="w-full text-sm table-fixed min-w-[900px]">
+                    <thead className="sticky top-0 z-10">
+                      <tr className="bg-muted">
+                        <th className="w-20 px-4 py-3 font-medium text-muted-foreground">Ativo</th>
                         {fields.map((f) => (
-                          <th key={f.name} className="text-left px-4 py-3 font-medium text-muted-foreground">{f.label}</th>
+                          <th key={f.name} className="text-left px-4 py-3 font-medium text-muted-foreground" style={{ minWidth: f.name === "name" ? 180 : f.name === "email" ? 180 : 120 }}>{f.label}</th>
                         ))}
                         <th className="w-24 px-4 py-3" />
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-border">
-                      {paginatedItems.map((item) => (
-                        <tr key={item.id} className={`hover:bg-muted/30 transition-colors ${!item.active ? "opacity-50" : ""}`}>
+                    <tbody>
+                      {paginatedItems.map((item, idx) => (
+                        <tr key={item.id} className={`transition-colors ${!item.active ? "opacity-50" : ""} ${idx % 2 === 0 ? "bg-background" : "bg-muted/30"} hover:bg-primary/5`}>
                           <td className="px-4 py-3">
                             <button
                               onClick={() => toggleActive.mutate({ id: item.id, active: !item.active })}
@@ -394,7 +394,7 @@ export default function Clients() {
                               const opt = CATEGORIAS.find((o) => o.value === item[f.name]);
                               display = opt ? opt.label : item[f.name];
                             }
-                            return <td key={f.name} className="px-4 py-3 text-foreground">{String(display)}</td>;
+                            return <td key={f.name} className="px-4 py-3 text-foreground truncate" title={String(display)}>{String(display)}</td>;
                           })}
                           <td className="px-4 py-3">
                             <div className="flex gap-1">
