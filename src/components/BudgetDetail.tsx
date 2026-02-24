@@ -1921,7 +1921,7 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
               return pfx && !pfx.includes(".");
             });
 
-            // Per-phase data
+            // Per-phase data (with planning)
             const phaseChartData = rootPhasesPR.map((phase) => {
               const rootIdx = getPrefixPR(phase.description)!;
               const children = serviceItemsPR.filter((s) => {
@@ -1935,27 +1935,77 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                   .reduce((a: number, mi: any) => a + (mi.measured_percentage || 0), 0);
                 return sum + (s.total_price || 0) * (accPct / 100);
               }, 0);
+              // Planejado: sum of planned percentages for children across all periods
+              const planejado = children.reduce((sum, s) => {
+                const accPlanPct = planItems
+                  .filter((pi: any) => pi.budget_item_id === s.id)
+                  .reduce((a: number, pi: any) => a + (pi.planned_percentage || 0), 0);
+                return sum + (s.total_price || 0) * (accPlanPct / 100);
+              }, 0);
               return {
                 name: phase.description.replace(/^\d+(\.\d+)*\s*[-–.]?\s*/, "").substring(0, 20),
                 Previsto: Math.round(previsto * 100) / 100,
+                Planejado: Math.round(planejado * 100) / 100,
                 Realizado: Math.round(realizado * 100) / 100,
               };
             }).filter(d => d.Previsto > 0);
 
+            // Build planning timeline from plan periods
+            const sortedPlanPeriods = [...planPeriods].sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+            let cumPlan = 0;
+            const planTimelineMap: Record<string, number> = {};
+            sortedPlanPeriods.forEach((period: any) => {
+              const periodPlanItems = planItems.filter((pi: any) => pi.plan_period_id === period.id);
+              const periodValue = periodPlanItems.reduce((sum: number, pi: any) => {
+                const svc = serviceItemsPR.find(s => s.id === pi.budget_item_id);
+                return sum + ((svc?.total_price || 0) * ((pi.planned_percentage || 0) / 100));
+              }, 0);
+              cumPlan += periodValue;
+              const label = period.period_label || new Date(period.period_date).toLocaleDateString("pt-BR");
+              planTimelineMap[label] = Math.round(cumPlan * 100) / 100;
+            });
+
             // Per-measurement (timeline) data
             const sortedMeasurements = [...measurements].sort((a: any, b: any) => a.measurement_number - b.measurement_number);
             let cumulativeValue = 0;
-            const timelineData = sortedMeasurements.map((med: any) => {
+            const totalOrçado = Math.round(serviceItemsPR.reduce((s, svc) => s + (svc.total_price || 0), 0) * 100) / 100;
+
+            // Merge plan periods and measurements into unified timeline
+            const allTimelineLabels: string[] = [];
+            const planLabels = sortedPlanPeriods.map((p: any) => p.period_label || new Date(p.period_date).toLocaleDateString("pt-BR"));
+            const medLabels = sortedMeasurements.map((m: any) => m.reference_period || `#${m.measurement_number}`);
+            // Use plan labels as base if available, otherwise measurement labels
+            if (planLabels.length > 0) {
+              planLabels.forEach(l => { if (!allTimelineLabels.includes(l)) allTimelineLabels.push(l); });
+              medLabels.forEach(l => { if (!allTimelineLabels.includes(l)) allTimelineLabels.push(l); });
+            } else {
+              medLabels.forEach(l => { if (!allTimelineLabels.includes(l)) allTimelineLabels.push(l); });
+            }
+
+            // Build measurement cumulative map
+            let cumReal = 0;
+            const realTimelineMap: Record<string, number> = {};
+            sortedMeasurements.forEach((med: any) => {
               const medItems = (allMeasurementItems as any[]).filter((mi: any) => mi.measurement_id === med.id);
               const medValue = medItems.reduce((sum: number, mi: any) => {
                 const svc = serviceItemsPR.find(s => s.id === mi.budget_item_id);
                 return sum + ((svc?.total_price || 0) * ((mi.measured_percentage || 0) / 100));
               }, 0);
-              cumulativeValue += medValue;
+              cumReal += medValue;
+              const label = med.reference_period || `#${med.measurement_number}`;
+              realTimelineMap[label] = Math.round(cumReal * 100) / 100;
+            });
+
+            let lastPlan = 0;
+            let lastReal = 0;
+            const timelineData = allTimelineLabels.map((label) => {
+              if (planTimelineMap[label] !== undefined) lastPlan = planTimelineMap[label];
+              if (realTimelineMap[label] !== undefined) lastReal = realTimelineMap[label];
               return {
-                name: med.reference_period || `#${med.measurement_number}`,
-                Realizado: Math.round(cumulativeValue * 100) / 100,
-                Previsto: Math.round(serviceItemsPR.reduce((s, svc) => s + (svc.total_price || 0), 0) * 100) / 100,
+                name: label,
+                Orçado: totalOrçado,
+                Planejado: lastPlan || undefined,
+                Realizado: lastReal || undefined,
               };
             });
 
@@ -2015,8 +2065,8 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                     {/* Bar chart */}
                     <div className="border border-border rounded-xl p-5 bg-background shadow-sm">
                       <div className="mb-4">
-                        <h5 className="text-sm font-bold text-foreground">Previsto x Realizado por Fase</h5>
-                        <p className="text-xs text-muted-foreground mt-0.5">Barras azuis = valor orçado por fase. Barras verdes = valor medido acumulado.</p>
+                        <h5 className="text-sm font-bold text-foreground">Orçado x Planejado x Realizado por Fase</h5>
+                        <p className="text-xs text-muted-foreground mt-0.5">Azul = orçado. Laranja = planejado (do planejamento físico). Verde = medido acumulado.</p>
                       </div>
                       <div style={{ width: "100%", height: 340 }}>
                         <ResponsiveContainer width="100%" height="100%">
@@ -2025,6 +2075,10 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                               <linearGradient id="gradPrevisto" x1="0" y1="0" x2="0" y2="1">
                                 <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.9} />
                                 <stop offset="100%" stopColor="#1d4ed8" stopOpacity={0.8} />
+                              </linearGradient>
+                              <linearGradient id="gradPlanejado" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.9} />
+                                <stop offset="100%" stopColor="#d97706" stopOpacity={0.8} />
                               </linearGradient>
                               <linearGradient id="gradRealizado" x1="0" y1="0" x2="0" y2="1">
                                 <stop offset="0%" stopColor="#22c55e" stopOpacity={0.9} />
@@ -2035,12 +2089,13 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                             <XAxis dataKey="name" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} angle={-15} textAnchor="end" />
                             <YAxis tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickFormatter={(v: any) => `R$${(v / 1000).toFixed(0)}k`} />
                             <Tooltip
-                              formatter={(value: any, name: any) => [fmt(value), name === "Previsto" ? "💰 Previsto" : "📊 Realizado"]}
+                              formatter={(value: any, name: any) => [fmt(value), name === "Previsto" ? "💰 Orçado" : name === "Planejado" ? "📋 Planejado" : "📊 Realizado"]}
                               contentStyle={{ borderRadius: 10, border: "1px solid hsl(var(--border))", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}
                               labelStyle={{ fontWeight: 700, marginBottom: 4 }}
                             />
-                            <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} formatter={(value: any) => value === "Previsto" ? "💰 Previsto (Orçado)" : "📊 Realizado (Medido)"} />
+                            <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} formatter={(value: any) => value === "Previsto" ? "💰 Orçado" : value === "Planejado" ? "📋 Planejado" : "📊 Realizado"} />
                             <Bar dataKey="Previsto" fill="url(#gradPrevisto)" radius={[6, 6, 0, 0]} />
+                            <Bar dataKey="Planejado" fill="url(#gradPlanejado)" radius={[6, 6, 0, 0]} />
                             <Bar dataKey="Realizado" fill="url(#gradRealizado)" radius={[6, 6, 0, 0]} />
                           </BarChart>
                         </ResponsiveContainer>
@@ -2052,21 +2107,22 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                       <div className="border border-border rounded-xl p-5 bg-background shadow-sm">
                         <div className="mb-4">
                           <h5 className="text-sm font-bold text-foreground">Evolução Acumulada por Período</h5>
-                          <p className="text-xs text-muted-foreground mt-0.5">Linha tracejada azul = meta orçada. Linha contínua verde = valor medido acumulado ao longo do tempo.</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">Tracejada azul = meta orçada. Laranja = planejado (previsão do planejamento físico). Verde = medido acumulado.</p>
                         </div>
-                        <div style={{ width: "100%", height: 300 }}>
+                        <div style={{ width: "100%", height: 320 }}>
                           <ResponsiveContainer width="100%" height="100%">
                             <LineChart data={timelineData} margin={{ top: 10, right: 30, bottom: 10, left: 30 }}>
                               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
                               <XAxis dataKey="name" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
                               <YAxis tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickFormatter={(v: any) => `R$${(v / 1000).toFixed(0)}k`} />
                               <Tooltip
-                                formatter={(value: any, name: any) => [fmt(value), name === "Previsto" ? "💰 Meta" : "📊 Acumulado"]}
+                                formatter={(value: any, name: any) => [fmt(value), name === "Orçado" ? "💰 Meta (Orçado)" : name === "Planejado" ? "📋 Planejado" : "📊 Acumulado (Medido)"]}
                                 contentStyle={{ borderRadius: 10, border: "1px solid hsl(var(--border))", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}
                                 labelStyle={{ fontWeight: 700, marginBottom: 4 }}
                               />
-                              <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} formatter={(value: any) => value === "Previsto" ? "💰 Meta (Orçado)" : "📊 Acumulado (Medido)"} />
-                              <Line type="monotone" dataKey="Previsto" stroke="#3b82f6" strokeWidth={2.5} strokeDasharray="8 4" dot={false} />
+                              <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} formatter={(value: any) => value === "Orçado" ? "💰 Meta (Orçado)" : value === "Planejado" ? "📋 Planejado" : "📊 Acumulado (Medido)"} />
+                              <Line type="monotone" dataKey="Orçado" stroke="#3b82f6" strokeWidth={2.5} strokeDasharray="8 4" dot={false} />
+                              <Line type="monotone" dataKey="Planejado" stroke="#f59e0b" strokeWidth={2.5} dot={{ r: 4, fill: "#f59e0b", stroke: "#fff", strokeWidth: 2 }} />
                               <Line type="monotone" dataKey="Realizado" stroke="#22c55e" strokeWidth={3} dot={{ r: 5, fill: "#22c55e", stroke: "#fff", strokeWidth: 2 }} activeDot={{ r: 7 }} />
                             </LineChart>
                           </ResponsiveContainer>
@@ -2084,7 +2140,8 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                         <thead>
                           <tr className="bg-muted/30">
                             <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Fase</th>
-                            <th className="text-right px-4 py-3 font-semibold" style={{ color: "#3b82f6" }}>💰 Previsto</th>
+                            <th className="text-right px-4 py-3 font-semibold" style={{ color: "#3b82f6" }}>💰 Orçado</th>
+                            <th className="text-right px-4 py-3 font-semibold" style={{ color: "#d97706" }}>📋 Planejado</th>
                             <th className="text-right px-4 py-3 font-semibold" style={{ color: "#16a34a" }}>📊 Realizado</th>
                             <th className="text-right px-4 py-3 font-semibold text-muted-foreground">📈 Desvio</th>
                             <th className="text-right px-4 py-3 font-semibold text-muted-foreground">🎯 Execução</th>
@@ -2099,6 +2156,7 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                               <tr key={idx} className={idx % 2 === 0 ? "bg-background" : "bg-muted/10"}>
                                 <td className="px-4 py-2.5 text-foreground font-medium">{d.name}</td>
                                 <td className="px-4 py-2.5 text-right tabular-nums" style={{ color: "#1d4ed8" }}>{fmt(d.Previsto)}</td>
+                                <td className="px-4 py-2.5 text-right tabular-nums" style={{ color: "#d97706" }}>{fmt(d.Planejado)}</td>
                                 <td className="px-4 py-2.5 text-right tabular-nums font-semibold" style={{ color: "#16a34a" }}>{fmt(d.Realizado)}</td>
                                 <td className="px-4 py-2.5 text-right tabular-nums font-medium" style={{ color: dev > 0 ? "#dc2626" : dev < 0 ? "#059669" : undefined }}>
                                   {dev > 0 ? "+" : ""}{fmt(dev)}
@@ -2112,18 +2170,24 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                               </tr>
                             );
                           })}
-                          <tr className="bg-muted/40 font-bold">
-                            <td className="px-4 py-3 text-foreground">TOTAL</td>
-                            <td className="px-4 py-3 text-right tabular-nums" style={{ color: "#1d4ed8" }}>{fmt(totalPrevisto)}</td>
-                            <td className="px-4 py-3 text-right tabular-nums" style={{ color: "#16a34a" }}>{fmt(totalRealizado)}</td>
-                            <td className="px-4 py-3 text-right tabular-nums" style={{ color: desvio > 0 ? "#dc2626" : "#059669" }}>{desvio > 0 ? "+" : ""}{fmt(desvio)}</td>
-                            <td className="px-4 py-3 text-right tabular-nums" style={{ color: "#7c3aed" }}>{devPct.toFixed(1)}%</td>
-                            <td className="px-4 py-3">
-                              <div className="w-full h-2.5 bg-muted rounded-full overflow-hidden">
-                                <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(devPct, 100)}%`, background: devPct > 100 ? "#dc2626" : "#22c55e" }} />
-                              </div>
-                            </td>
-                          </tr>
+                          {(() => {
+                            const totalPlanejado = phaseChartData.reduce((s, d) => s + d.Planejado, 0);
+                            return (
+                              <tr className="bg-muted/40 font-bold">
+                                <td className="px-4 py-3 text-foreground">TOTAL</td>
+                                <td className="px-4 py-3 text-right tabular-nums" style={{ color: "#1d4ed8" }}>{fmt(totalPrevisto)}</td>
+                                <td className="px-4 py-3 text-right tabular-nums" style={{ color: "#d97706" }}>{fmt(totalPlanejado)}</td>
+                                <td className="px-4 py-3 text-right tabular-nums" style={{ color: "#16a34a" }}>{fmt(totalRealizado)}</td>
+                                <td className="px-4 py-3 text-right tabular-nums" style={{ color: desvio > 0 ? "#dc2626" : "#059669" }}>{desvio > 0 ? "+" : ""}{fmt(desvio)}</td>
+                                <td className="px-4 py-3 text-right tabular-nums" style={{ color: "#7c3aed" }}>{devPct.toFixed(1)}%</td>
+                                <td className="px-4 py-3">
+                                  <div className="w-full h-2.5 bg-muted rounded-full overflow-hidden">
+                                    <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(devPct, 100)}%`, background: devPct > 100 ? "#dc2626" : "#22c55e" }} />
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })()}
                         </tbody>
                       </table>
                     </div>
