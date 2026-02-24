@@ -825,6 +825,166 @@ export type Database = {
         }
         Relationships: []
       }
+      purchase_orders: {
+        Row: {
+          created_at: string
+          delivery_date: string | null
+          description: string | null
+          id: string
+          notes: string | null
+          obra_id: string | null
+          order_code: string | null
+          order_date: string | null
+          payment_terms: string | null
+          status: string | null
+          supplier_id: string
+          total_value: number | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          delivery_date?: string | null
+          description?: string | null
+          id?: string
+          notes?: string | null
+          obra_id?: string | null
+          order_code?: string | null
+          order_date?: string | null
+          payment_terms?: string | null
+          status?: string | null
+          supplier_id: string
+          total_value?: number | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          delivery_date?: string | null
+          description?: string | null
+          id?: string
+          notes?: string | null
+          obra_id?: string | null
+          order_code?: string | null
+          order_date?: string | null
+          payment_terms?: string | null
+          status?: string | null
+          supplier_id?: string
+          total_value?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_orders_obra_id_fkey"
+            columns: ["obra_id"]
+            isOneToOne: false
+            referencedRelation: "obras"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_orders_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      purchase_quotations: {
+        Row: {
+          created_at: string
+          deadline: string | null
+          description: string | null
+          id: string
+          notes: string | null
+          status: string | null
+          supplier_id: string | null
+          title: string
+          total_value: number | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          deadline?: string | null
+          description?: string | null
+          id?: string
+          notes?: string | null
+          status?: string | null
+          supplier_id?: string | null
+          title: string
+          total_value?: number | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          deadline?: string | null
+          description?: string | null
+          id?: string
+          notes?: string | null
+          status?: string | null
+          supplier_id?: string | null
+          title?: string
+          total_value?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_quotations_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      purchase_requests: {
+        Row: {
+          created_at: string
+          description: string
+          id: string
+          needed_by: string | null
+          notes: string | null
+          obra_id: string | null
+          priority: string | null
+          quantity: number | null
+          status: string | null
+          unit: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          id?: string
+          needed_by?: string | null
+          notes?: string | null
+          obra_id?: string | null
+          priority?: string | null
+          quantity?: number | null
+          status?: string | null
+          unit?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          id?: string
+          needed_by?: string | null
+          notes?: string | null
+          obra_id?: string | null
+          priority?: string | null
+          quantity?: number | null
+          status?: string | null
+          unit?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_requests_obra_id_fkey"
+            columns: ["obra_id"]
+            isOneToOne: false
+            referencedRelation: "obras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       quotation_responses: {
         Row: {
           created_at: string
