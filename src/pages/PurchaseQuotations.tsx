@@ -438,12 +438,13 @@ export default function PurchaseQuotations() {
       lines.push("", "_PDF em anexo (baixado automaticamente)_");
 
       const text = encodeURIComponent(lines.join("\n"));
-      const whatsappUrl = `https://wa.me/?text=${text}`;
+      const whatsappUrl = `https://web.whatsapp.com/send?text=${text}`;
 
-      // Use location.href as fallback if window.open is blocked
-      const win = window.open(whatsappUrl, "_blank");
-      if (!win) {
-        window.location.href = whatsappUrl;
+      // Use window.top to escape iframe restrictions
+      try {
+        (window.top || window).open(whatsappUrl, "_blank");
+      } catch {
+        window.open(whatsappUrl, "_blank");
       }
 
       toast.success("PDF baixado! Anexe-o na conversa do WhatsApp.");
