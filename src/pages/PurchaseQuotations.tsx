@@ -609,28 +609,29 @@ export default function PurchaseQuotations() {
                     </tbody>
                   </table>
                 </div>
-                {totalPages > 1 && (
-                  <div className="flex items-center justify-between text-sm text-muted-foreground mt-3">
-                    <span>{filtered.length} registro{filtered.length !== 1 ? "s" : ""}</span>
-                    <div className="flex items-center gap-2">
-                      <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={currentPage === 0} className="p-1.5 rounded-md hover:bg-accent disabled:opacity-30"><ChevronLeft className="h-4 w-4" /></button>
-                      {Array.from({ length: totalPages }, (_, i) => (
-                        <button key={i} onClick={() => setPage(i)} className={`h-8 w-8 rounded-md text-sm font-medium ${i === currentPage ? "bg-primary text-primary-foreground" : "hover:bg-accent text-foreground"}`}>{i + 1}</button>
-                      )).slice(Math.max(0, currentPage - 2), Math.min(totalPages, currentPage + 3))}
-                      <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={currentPage === totalPages - 1} className="p-1.5 rounded-md hover:bg-accent disabled:opacity-30"><ChevronRight className="h-4 w-4" /></button>
-                    </div>
-                  </div>
-                )}
               </>
             )}
           </div>
         )}
         {/* Footer bar */}
-        <div className="border-t border-border bg-card px-6 py-3 flex items-center justify-between flex-shrink-0">
-          <button onClick={openNew} className="flex items-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90">
+        <div className="border-t border-border bg-card px-4 py-2.5 flex items-center justify-between flex-shrink-0">
+          <button onClick={openNew} className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90">
             <Plus className="h-4 w-4" /> Nova Cotação
           </button>
-          <button onClick={() => setShowExportDialog(true)} disabled={filtered.length === 0} className="flex items-center gap-2 px-5 py-2.5 bg-amber-700 text-white rounded-lg text-sm font-medium hover:bg-amber-800 disabled:opacity-40">
+          {searched && filtered.length > 0 && (
+            <div className="flex items-center gap-3 text-sm text-muted-foreground">
+              <span>{filtered.length} registro{filtered.length !== 1 ? "s" : ""}</span>
+              <div className="flex items-center gap-1">
+                <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={currentPage === 0} className="p-1.5 rounded-md hover:bg-accent disabled:opacity-30"><ChevronLeft className="h-4 w-4" /></button>
+                {Array.from({ length: totalPages }, (_, i) => (
+                  <button key={i} onClick={() => setPage(i)} className={`h-7 w-7 rounded-md text-xs font-medium ${i === currentPage ? "bg-primary text-primary-foreground" : "hover:bg-accent text-foreground"}`}>{i + 1}</button>
+                )).slice(Math.max(0, currentPage - 2), Math.min(totalPages, currentPage + 3))}
+                <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={currentPage === totalPages - 1} className="p-1.5 rounded-md hover:bg-accent disabled:opacity-30"><ChevronRight className="h-4 w-4" /></button>
+              </div>
+              <span className="text-xs">Pág. {currentPage + 1}/{totalPages || 1}</span>
+            </div>
+          )}
+          <button onClick={() => setShowExportDialog(true)} disabled={filtered.length === 0} className="flex items-center gap-2 px-4 py-2 bg-amber-700 text-white rounded-lg text-sm font-medium hover:bg-amber-800 disabled:opacity-40">
             <Download className="h-4 w-4" /> Exportar
           </button>
         </div>
