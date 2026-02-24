@@ -138,7 +138,7 @@ export default function PurchaseQuotations() {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("purchase_quotations")
-        .select("*, obras:obra_id(name)")
+        .select("*, obras:obra_id(name), quotation_suppliers(supplier_id)")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data as any[];
@@ -166,7 +166,7 @@ export default function PurchaseQuotations() {
         if (filterTitle && !item.title?.toLowerCase().includes(filterTitle.toLowerCase())) return false;
         if (filterStatuses.length > 0 && !filterStatuses.includes(item.status)) return false;
         if (filterObra && item.obra_id !== filterObra) return false;
-        if (filterSupplier && item.supplier_id !== filterSupplier) return false;
+        if (filterSupplier && !(item.quotation_suppliers || []).some((qs: any) => qs.supplier_id === filterSupplier)) return false;
         if (filterDateFrom && item.created_at < filterDateFrom) return false;
         if (filterDateTo && item.created_at > filterDateTo + "T23:59:59") return false;
         return true;
