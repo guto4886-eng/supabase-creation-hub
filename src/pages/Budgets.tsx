@@ -49,6 +49,18 @@ export default function Budgets() {
   const [filterStatus, setFilterStatus] = useState("");
   const [filterObra, setFilterObra] = useState("");
   const [filterCompany, setFilterCompany] = useState("");
+  const [filterNumber, setFilterNumber] = useState("");
+  const [filterClient, setFilterClient] = useState("");
+  const [filterDateType, setFilterDateType] = useState<"criacao" | "modificacao">("criacao");
+  const [filterDateFrom, setFilterDateFrom] = useState("");
+  const [filterDateTo, setFilterDateTo] = useState("");
+  const [filterValueType, setFilterValueType] = useState<"custo" | "venda">("custo");
+  const [filterValueFrom, setFilterValueFrom] = useState("");
+  const [filterValueTo, setFilterValueTo] = useState("");
+  const [filterPhase, setFilterPhase] = useState("");
+  const [filterService, setFilterService] = useState("");
+  const [filterObraSituation, setFilterObraSituation] = useState<string[]>([]);
+  const [filterCondition, setFilterCondition] = useState<"ativo" | "inativo" | "ambos">("ambos");
   const [searched, setSearched] = useState(false);
 
   // New budget wizard
@@ -260,7 +272,7 @@ export default function Budgets() {
   };
 
   const handleSearch = () => { setSearched(true); };
-  const handleClearFilters = () => { setFilterName(""); setFilterStatus(""); setFilterObra(""); setFilterCompany(""); setSearched(false); };
+  const handleClearFilters = () => { setFilterName(""); setFilterStatus(""); setFilterObra(""); setFilterCompany(""); setFilterNumber(""); setFilterClient(""); setFilterDateType("criacao"); setFilterDateFrom(""); setFilterDateTo(""); setFilterValueType("custo"); setFilterValueFrom(""); setFilterValueTo(""); setFilterPhase(""); setFilterService(""); setFilterObraSituation([]); setFilterCondition("ambos"); setSearched(false); };
 
   const inputClass = "w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring";
 
@@ -279,29 +291,115 @@ export default function Budgets() {
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              <CompanyFilterSelect value={filterCompany} onChange={setFilterCompany} companies={companiesList} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
+              <CompanyFilterSelect value={filterCompany} onChange={setFilterCompany} companies={companiesList} className="w-full px-3 py-2 rounded border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
+
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Nome</label>
-                <input type="text" value={filterName} onChange={(e) => setFilterName(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
+                <label className="block text-sm font-medium text-foreground mb-1">Número</label>
+                <input type="text" value={filterNumber} onChange={(e) => setFilterNumber(e.target.value)} className={inputClass + " text-sm"} />
               </div>
+
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Status</label>
-                <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm">
-                  <option value="">Todos</option>
-                  {statusOptions.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                <label className="block text-sm font-medium text-foreground mb-1">Cliente</label>
+                <select value={filterClient} onChange={(e) => setFilterClient(e.target.value)} className={inputClass + " text-sm"}>
+                  <option value="">Selecione...</option>
+                  {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </div>
+
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Obra</label>
-                <select value={filterObra} onChange={(e) => setFilterObra(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm">
-                  <option value="">Todas</option>
+                <select value={filterObra} onChange={(e) => setFilterObra(e.target.value)} className={inputClass + " text-sm"}>
+                  <option value="">Selecione...</option>
                   {obras.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Data</label>
+                <div className="flex items-center gap-3 mb-2">
+                  <label className="flex items-center gap-1.5 text-xs text-foreground cursor-pointer">
+                    <input type="checkbox" checked={filterDateType === "criacao"} onChange={() => setFilterDateType("criacao")} className="accent-primary" /> Criação
+                  </label>
+                  <label className="flex items-center gap-1.5 text-xs text-foreground cursor-pointer">
+                    <input type="checkbox" checked={filterDateType === "modificacao"} onChange={() => setFilterDateType("modificacao")} className="accent-primary" /> Modificação
+                  </label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} className={inputClass + " text-xs flex-1"} />
+                  <span className="text-xs text-muted-foreground">até</span>
+                  <input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} className={inputClass + " text-xs flex-1"} />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Valor</label>
+                <div className="flex items-center gap-3 mb-2">
+                  <label className="flex items-center gap-1.5 text-xs text-foreground cursor-pointer">
+                    <input type="checkbox" checked={filterValueType === "custo"} onChange={() => setFilterValueType("custo")} className="accent-primary" /> Custo
+                  </label>
+                  <label className="flex items-center gap-1.5 text-xs text-foreground cursor-pointer">
+                    <input type="checkbox" checked={filterValueType === "venda"} onChange={() => setFilterValueType("venda")} className="accent-primary" /> Venda
+                  </label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input type="number" step="0.01" value={filterValueFrom} onChange={(e) => setFilterValueFrom(e.target.value)} className={inputClass + " text-xs flex-1"} placeholder="" />
+                  <span className="text-xs text-muted-foreground">até</span>
+                  <input type="number" step="0.01" value={filterValueTo} onChange={(e) => setFilterValueTo(e.target.value)} className={inputClass + " text-xs flex-1"} placeholder="" />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Fase</label>
+                <input type="text" value={filterPhase} onChange={(e) => setFilterPhase(e.target.value)} className={inputClass + " text-sm"} />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Serviço</label>
+                <input type="text" value={filterService} onChange={(e) => setFilterService(e.target.value)} className={inputClass + " text-sm"} />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Situação da obra</label>
+                <div className="space-y-1">
+                  {["Não iniciada", "Em andamento", "Paralisada", "Cancelada", "Finalizada"].map((sit) => (
+                    <label key={sit} className="flex items-center gap-1.5 text-xs text-foreground cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={filterObraSituation.includes(sit.toLowerCase().replace(/ /g, "_").normalize("NFD").replace(/[\u0300-\u036f]/g, ""))}
+                        onChange={(e) => {
+                          const val = sit.toLowerCase().replace(/ /g, "_").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                          setFilterObraSituation(prev => e.target.checked ? [...prev, val] : prev.filter(s => s !== val));
+                        }}
+                        className="accent-primary"
+                      />
+                      {sit}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Condição</label>
+                <div className="flex items-center gap-3">
+                  {([["ativo", "Ativo"], ["inativo", "Inativo"], ["ambos", "Ambos"]] as const).map(([val, lbl]) => (
+                    <label key={val} className="flex items-center gap-1.5 text-xs text-foreground cursor-pointer">
+                      <input type="radio" name="filterCondition" checked={filterCondition === val} onChange={() => setFilterCondition(val)} className="accent-primary" /> {lbl}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Tipo</label>
+                <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className={inputClass + " text-sm"}>
+                  <option value="">Todos</option>
+                  {statusOptions.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
                 </select>
               </div>
             </div>
 
             <div className="p-4 border-t border-border flex gap-2">
-              <button onClick={handleClearFilters} className="flex-1 flex items-center justify-center px-3 py-2.5 rounded-lg bg-white border border-border text-muted-foreground hover:bg-muted transition-colors" title="Limpar filtros">
+              <button onClick={handleClearFilters} className="flex-1 flex items-center justify-center px-3 py-2.5 rounded-lg bg-background border border-border text-muted-foreground hover:bg-muted transition-colors" title="Limpar filtros">
                 <Eraser className="h-5 w-5" />
               </button>
               <button onClick={handleSearch} className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 bg-amber-700 text-white rounded-lg text-sm font-medium hover:bg-amber-800 transition-colors">
