@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -61,6 +61,38 @@ export default function Budgets() {
 
   // Detail modal
   const [detailBudgetId, setDetailBudgetId] = useState<string | null>(null);
+
+  // Resizable columns
+  const defaultColWidths = [130, 60, 80, 80, 140, 160, 110, 120, 80, 110, 110, 70];
+  const [colWidths, setColWidths] = useState<number[]>(defaultColWidths);
+  const resizingCol = useRef<number | null>(null);
+  const startX = useRef(0);
+  const startW = useRef(0);
+
+  const onResizeStart = useCallback((e: React.MouseEvent, colIndex: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    resizingCol.current = colIndex;
+    startX.current = e.clientX;
+    startW.current = colWidths[colIndex];
+
+    const onMove = (ev: MouseEvent) => {
+      if (resizingCol.current === null) return;
+      const diff = ev.clientX - startX.current;
+      setColWidths(prev => {
+        const next = [...prev];
+        next[resizingCol.current!] = Math.max(40, startW.current + diff);
+        return next;
+      });
+    };
+    const onUp = () => {
+      resizingCol.current = null;
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }, [colWidths]);
 
   // Item form
   const [editingItem, setEditingItem] = useState<BudgetItem | null>(null);
@@ -333,21 +365,23 @@ export default function Budgets() {
               return (
                 <>
                   <div className="flex-1 overflow-auto mt-12">
-                    <table className="w-full text-xs border-collapse">
+                    <table className="text-xs border-collapse" style={{ tableLayout: "fixed", width: colWidths.reduce((a, b) => a + b, 0) }}>
+                      <colgroup>
+                        {colWidths.map((w, i) => <col key={i} style={{ width: w }} />)}
+                      </colgroup>
                       <thead className="sticky top-0 z-10">
                         <tr className="bg-amber-700 text-white">
-                          <th className="text-left px-3 py-2 font-semibold whitespace-nowrap">Empresa</th>
-                          <th className="text-left px-3 py-2 font-semibold whitespace-nowrap">Núm.</th>
-                          <th className="text-left px-3 py-2 font-semibold whitespace-nowrap">Tipo</th>
-                          <th className="text-left px-3 py-2 font-semibold whitespace-nowrap">Reg. vinc.</th>
-                          <th className="text-left px-3 py-2 font-semibold whitespace-nowrap">Cliente</th>
-                          <th className="text-left px-3 py-2 font-semibold whitespace-nowrap">Obra</th>
-                          <th className="text-right px-3 py-2 font-semibold whitespace-nowrap">Custo (R$)</th>
-                          <th className="text-right px-3 py-2 font-semibold whitespace-nowrap">Venda+taxas (R$)</th>
-                          <th className="text-left px-3 py-2 font-semibold whitespace-nowrap">Medição</th>
-                          <th className="text-right px-3 py-2 font-semibold whitespace-nowrap">Medido (R$)</th>
-                          <th className="text-right px-3 py-2 font-semibold whitespace-nowrap">A medir (R$)</th>
-                          <th className="text-center px-3 py-2 font-semibold whitespace-nowrap">Ações</th>
+                          {["Empresa","Núm.","Tipo","Reg. vinc.","Cliente","Obra","Custo (R$)","Venda+taxas (R$)","Medição","Medido (R$)","A medir (R$)","Ações"].map((label, i) => (
+                            <th key={i} className={`${i >= 6 && i <= 10 ? "text-right" : i === 11 ? "text-center" : "text-left"} px-3 py-2 font-semibold whitespace-nowrap relative select-none`}>
+                              {label}
+                              {i < 11 && (
+                                <span
+                                  className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-white/30"
+                                  onMouseDown={(e) => onResizeStart(e, i)}
+                                />
+                              )}
+                            </th>
+                          ))}
                         </tr>
                       </thead>
                       <tbody>
@@ -359,17 +393,17 @@ export default function Budgets() {
                               className={`border-b border-border cursor-pointer hover:bg-muted/40 transition-colors ${idx % 2 === 0 ? "bg-background" : "bg-muted/10"}`}
                               onClick={() => openEditBudget(budget)}
                             >
-                              <td className="px-3 py-2 text-foreground truncate max-w-[130px]" title={getCompanyName(budget.company_id)}>{getCompanyName(budget.company_id)}</td>
-                              <td className="px-3 py-2 text-foreground">{budget.budget_code || "—"}</td>
-                              <td className="px-3 py-2 text-foreground">Orçamento</td>
+                              <td className="px-3 py-2 text-foreground truncate overflow-hidden" title={getCompanyName(budget.company_id)}>{getCompanyName(budget.company_id)}</td>
+                              <td className="px-3 py-2 text-foreground truncate overflow-hidden">{budget.budget_code || "—"}</td>
+                              <td className="px-3 py-2 text-foreground truncate overflow-hidden">Orçamento</td>
                               <td className="px-3 py-2 text-muted-foreground"></td>
-                              <td className="px-3 py-2 text-foreground truncate max-w-[140px]" title={getClientName(budget.obra_id)}>{getClientName(budget.obra_id)}</td>
-                              <td className="px-3 py-2 text-foreground truncate max-w-[160px]" title={getObraName(budget.obra_id)}>{getObraName(budget.obra_id)}</td>
-                              <td className="px-3 py-2 text-right text-foreground tabular-nums">{fmt(meas.custoTotal || budget.total_value)}</td>
-                              <td className="px-3 py-2 text-right text-foreground tabular-nums">{fmt(meas.custoTotal || budget.total_value)}</td>
-                              <td className="px-3 py-2 text-foreground">{meas.medidoTotal > 0 ? "Venda ..." : "Custo"}</td>
-                              <td className="px-3 py-2 text-right text-foreground tabular-nums">{fmt(meas.medidoTotal)}</td>
-                              <td className="px-3 py-2 text-right text-foreground tabular-nums">{fmt(meas.aMedir)}</td>
+                              <td className="px-3 py-2 text-foreground truncate overflow-hidden" title={getClientName(budget.obra_id)}>{getClientName(budget.obra_id)}</td>
+                              <td className="px-3 py-2 text-foreground truncate overflow-hidden" title={getObraName(budget.obra_id)}>{getObraName(budget.obra_id)}</td>
+                              <td className="px-3 py-2 text-right text-foreground tabular-nums truncate overflow-hidden">{fmt(meas.custoTotal || budget.total_value)}</td>
+                              <td className="px-3 py-2 text-right text-foreground tabular-nums truncate overflow-hidden">{fmt(meas.custoTotal || budget.total_value)}</td>
+                              <td className="px-3 py-2 text-foreground truncate overflow-hidden">{meas.medidoTotal > 0 ? "Venda ..." : "Custo"}</td>
+                              <td className="px-3 py-2 text-right text-foreground tabular-nums truncate overflow-hidden">{fmt(meas.medidoTotal)}</td>
+                              <td className="px-3 py-2 text-right text-foreground tabular-nums truncate overflow-hidden">{fmt(meas.aMedir)}</td>
                               <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
                                 <div className="flex items-center justify-center gap-1">
                                   <button onClick={() => openEditBudget(budget)} className="p-1 rounded hover:bg-primary/10 text-primary" title="Editar"><Pencil className="h-3.5 w-3.5" /></button>
