@@ -636,18 +636,63 @@ export default function Obras() {
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                       <div>
                         <label className="block text-xs font-medium text-foreground mb-1">Data início</label>
-                        <input type="date" value={form.start_date || ""} onChange={e => setForm(p => ({ ...p, start_date: e.target.value }))} className={inputClass} />
+                        <input type="date" value={form.start_date || ""} onChange={e => {
+                          const start = e.target.value;
+                          setForm(p => {
+                            const next: Record<string, any> = { ...p, start_date: start };
+                            if (start && p.duration) {
+                              const d = new Date(start + "T00:00:00");
+                              const unit = p.duration_unit || "meses";
+                              if (unit === "meses") d.setMonth(d.getMonth() + Number(p.duration));
+                              else if (unit === "dias") d.setDate(d.getDate() + Number(p.duration));
+                              else if (unit === "semanas") d.setDate(d.getDate() + Number(p.duration) * 7);
+                              else if (unit === "anos") d.setFullYear(d.getFullYear() + Number(p.duration));
+                              next.expected_end_date = d.toISOString().slice(0, 10);
+                            }
+                            return next;
+                          });
+                        }} className={inputClass} />
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-foreground mb-1">Duração</label>
-                        <input type="number" value={form.duration || ""} onChange={e => setForm(p => ({ ...p, duration: e.target.value }))} className={inputClass} />
+                        <input type="number" value={form.duration || ""} onChange={e => {
+                          const dur = e.target.value;
+                          setForm(p => {
+                            const next: Record<string, any> = { ...p, duration: dur };
+                            if (p.start_date && dur) {
+                              const d = new Date(p.start_date + "T00:00:00");
+                              const unit = p.duration_unit || "meses";
+                              if (unit === "meses") d.setMonth(d.getMonth() + Number(dur));
+                              else if (unit === "dias") d.setDate(d.getDate() + Number(dur));
+                              else if (unit === "semanas") d.setDate(d.getDate() + Number(dur) * 7);
+                              else if (unit === "anos") d.setFullYear(d.getFullYear() + Number(dur));
+                              next.expected_end_date = d.toISOString().slice(0, 10);
+                            }
+                            return next;
+                          });
+                        }} className={inputClass} />
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-foreground mb-1">Unidade</label>
-                        <select value={form.duration_unit || "meses"} onChange={e => setForm(p => ({ ...p, duration_unit: e.target.value }))} className={inputClass}>
+                        <select value={form.duration_unit || "meses"} onChange={e => {
+                          const unit = e.target.value;
+                          setForm(p => {
+                            const next: Record<string, any> = { ...p, duration_unit: unit };
+                            if (p.start_date && p.duration) {
+                              const d = new Date(p.start_date + "T00:00:00");
+                              if (unit === "meses") d.setMonth(d.getMonth() + Number(p.duration));
+                              else if (unit === "dias") d.setDate(d.getDate() + Number(p.duration));
+                              else if (unit === "semanas") d.setDate(d.getDate() + Number(p.duration) * 7);
+                              else if (unit === "anos") d.setFullYear(d.getFullYear() + Number(p.duration));
+                              next.expected_end_date = d.toISOString().slice(0, 10);
+                            }
+                            return next;
+                          });
+                        }} className={inputClass}>
                           <option value="meses">Mês(es)</option>
                           <option value="dias">Dia(s)</option>
                           <option value="semanas">Semana(s)</option>
+                          <option value="anos">Ano(s)</option>
                         </select>
                       </div>
                       <div>
