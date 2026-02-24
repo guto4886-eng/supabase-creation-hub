@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import {
   Search, Plus, ChevronLeft, ChevronRight, Pencil, Trash2, X, Eraser, Building2,
-  ChevronDown, Settings, Mail, CalendarDays, ShieldCheck, FileText
+  ChevronDown, Settings, Mail, CalendarDays, ShieldCheck, FileText, Upload, Eye, Save
 } from "lucide-react";
 import { maskCpfCnpj, validateCpfCnpj } from "@/utils/cpfCnpj";
 import { fetchCep } from "@/utils/cep";
@@ -374,7 +374,9 @@ export default function Companies() {
 
         {activeSection === "feriados" && <HolidaysContent user={user} />}
 
-        {activeSection && activeSection !== "matriz_filiais" && activeSection !== "feriados" && (
+        {activeSection === "relatorios" && <LetterheadContent user={user} />}
+
+        {activeSection && !["matriz_filiais", "feriados", "relatorios"].includes(activeSection) && (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
               <div className="h-20 w-20 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
@@ -907,6 +909,324 @@ function HolidaysContent({ user }: { user: any }) {
               })}
             </tbody>
           </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ───── Letterhead / Papel Timbrado ───── */
+const IMAGE_MODES = ["Tamanho original", "Esticar", "Ajustar"];
+const ALIGN_H = ["Esquerda", "Centro", "Direita"];
+const ALIGN_V = ["Topo", "Meio", "Base"];
+const OPACITY_OPTIONS = ["0%", "10%", "20%", "30%", "40%", "50%", "60%", "70%", "80%", "90%", "100%"];
+const TEXT_DIRECTIONS = ["Horizontal", "Vertical"];
+const TEXT_SIZES = [6, 7, 8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36];
+
+function LetterheadContent({ user }: { user: any }) {
+  const qc = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Load companies for selection
+  const { data: companies = [] } = useQuery({
+    queryKey: ["companies"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("companies").select("id, name, company_type").eq("active", true).order("name");
+      if (error) throw error;
+      return data as any[];
+    },
+  });
+
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string>("");
+  const [form, setForm] = useState<Record<string, any>>({
+    image_mode: "Tamanho original",
+    image_fill: false,
+    image_align_h: "Centro",
+    image_align_v: "Meio",
+    image_opacity: "0%",
+    image_url: "",
+    text_message: "",
+    text_direction: "Horizontal",
+    text_size: 8,
+    text_bold: false,
+    text_italic: false,
+    text_opacity: "0%",
+    text_color: "#000000",
+  });
+  const [configId, setConfigId] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+
+  // Load config for selected company
+  const { isLoading } = useQuery({
+    queryKey: ["letterhead", selectedCompanyId],
+    queryFn: async () => {
+      if (!selectedCompanyId) return null;
+      const { data, error } = await supabase.from("letterhead_configs").select("*").eq("company_id", selectedCompanyId).maybeSingle();
+      if (error) throw error;
+      if (data) {
+        setConfigId(data.id);
+        setForm({
+          image_mode: data.image_mode || "Tamanho original",
+          image_fill: data.image_fill || false,
+          image_align_h: data.image_align_h || "Centro",
+          image_align_v: data.image_align_v || "Meio",
+          image_opacity: `${data.image_opacity || 0}%`,
+          image_url: data.image_url || "",
+          text_message: data.text_message || "",
+          text_direction: data.text_direction || "Horizontal",
+          text_size: data.text_size || 8,
+          text_bold: data.text_bold || false,
+          text_italic: data.text_italic || false,
+          text_opacity: `${data.text_opacity || 0}%`,
+          text_color: data.text_color || "#000000",
+        });
+      } else {
+        setConfigId(null);
+        setForm({
+          image_mode: "Tamanho original", image_fill: false, image_align_h: "Centro", image_align_v: "Meio",
+          image_opacity: "0%", image_url: "", text_message: "", text_direction: "Horizontal", text_size: 8,
+          text_bold: false, text_italic: false, text_opacity: "0%", text_color: "#000000",
+        });
+      }
+      return data;
+    },
+    enabled: !!selectedCompanyId,
+  });
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedCompanyId) return;
+    setUploading(true);
+    const path = `${user.id}/letterhead/${selectedCompanyId}/${Date.now()}_${file.name}`;
+    const { error } = await supabase.storage.from("attachments").upload(path, file);
+    if (error) { toast.error("Erro ao enviar imagem"); setUploading(false); return; }
+    const { data: urlData } = supabase.storage.from("attachments").getPublicUrl(path);
+    setForm((p: any) => ({ ...p, image_url: urlData.publicUrl }));
+    setUploading(false);
+    toast.success("Imagem enviada!");
+  };
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      const payload = {
+        user_id: user!.id,
+        company_id: selectedCompanyId,
+        image_mode: form.image_mode,
+        image_fill: form.image_fill,
+        image_align_h: form.image_align_h,
+        image_align_v: form.image_align_v,
+        image_opacity: parseInt(form.image_opacity) || 0,
+        image_url: form.image_url,
+        text_message: form.text_message,
+        text_direction: form.text_direction,
+        text_size: form.text_size,
+        text_bold: form.text_bold,
+        text_italic: form.text_italic,
+        text_opacity: parseInt(form.text_opacity) || 0,
+        text_color: form.text_color,
+      };
+      if (configId) {
+        const { error } = await supabase.from("letterhead_configs").update(payload as any).eq("id", configId);
+        if (error) throw error;
+      } else {
+        const { data, error } = await supabase.from("letterhead_configs").insert(payload as any).select().single();
+        if (error) throw error;
+        setConfigId(data.id);
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["letterhead", selectedCompanyId] });
+      toast.success("Configuração salva!");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const inputClass = "w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm";
+  const labelClass = "text-sm font-medium text-foreground whitespace-nowrap min-w-[130px] text-right";
+
+  return (
+    <div className="flex-1 flex flex-col overflow-hidden p-4">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-semibold text-foreground">Relatórios - Papel Timbrado</h3>
+      </div>
+
+      {/* Company selector */}
+      <div className="flex items-center gap-3 mb-6">
+        <label className={labelClass}>Empresa</label>
+        <select value={selectedCompanyId} onChange={(e) => setSelectedCompanyId(e.target.value)} className={inputClass + " max-w-md"}>
+          <option value="">Selecione uma empresa...</option>
+          {companies.map((c: any) => (
+            <option key={c.id} value={c.id}>{c.name} ({c.company_type === "matriz" ? "Matriz" : "Filial"})</option>
+          ))}
+        </select>
+      </div>
+
+      {!selectedCompanyId ? (
+        <div className="text-center py-12 text-muted-foreground">Selecione uma empresa para configurar o papel timbrado.</div>
+      ) : isLoading ? (
+        <div className="flex justify-center py-12"><div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" /></div>
+      ) : (
+        <div className="flex-1 overflow-y-auto space-y-6">
+          {/* Image section */}
+          <fieldset className="border border-border rounded-lg p-4">
+            <legend className="text-sm font-semibold text-foreground px-2">Imagem</legend>
+            <div className="space-y-4">
+              <div className="flex items-center gap-6">
+                <div className="flex items-center gap-3 flex-1">
+                  <label className={labelClass}>Modo</label>
+                  <select value={form.image_mode} onChange={(e) => setForm((p: any) => ({ ...p, image_mode: e.target.value }))} className={inputClass}>
+                    {IMAGE_MODES.map((m) => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                </div>
+                <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
+                  <input type="checkbox" checked={form.image_fill} onChange={(e) => setForm((p: any) => ({ ...p, image_fill: e.target.checked }))} className="accent-primary h-4 w-4" />
+                  Preencher
+                </label>
+                {/* Image preview/upload */}
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  className="h-20 w-20 rounded-lg border-2 border-dashed border-border bg-muted flex items-center justify-center cursor-pointer hover:border-primary transition-colors overflow-hidden flex-shrink-0"
+                >
+                  {uploading ? (
+                    <div className="animate-spin h-6 w-6 border-2 border-primary border-t-transparent rounded-full" />
+                  ) : form.image_url ? (
+                    <img src={form.image_url} alt="Logo" className="h-full w-full object-contain" />
+                  ) : (
+                    <Upload className="h-6 w-6 text-muted-foreground" />
+                  )}
+                </div>
+                <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+              </div>
+
+              <div className="flex items-center gap-6">
+                <div className="flex items-center gap-3 flex-1">
+                  <label className={labelClass}>Alinhamento Horiz.</label>
+                  <select value={form.image_align_h} onChange={(e) => setForm((p: any) => ({ ...p, image_align_h: e.target.value }))} className={inputClass}>
+                    {ALIGN_H.map((a) => <option key={a} value={a}>{a}</option>)}
+                  </select>
+                </div>
+                <div className="flex items-center gap-3 flex-1">
+                  <label className={labelClass}>Alinhamento Vert.</label>
+                  <select value={form.image_align_v} onChange={(e) => setForm((p: any) => ({ ...p, image_align_v: e.target.value }))} className={inputClass}>
+                    {ALIGN_V.map((a) => <option key={a} value={a}>{a}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3" style={{ maxWidth: 300 }}>
+                <label className={labelClass}>Transparência img.</label>
+                <select value={form.image_opacity} onChange={(e) => setForm((p: any) => ({ ...p, image_opacity: e.target.value }))} className={inputClass}>
+                  {OPACITY_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+                </select>
+              </div>
+            </div>
+          </fieldset>
+
+          {/* Text section */}
+          <fieldset className="border border-border rounded-lg p-4">
+            <legend className="text-sm font-semibold text-foreground px-2">Texto</legend>
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <label className={labelClass}>Mensagem</label>
+                <input value={form.text_message} onChange={(e) => setForm((p: any) => ({ ...p, text_message: e.target.value }))} className={inputClass} />
+              </div>
+
+              <div className="flex items-center gap-6">
+                <div className="flex items-center gap-3 flex-1">
+                  <label className={labelClass}>Direção do texto</label>
+                  <select value={form.text_direction} onChange={(e) => setForm((p: any) => ({ ...p, text_direction: e.target.value }))} className={inputClass}>
+                    {TEXT_DIRECTIONS.map((d) => <option key={d} value={d}>{d}</option>)}
+                  </select>
+                </div>
+                <div className="flex items-center gap-3 flex-1">
+                  <label className={labelClass}>Tamanho</label>
+                  <select value={form.text_size} onChange={(e) => setForm((p: any) => ({ ...p, text_size: parseInt(e.target.value) }))} className={inputClass}>
+                    {TEXT_SIZES.map((s) => <option key={s} value={s}>{s} px</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-6">
+                <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer min-w-[160px]">
+                  <span className={labelClass}>Negrito</span>
+                  <input type="checkbox" checked={form.text_bold} onChange={(e) => setForm((p: any) => ({ ...p, text_bold: e.target.checked }))} className="accent-primary h-4 w-4" />
+                </label>
+                <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer min-w-[160px]">
+                  <span className={labelClass}>Itálico</span>
+                  <input type="checkbox" checked={form.text_italic} onChange={(e) => setForm((p: any) => ({ ...p, text_italic: e.target.checked }))} className="accent-primary h-4 w-4" />
+                </label>
+              </div>
+
+              <div className="flex items-center gap-6">
+                <div className="flex items-center gap-3 flex-1" style={{ maxWidth: 300 }}>
+                  <label className={labelClass}>Transparência txt.</label>
+                  <select value={form.text_opacity} onChange={(e) => setForm((p: any) => ({ ...p, text_opacity: e.target.value }))} className={inputClass}>
+                    {OPACITY_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                </div>
+                <div className="flex items-center gap-3">
+                  <label className={labelClass}>Cor</label>
+                  <input type="color" value={form.text_color} onChange={(e) => setForm((p: any) => ({ ...p, text_color: e.target.value }))} className="h-10 w-24 rounded border border-input cursor-pointer" />
+                </div>
+              </div>
+            </div>
+          </fieldset>
+
+          {/* Preview */}
+          {showPreview && (
+            <fieldset className="border border-border rounded-lg p-4">
+              <legend className="text-sm font-semibold text-foreground px-2">Pré-visualização</legend>
+              <div className="bg-white border border-border rounded-lg p-8 min-h-[200px] flex items-center justify-center relative overflow-hidden">
+                {form.image_url && (
+                  <img
+                    src={form.image_url}
+                    alt="Papel timbrado"
+                    className="absolute inset-0 w-full h-full"
+                    style={{
+                      objectFit: form.image_fill ? "cover" : form.image_mode === "Esticar" ? "fill" : "contain",
+                      objectPosition: `${form.image_align_h === "Esquerda" ? "left" : form.image_align_h === "Direita" ? "right" : "center"} ${form.image_align_v === "Topo" ? "top" : form.image_align_v === "Base" ? "bottom" : "center"}`,
+                      opacity: 1 - (parseInt(form.image_opacity) || 0) / 100,
+                    }}
+                  />
+                )}
+                {form.text_message && (
+                  <span
+                    className="relative z-10"
+                    style={{
+                      fontSize: `${form.text_size}px`,
+                      fontWeight: form.text_bold ? "bold" : "normal",
+                      fontStyle: form.text_italic ? "italic" : "normal",
+                      color: form.text_color,
+                      opacity: 1 - (parseInt(form.text_opacity) || 0) / 100,
+                      writingMode: form.text_direction === "Vertical" ? "vertical-rl" : "horizontal-tb",
+                    }}
+                  >
+                    {form.text_message}
+                  </span>
+                )}
+                {!form.image_url && !form.text_message && (
+                  <span className="text-muted-foreground text-sm">Configure imagem e/ou texto acima</span>
+                )}
+              </div>
+            </fieldset>
+          )}
+        </div>
+      )}
+
+      {/* Footer */}
+      {selectedCompanyId && (
+        <div className="flex justify-end gap-3 pt-4 border-t border-border mt-4">
+          <button onClick={() => setShowPreview((p) => !p)} className="flex items-center gap-2 px-4 py-2 border border-border rounded-lg text-sm font-medium hover:bg-accent text-primary">
+            <Eye className="h-4 w-4" /> Visualizar
+          </button>
+          <button
+            onClick={() => saveMutation.mutate()}
+            disabled={saveMutation.isPending}
+            className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50"
+          >
+            <Save className="h-4 w-4" /> {saveMutation.isPending ? "Salvando..." : "Salvar"}
+          </button>
         </div>
       )}
     </div>
