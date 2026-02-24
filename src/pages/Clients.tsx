@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import {
   Search, Plus, ChevronLeft, ChevronRight, Pencil, Trash2, X, Download, Upload,
-  PanelLeftClose, PanelLeftOpen, Eraser
+  Eraser
 } from "lucide-react";
 import { exportToCSV } from "@/utils/exportCsv";
 import { maskCpfCnpj, validateCpfCnpj } from "@/utils/cpfCnpj";
@@ -27,7 +27,23 @@ const CATEGORIAS = [
   { value: "efetivo", label: "Efetivo" },
 ];
 
+const MARITAL_OPTIONS = [
+  { value: "solteiro", label: "Solteiro(a)" },
+  { value: "casado", label: "Casado(a)" },
+  { value: "divorciado", label: "Divorciado(a)" },
+  { value: "viuvo", label: "Viúvo(a)" },
+];
+
+const ALL_TABS = [
+  { key: "dados", label: "Dados" },
+  { key: "contacts", label: "Contatos" },
+  { key: "messages", label: "Atendimento" },
+  { key: "anexos", label: "Anexos" },
+  { key: "portal", label: "Acessos" },
+];
+
 const PAGE_SIZE = 15;
+const OBS_MAX_LEN = 4000;
 
 export default function Clients() {
   const { user } = useAuth();
@@ -128,42 +144,25 @@ export default function Clients() {
   });
 
   const fields = [
-    { name: "name", label: "Nome", required: true },
-    { name: "person_type", label: "Tipo", type: "select" as const, options: [{ value: "f", label: "Pessoa Física" }, { value: "j", label: "Pessoa Jurídica" }] },
-    { name: "category", label: "Categoria", type: "select" as const, options: CATEGORIAS },
-    { name: "document", label: "CPF/CNPJ", type: "cpfcnpj" as const },
-    { name: "rg", label: "RG" },
-    { name: "birth_date", label: "Dt. Nasc.", type: "date" as const },
-    { name: "nationality", label: "Nacionalidade" },
-    { name: "marital_status", label: "Estado Civil", type: "select" as const, options: [{ value: "solteiro", label: "Solteiro(a)" }, { value: "casado", label: "Casado(a)" }, { value: "divorciado", label: "Divorciado(a)" }, { value: "viuvo", label: "Viúvo(a)" }] },
-    { name: "profession", label: "Profissão" },
-    { name: "email", label: "Email", type: "email" as const },
-    { name: "phone", label: "Telefone", type: "tel" as const },
-    { name: "cellphone", label: "Celular", type: "tel" as const },
-    { name: "cep", label: "CEP", type: "cep" as const },
-    { name: "address", label: "Logradouro" },
-    { name: "address_number", label: "Número" },
-    { name: "neighborhood", label: "Bairro" },
-    { name: "complement", label: "Complemento" },
+    { name: "name", label: "Nome" },
+    { name: "category", label: "Categoria" },
+    { name: "document", label: "CPF/CNPJ" },
+    { name: "email", label: "Email" },
+    { name: "phone", label: "Telefone" },
     { name: "city", label: "Cidade" },
     { name: "state", label: "UF" },
-    { name: "notes", label: "Observações", type: "textarea" as const },
   ];
 
   const openNew = () => {
     setEditing(null);
-    const initial: Record<string, any> = {};
-    fields.forEach((f) => (initial[f.name] = ""));
-    setForm(initial);
+    setForm({ person_type: "f" });
     setActiveTab("dados");
     setFormOpen(true);
   };
 
   const openEdit = (item: any) => {
     setEditing(item);
-    const initial: Record<string, any> = {};
-    fields.forEach((f) => (initial[f.name] = item[f.name] ?? ""));
-    setForm(initial);
+    setForm({ ...item });
     setActiveTab("dados");
     setFormOpen(true);
   };
@@ -209,60 +208,9 @@ export default function Clients() {
     setPage(0);
   };
 
-  const renderFormInput = (f: typeof fields[0]) => {
-    if (f.type === "textarea") {
-      return <textarea value={form[f.name] ?? ""} onChange={(e) => setForm((p) => ({ ...p, [f.name]: e.target.value }))} required={f.required} rows={3} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring" />;
-    }
-    if (f.type === "select") {
-      return (
-        <select value={form[f.name] ?? ""} onChange={(e) => setForm((p) => ({ ...p, [f.name]: e.target.value }))} required={f.required} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring">
-          <option value="">Selecione...</option>
-          {f.options?.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
-      );
-    }
-    if (f.type === "cep") {
-      return (
-        <div className="relative">
-          <input type="text" value={form[f.name] ?? ""} onChange={(e) => { const v = e.target.value.replace(/\D/g, "").slice(0, 8); const formatted = v.length > 5 ? `${v.slice(0, 5)}-${v.slice(5)}` : v; setForm((p) => ({ ...p, [f.name]: formatted })); }} onBlur={(e) => handleCepBlur(e.target.value)} placeholder="00000-000" className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring" />
-          {cepLoading && <div className="absolute right-3 top-2.5"><div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full" /></div>}
-        </div>
-      );
-    }
-    if (f.type === "cpfcnpj") {
-      const val = form[f.name] ?? "";
-      const digits = val.replace(/\D/g, "");
-      const isComplete = digits.length === 11 || digits.length === 14;
-      const { valid } = isComplete ? validateCpfCnpj(val) : { valid: true };
-      return (
-        <div>
-          <input type="text" value={val} onChange={(e) => { const masked = maskCpfCnpj(e.target.value); setForm((p) => ({ ...p, [f.name]: masked })); }} placeholder="CPF ou CNPJ" className={`w-full px-3 py-2 rounded-lg border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring ${isComplete && !valid ? "border-destructive" : "border-input"}`} />
-          {isComplete && !valid && <p className="text-xs text-destructive mt-1">{digits.length === 11 ? "CPF" : "CNPJ"} inválido</p>}
-        </div>
-      );
-    }
-    return <input type={f.type ?? "text"} value={form[f.name] ?? ""} onChange={(e) => setForm((p) => ({ ...p, [f.name]: e.target.value }))} required={f.required} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring" />;
-  };
-
-  const allTabs = [
-    { key: "dados", label: "Dados" },
-    ...(editing ? [{ key: "anexos", label: "Anexos" }] : []),
-    ...(editing ? [
-      { key: "contacts", label: "Contatos" },
-      { key: "messages", label: "Atendimento" },
-      { key: "portal", label: "Portal" },
-    ] : []),
-  ];
-
-  const tableFields = [
-    { name: "name", label: "Nome" },
-    { name: "category", label: "Categoria" },
-    { name: "document", label: "CPF/CNPJ" },
-    { name: "email", label: "Email" },
-    { name: "phone", label: "Telefone" },
-    { name: "city", label: "Cidade" },
-    { name: "state", label: "UF" },
-  ];
+  const inputClass = "w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm";
+  const needsSaveFirst = !editing && activeTab !== "dados";
+  const obsRemaining = OBS_MAX_LEN - (form.notes?.length || 0);
 
   return (
     <div className="flex h-[calc(100vh-49px)] overflow-hidden relative">
@@ -279,7 +227,6 @@ export default function Clients() {
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {/* Tipo */}
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1.5">Tipo</label>
                 <div className="flex gap-4">
@@ -291,44 +238,32 @@ export default function Clients() {
                   ))}
                 </div>
               </div>
-
-              {/* Nome */}
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Nome</label>
-                <input type="text" value={filterName} onChange={(e) => setFilterName(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
+                <input type="text" value={filterName} onChange={(e) => setFilterName(e.target.value)} className={inputClass} />
               </div>
-
-              {/* Categoria */}
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Categoria</label>
-                <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm">
+                <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className={inputClass}>
                   <option value="">Selecione...</option>
                   {CATEGORIAS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
                 </select>
               </div>
-
-              {/* CPF/CNPJ */}
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">CPF/CNPJ</label>
-                <input type="text" value={filterDocument} onChange={(e) => setFilterDocument(maskCpfCnpj(e.target.value))} placeholder="CPF ou CNPJ" className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
+                <input type="text" value={filterDocument} onChange={(e) => setFilterDocument(maskCpfCnpj(e.target.value))} placeholder="CPF ou CNPJ" className={inputClass} />
               </div>
-
-              {/* Estado */}
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Estado</label>
-                <select value={filterState} onChange={(e) => setFilterState(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm">
+                <select value={filterState} onChange={(e) => setFilterState(e.target.value)} className={inputClass}>
                   <option value="">Selecione...</option>
                   {ESTADOS.map((e) => <option key={e} value={e}>{e}</option>)}
                 </select>
               </div>
-
-              {/* Cidade */}
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Cidade</label>
-                <input type="text" value={filterCity} onChange={(e) => setFilterCity(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
+                <input type="text" value={filterCity} onChange={(e) => setFilterCity(e.target.value)} className={inputClass} />
               </div>
-
-              {/* Condição */}
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1.5">Condição</label>
                 <div className="flex gap-4">
@@ -342,7 +277,6 @@ export default function Clients() {
               </div>
             </div>
 
-            {/* Filter actions */}
             <div className="p-4 border-t border-border flex gap-2">
               <button onClick={handleClearFilters} className="flex-1 flex items-center justify-center px-3 py-2.5 rounded-lg bg-white border border-border text-muted-foreground hover:bg-muted transition-colors" title="Limpar filtros">
                 <Eraser className="h-5 w-5" />
@@ -354,11 +288,8 @@ export default function Clients() {
           </div>
         </div>
 
-        {/* Toggle filter panel button - thin line on left with protruding tab */}
         <div className="flex-shrink-0 relative z-10" style={{ width: "28px" }}>
-          {/* Continuous thin line on the left edge */}
           <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${filtersOpen ? "bg-primary" : "bg-amber-700"}`} />
-          {/* Protruding tab with text - aligned to left edge */}
           <button
             onClick={() => setFiltersOpen(!filtersOpen)}
             className={`absolute left-0 top-1/2 -translate-y-1/2 w-7 py-4 flex items-center justify-center cursor-pointer hover:opacity-90 transition-all rounded-r-md ${filtersOpen ? "bg-primary" : "bg-amber-700"}`}
@@ -374,10 +305,8 @@ export default function Clients() {
       {/* Main content area */}
       <div className="flex-1 flex overflow-hidden">
         {!searched ? (
-          /* Empty state: search prompt + new record */
           <div className="flex-1 flex items-center justify-center">
             <div className="flex items-center gap-16 max-w-4xl px-8">
-              {/* Search prompt */}
               <div className="text-center flex-1">
                 <div className="h-24 w-24 rounded-full bg-muted flex items-center justify-center mx-auto mb-6">
                   <Search className="h-12 w-12 text-muted-foreground" />
@@ -387,11 +316,7 @@ export default function Clients() {
                   Clique em <button onClick={() => setFiltersOpen(true)} className="text-primary font-medium hover:underline">filtros de pesquisa</button>, informe o que procura nos campos de busca, clique em "Pesquisar" e aguarde que os resultados aparecerão aqui.
                 </p>
               </div>
-
-              {/* Divider */}
               <div className="w-px h-48 bg-border" />
-
-              {/* New record */}
               <div className="text-center flex-1">
                 <div className="h-24 w-24 rounded-full bg-muted flex items-center justify-center mx-auto mb-6">
                   <Plus className="h-12 w-12 text-muted-foreground" />
@@ -410,7 +335,6 @@ export default function Clients() {
             </div>
           </div>
         ) : (
-          /* Results area */
           <div className="flex-1 flex flex-col overflow-hidden p-4">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-foreground">
@@ -418,7 +342,7 @@ export default function Clients() {
               </h3>
               <div className="flex items-center gap-2">
                 {filtered.length > 0 && (
-                  <button onClick={() => exportToCSV(filtered, tableFields, "clients")} className="flex items-center gap-2 px-3 py-2 border border-border text-foreground rounded-lg text-sm hover:bg-muted transition-colors">
+                  <button onClick={() => exportToCSV(filtered, fields, "clients")} className="flex items-center gap-2 px-3 py-2 border border-border text-foreground rounded-lg text-sm hover:bg-muted transition-colors">
                     <Download className="h-4 w-4" /> Exportar
                   </button>
                 )}
@@ -439,7 +363,7 @@ export default function Clients() {
                     <thead className="sticky top-0">
                       <tr className="bg-muted/50">
                         <th className="w-16 px-4 py-3 font-medium text-muted-foreground">Ativo</th>
-                        {tableFields.map((f) => (
+                        {fields.map((f) => (
                           <th key={f.name} className="text-left px-4 py-3 font-medium text-muted-foreground">{f.label}</th>
                         ))}
                         <th className="w-24 px-4 py-3" />
@@ -456,7 +380,7 @@ export default function Clients() {
                               <span className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white transition-transform shadow-sm ${item.active ? "translate-x-5" : ""}`} />
                             </button>
                           </td>
-                          {tableFields.map((f) => {
+                          {fields.map((f) => {
                             let display = item[f.name] ?? "—";
                             if (f.name === "category" && item[f.name]) {
                               const opt = CATEGORIAS.find((o) => o.value === item[f.name]);
@@ -497,51 +421,195 @@ export default function Clients() {
       {/* Edit/Create Modal */}
       {formOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={closeForm}>
-          <div className="bg-card border border-border rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-card border border-border rounded-xl w-full max-w-4xl max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
             <div className="flex items-center justify-between p-5 border-b border-border">
-              <h3 className="text-lg font-semibold text-card-foreground">{editing ? "Editar" : "Novo"} Cliente</h3>
+              <h3 className="text-lg font-semibold text-card-foreground">{editing ? "Editar" : "Novo"} cliente</h3>
               <button onClick={closeForm} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
             </div>
 
-            {allTabs.length > 1 && (
-              <div className="flex border-b border-border px-5 gap-1">
-                {allTabs.map((t) => (
-                  <button key={t.key} onClick={() => setActiveTab(t.key)} className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${activeTab === t.key ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
-                    {t.label}
-                  </button>
-                ))}
-              </div>
-            )}
+            {/* Tabs */}
+            <div className="flex border-b border-border px-5 gap-1">
+              {ALL_TABS.map((t) => (
+                <button key={t.key} onClick={() => setActiveTab(t.key)} className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${activeTab === t.key ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+                  {t.label}
+                </button>
+              ))}
+            </div>
 
-            {activeTab === "dados" && (
-              <form onSubmit={handleSubmit} className="p-5 space-y-4">
-                {fields.map((f) => (
-                  <div key={f.name}>
-                    <label className="block text-sm font-medium text-card-foreground mb-1">{f.label}</label>
-                    {renderFormInput(f)}
+            {/* Tab content */}
+            <div className="flex-1 overflow-y-auto">
+              {/* DADOS tab */}
+              {activeTab === "dados" && (
+                <form onSubmit={handleSubmit} className="p-5 space-y-5">
+                  {/* Nome - full width */}
+                  <div className="flex items-center gap-3">
+                    <label className="text-sm font-medium text-card-foreground whitespace-nowrap min-w-[80px] text-right">Nome *</label>
+                    <input value={form.name ?? ""} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} required className={inputClass} />
                   </div>
-                ))}
-                <div className="flex justify-end gap-3 pt-2">
-                  <button type="button" onClick={closeForm} className="px-4 py-2 rounded-lg border border-border text-foreground hover:bg-muted">Cancelar</button>
-                  <button type="submit" disabled={saveMutation.isPending} className="px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 disabled:opacity-50">
-                    {saveMutation.isPending ? "Salvando..." : "Salvar"}
-                  </button>
-                </div>
-              </form>
-            )}
 
-            {activeTab === "anexos" && editing && (
-              <div className="p-5"><Attachments entityType="clients" entityId={editing.id} /></div>
-            )}
-            {activeTab === "contacts" && editing && (
-              <div className="p-5"><ClientContacts clientId={editing.id} /></div>
-            )}
-            {activeTab === "messages" && editing && (
-              <div className="p-5"><ClientMessages clientId={editing.id} /></div>
-            )}
-            {activeTab === "portal" && editing && (
-              <div className="p-5"><ClientPortalPermissions clientId={editing.id} /></div>
-            )}
+                  {/* Tipo + Categoria */}
+                  <div className="flex items-center gap-6 flex-wrap">
+                    <div className="flex items-center gap-3">
+                      <label className="text-sm font-medium text-card-foreground whitespace-nowrap min-w-[80px] text-right">Tipo</label>
+                      <div className="flex gap-4">
+                        <label className="flex items-center gap-1.5 text-sm text-foreground cursor-pointer">
+                          <input type="radio" name="personType" checked={form.person_type === "f"} onChange={() => setForm((p) => ({ ...p, person_type: "f" }))} className="accent-primary" />
+                          Pessoa física
+                        </label>
+                        <label className="flex items-center gap-1.5 text-sm text-foreground cursor-pointer">
+                          <input type="radio" name="personType" checked={form.person_type === "j"} onChange={() => setForm((p) => ({ ...p, person_type: "j" }))} className="accent-primary" />
+                          Pessoa jurídica
+                        </label>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 ml-auto">
+                      <label className="text-sm font-medium text-card-foreground whitespace-nowrap">Categoria</label>
+                      <select value={form.category ?? ""} onChange={(e) => setForm((p) => ({ ...p, category: e.target.value }))} className={inputClass + " w-40"}>
+                        <option value="">Selecione...</option>
+                        {CATEGORIAS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* CPF/RG/Dt.nasc */}
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="flex items-center gap-2">
+                      <label className="text-sm font-medium text-card-foreground whitespace-nowrap">{form.person_type === "j" ? "CNPJ" : "CPF"}</label>
+                      <input type="text" value={form.document ?? ""} onChange={(e) => setForm((p) => ({ ...p, document: maskCpfCnpj(e.target.value) }))} placeholder={form.person_type === "j" ? "00.000.000/0000-00" : "000.000.000-00"} className={inputClass} />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <label className="text-sm font-medium text-card-foreground whitespace-nowrap">RG</label>
+                      <input value={form.rg ?? ""} onChange={(e) => setForm((p) => ({ ...p, rg: e.target.value }))} className={inputClass} />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <label className="text-sm font-medium text-card-foreground whitespace-nowrap">Dt. nasc.</label>
+                      <input type="date" value={form.birth_date ?? ""} onChange={(e) => setForm((p) => ({ ...p, birth_date: e.target.value }))} className={inputClass} />
+                    </div>
+                  </div>
+
+                  {/* Nacionalidade / Estado Civil / Profissão */}
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="flex items-center gap-2">
+                      <label className="text-sm font-medium text-card-foreground whitespace-nowrap">Nacionalidade</label>
+                      <input value={form.nationality ?? ""} onChange={(e) => setForm((p) => ({ ...p, nationality: e.target.value }))} className={inputClass} />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <label className="text-sm font-medium text-card-foreground whitespace-nowrap">Estado Civil</label>
+                      <select value={form.marital_status ?? ""} onChange={(e) => setForm((p) => ({ ...p, marital_status: e.target.value }))} className={inputClass}>
+                        <option value="">Selecione...</option>
+                        {MARITAL_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                      </select>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <label className="text-sm font-medium text-card-foreground whitespace-nowrap">Profissão</label>
+                      <input value={form.profession ?? ""} onChange={(e) => setForm((p) => ({ ...p, profession: e.target.value }))} className={inputClass} />
+                    </div>
+                  </div>
+
+                  {/* Observação */}
+                  <div className="flex items-start gap-3">
+                    <label className="text-sm font-medium text-card-foreground whitespace-nowrap min-w-[80px] text-right pt-2">Observação</label>
+                    <div className="flex-1">
+                      <textarea value={form.notes ?? ""} onChange={(e) => { if (e.target.value.length <= OBS_MAX_LEN) setForm((p) => ({ ...p, notes: e.target.value })); }} rows={3} className={inputClass} />
+                      <p className="text-xs text-muted-foreground text-right mt-1">{obsRemaining.toLocaleString("pt-BR")} caracteres restantes</p>
+                    </div>
+                  </div>
+
+                  {/* Seção Contato */}
+                  <fieldset className="border border-border rounded-lg p-4">
+                    <legend className="text-sm font-semibold text-muted-foreground px-2">Contato</legend>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm font-medium text-card-foreground whitespace-nowrap">Telefone</label>
+                        <input value={form.phone ?? ""} onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))} className={inputClass} />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm font-medium text-card-foreground whitespace-nowrap">Celular</label>
+                        <input value={form.cellphone ?? ""} onChange={(e) => setForm((p) => ({ ...p, cellphone: e.target.value }))} className={inputClass} />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm font-medium text-card-foreground whitespace-nowrap">E-mail</label>
+                        <input type="email" value={form.email ?? ""} onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))} className={inputClass} />
+                      </div>
+                    </div>
+                  </fieldset>
+
+                  {/* Seção Endereço */}
+                  <fieldset className="border border-border rounded-lg p-4 space-y-4">
+                    <legend className="text-sm font-semibold text-muted-foreground px-2">Endereço</legend>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm font-medium text-card-foreground whitespace-nowrap">CEP</label>
+                        <div className="relative flex-1">
+                          <input type="text" value={form.cep ?? ""} onChange={(e) => { const v = e.target.value.replace(/\D/g, "").slice(0, 8); const formatted = v.length > 5 ? `${v.slice(0, 5)}-${v.slice(5)}` : v; setForm((p) => ({ ...p, cep: formatted })); }} onBlur={(e) => handleCepBlur(e.target.value)} placeholder="00000-000" className={inputClass} />
+                          {cepLoading && <div className="absolute right-3 top-2.5"><div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full" /></div>}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm font-medium text-card-foreground whitespace-nowrap">Logradouro</label>
+                        <input value={form.address ?? ""} onChange={(e) => setForm((p) => ({ ...p, address: e.target.value }))} className={inputClass} />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm font-medium text-card-foreground whitespace-nowrap">Número</label>
+                        <input value={form.address_number ?? ""} onChange={(e) => setForm((p) => ({ ...p, address_number: e.target.value }))} className={inputClass} />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm font-medium text-card-foreground whitespace-nowrap">Bairro</label>
+                        <input value={form.neighborhood ?? ""} onChange={(e) => setForm((p) => ({ ...p, neighborhood: e.target.value }))} className={inputClass} />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm font-medium text-card-foreground whitespace-nowrap">Complemento</label>
+                        <input value={form.complement ?? ""} onChange={(e) => setForm((p) => ({ ...p, complement: e.target.value }))} className={inputClass} />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm font-medium text-card-foreground whitespace-nowrap">Estado</label>
+                        <select value={form.state ?? ""} onChange={(e) => setForm((p) => ({ ...p, state: e.target.value }))} className={inputClass}>
+                          <option value="">Selecione...</option>
+                          {ESTADOS.map((uf) => <option key={uf} value={uf}>{uf}</option>)}
+                        </select>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm font-medium text-card-foreground whitespace-nowrap">Cidade</label>
+                        <input value={form.city ?? ""} onChange={(e) => setForm((p) => ({ ...p, city: e.target.value }))} className={inputClass} />
+                      </div>
+                    </div>
+                  </fieldset>
+
+                  {/* Salvar */}
+                  <div className="flex justify-end gap-3 pt-2">
+                    <button type="button" onClick={closeForm} className="px-4 py-2 rounded-lg border border-border text-foreground hover:bg-muted">Cancelar</button>
+                    <button type="submit" disabled={saveMutation.isPending} className="px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 disabled:opacity-50">
+                      {saveMutation.isPending ? "Salvando..." : "Salvar"}
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {/* Other tabs - need save first */}
+              {needsSaveFirst && (
+                <div className="p-8 text-center text-muted-foreground">
+                  <p className="text-sm">Salve o cliente primeiro para acessar esta aba.</p>
+                </div>
+              )}
+
+              {activeTab === "contacts" && editing && (
+                <div className="p-5"><ClientContacts clientId={editing.id} /></div>
+              )}
+              {activeTab === "messages" && editing && (
+                <div className="p-5"><ClientMessages clientId={editing.id} /></div>
+              )}
+              {activeTab === "anexos" && editing && (
+                <div className="p-5"><Attachments entityType="clients" entityId={editing.id} /></div>
+              )}
+              {activeTab === "portal" && editing && (
+                <div className="p-5"><ClientPortalPermissions clientId={editing.id} /></div>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -551,7 +619,7 @@ export default function Clients() {
         <CsvImport
           table="clients"
           queryKey="clients"
-          fields={fields.map(f => ({ name: f.name, label: f.label, type: f.type, options: f.options, required: f.required }))}
+          fields={fields.map(f => ({ name: f.name, label: f.label }))}
           onClose={() => setImportOpen(false)}
         />
       )}
