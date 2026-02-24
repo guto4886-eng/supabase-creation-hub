@@ -21,11 +21,16 @@ import {
 const PAGE_SIZE = 15;
 
 const STATUS_OPTIONS = [
-  { value: "nova_cotacao", label: "Nova cotação" },
-  { value: "enviada", label: "Enviada" },
-  { value: "respondida", label: "Respondida" },
-  { value: "aprovada", label: "Aprovada" },
-  { value: "cancelada", label: "Cancelada" },
+  { value: "nova_cotacao", label: "Nova cotação", defaultChecked: true },
+  { value: "enviada", label: "Enviada aos fornecedores", defaultChecked: true },
+  { value: "pendente_reenvio", label: "Pendente de reenvio", defaultChecked: true },
+  { value: "respondida_parcial", label: "Respondida parcialmente", defaultChecked: true },
+  { value: "respondida", label: "Respondida pelos fornecedores", defaultChecked: true },
+  { value: "ordem_parcial", label: "Ordem de compra parcial", defaultChecked: false },
+  { value: "aprovada", label: "Ordem de compra gerada", defaultChecked: false },
+  { value: "contrato_parcial", label: "Contrato parcial", defaultChecked: false },
+  { value: "contrato_gerado", label: "Contrato gerado", defaultChecked: false },
+  { value: "cancelada", label: "Cancelada", defaultChecked: false },
 ];
 
 const inputClass = "w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm";
@@ -58,10 +63,12 @@ export default function PurchaseQuotations() {
   // --- Filter state ---
   const [filtersOpen, setFiltersOpen] = useState(true);
   const [filterTitle, setFilterTitle] = useState("");
-  const [filterStatus, setFilterStatus] = useState("");
+  const [filterStatuses, setFilterStatuses] = useState<string[]>(STATUS_OPTIONS.filter(s => s.defaultChecked).map(s => s.value));
   const [filterObra, setFilterObra] = useState("");
+  const [filterSupplier, setFilterSupplier] = useState("");
   const [filterDateFrom, setFilterDateFrom] = useState("");
   const [filterDateTo, setFilterDateTo] = useState("");
+  const [filterCondition, setFilterCondition] = useState<"ativo" | "inativo" | "ambos">("ativo");
   const [searched, setSearched] = useState(false);
   const [page, setPage] = useState(0);
 
@@ -93,6 +100,15 @@ export default function PurchaseQuotations() {
     queryKey: ["obras_list_pq"],
     queryFn: async () => {
       const { data, error } = await supabase.from("obras").select("id, name").eq("active", true).order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: suppliers = [] } = useQuery({
+    queryKey: ["suppliers_list_pq"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("suppliers").select("id, name").eq("active", true).order("name");
       if (error) throw error;
       return data;
     },
@@ -148,8 +164,9 @@ export default function PurchaseQuotations() {
   const filtered = searched
     ? items.filter((item) => {
         if (filterTitle && !item.title?.toLowerCase().includes(filterTitle.toLowerCase())) return false;
-        if (filterStatus && item.status !== filterStatus) return false;
+        if (filterStatuses.length > 0 && !filterStatuses.includes(item.status)) return false;
         if (filterObra && item.obra_id !== filterObra) return false;
+        if (filterSupplier && item.supplier_id !== filterSupplier) return false;
         if (filterDateFrom && item.created_at < filterDateFrom) return false;
         if (filterDateTo && item.created_at > filterDateTo + "T23:59:59") return false;
         return true;
@@ -331,7 +348,7 @@ export default function PurchaseQuotations() {
 
   const handleSearch = () => { setSearched(true); setPage(0); };
   const handleClearFilters = () => {
-    setFilterTitle(""); setFilterStatus(""); setFilterObra(""); setFilterDateFrom(""); setFilterDateTo(""); setSearched(false); setPage(0);
+    setFilterTitle(""); setFilterStatuses(STATUS_OPTIONS.filter(s => s.defaultChecked).map(s => s.value)); setFilterObra(""); setFilterSupplier(""); setFilterDateFrom(""); setFilterDateTo(""); setFilterCondition("ativo"); setSearched(false); setPage(0);
   };
 
   const statusColor = (s: string) => {
@@ -510,28 +527,55 @@ export default function PurchaseQuotations() {
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Título</label>
-                <input type="text" value={filterTitle} onChange={e => setFilterTitle(e.target.value)} className={inputClass} />
+                <input type="text" value={filterTitle} onChange={e => setFilterTitle(e.target.value)} className={inputClass} placeholder="Pesquisar..." />
               </div>
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Situação</label>
-                <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className={inputClass}>
-                  <option value="">Todas</option>
-                  {STATUS_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-                </select>
+                <label className="block text-sm font-semibold text-foreground mb-2">Situação</label>
+                <div className="space-y-1.5">
+                  {STATUS_OPTIONS.map(s => (
+                    <label key={s.value} className="flex items-center gap-2 cursor-pointer text-sm">
+                      <input type="checkbox" checked={filterStatuses.includes(s.value)}
+                        onChange={e => {
+                          if (e.target.checked) setFilterStatuses(prev => [...prev, s.value]);
+                          else setFilterStatuses(prev => prev.filter(v => v !== s.value));
+                        }}
+                        className="rounded border-border text-primary focus:ring-primary h-4 w-4" />
+                      <span className={`${s.value === "cancelada" ? "text-destructive" : "text-foreground"}`}>{s.label}</span>
+                    </label>
+                  ))}
+                </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Obra</label>
-                <select value={filterObra} onChange={e => setFilterObra(e.target.value)} className={inputClass}>
-                  <option value="">Todas</option>
-                  {obras.map((o: any) => <option key={o.id} value={o.id}>{o.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Período</label>
+                <label className="block text-sm font-semibold text-foreground mb-1">Data</label>
                 <div className="flex items-center gap-2">
                   <input type="date" value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)} className={inputClass} />
                   <span className="text-sm text-muted-foreground">até</span>
                   <input type="date" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} className={inputClass} />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-foreground mb-1">Obra</label>
+                <select value={filterObra} onChange={e => setFilterObra(e.target.value)} className={inputClass}>
+                  <option value="">Selecione...</option>
+                  {obras.map((o: any) => <option key={o.id} value={o.id}>{o.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-foreground mb-1">Fornecedor</label>
+                <select value={filterSupplier} onChange={e => setFilterSupplier(e.target.value)} className={inputClass}>
+                  <option value="">Selecione...</option>
+                  {suppliers.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-foreground mb-2">Condição</label>
+                <div className="flex items-center gap-4 text-sm">
+                  {(["ativo", "inativo", "ambos"] as const).map(v => (
+                    <label key={v} className="flex items-center gap-1.5 cursor-pointer">
+                      <input type="radio" name="condition" checked={filterCondition === v} onChange={() => setFilterCondition(v)} className="text-primary focus:ring-primary" />
+                      <span className="capitalize text-foreground">{v}</span>
+                    </label>
+                  ))}
                 </div>
               </div>
             </div>
