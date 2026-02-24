@@ -1972,29 +1972,36 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
 
             return (
               <div className="space-y-6">
-                <h4 className="text-sm font-semibold text-foreground">Previsto x Realizado</h4>
+                <div>
+                  <h4 className="text-sm font-semibold text-foreground">Previsto x Realizado</h4>
+                  <p className="text-xs text-muted-foreground mt-0.5">Comparativo entre os valores orçados e os valores efetivamente medidos em obra.</p>
+                </div>
 
                 {/* Summary cards */}
                 <div className="grid grid-cols-4 gap-3">
-                  <div className="bg-muted/50 rounded-lg border border-border p-3 text-center">
-                    <div className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">Previsto</div>
-                    <div className="text-lg font-bold text-foreground mt-1">{fmt(totalPrevisto)}</div>
+                  <div className="rounded-xl border border-border p-4 text-center" style={{ background: "linear-gradient(135deg, hsl(220 70% 96%), hsl(220 60% 92%))" }}>
+                    <div className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: "#3b82f6" }}>💰 Previsto (Orçado)</div>
+                    <div className="text-xl font-extrabold mt-1.5" style={{ color: "#1e40af" }}>{fmt(totalPrevisto)}</div>
+                    <p className="text-[10px] text-muted-foreground mt-1">Valor total orçado para a obra</p>
                   </div>
-                  <div className="bg-muted/50 rounded-lg border border-border p-3 text-center">
-                    <div className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">Realizado</div>
-                    <div className="text-lg font-bold text-primary mt-1">{fmt(totalRealizado)}</div>
+                  <div className="rounded-xl border border-border p-4 text-center" style={{ background: "linear-gradient(135deg, hsl(150 60% 95%), hsl(150 50% 90%))" }}>
+                    <div className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: "#16a34a" }}>📊 Realizado (Medido)</div>
+                    <div className="text-xl font-extrabold mt-1.5" style={{ color: "#15803d" }}>{fmt(totalRealizado)}</div>
+                    <p className="text-[10px] text-muted-foreground mt-1">Valor acumulado das medições</p>
                   </div>
-                  <div className="bg-muted/50 rounded-lg border border-border p-3 text-center">
-                    <div className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">Desvio</div>
-                    <div className={`text-lg font-bold mt-1 ${desvio > 0 ? "text-destructive" : desvio < 0 ? "text-green-600" : "text-foreground"}`}>
+                  <div className="rounded-xl border border-border p-4 text-center" style={{ background: desvio > 0 ? "linear-gradient(135deg, hsl(0 60% 96%), hsl(0 50% 92%))" : "linear-gradient(135deg, hsl(160 60% 95%), hsl(160 50% 90%))" }}>
+                    <div className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: desvio > 0 ? "#dc2626" : "#059669" }}>📈 Desvio</div>
+                    <div className="text-xl font-extrabold mt-1.5" style={{ color: desvio > 0 ? "#b91c1c" : "#047857" }}>
                       {desvio > 0 ? "+" : ""}{fmt(desvio)}
                     </div>
+                    <p className="text-[10px] text-muted-foreground mt-1">{desvio > 0 ? "Acima do orçado" : desvio < 0 ? "Economia" : "Dentro do orçamento"}</p>
                   </div>
-                  <div className="bg-muted/50 rounded-lg border border-border p-3 text-center">
-                    <div className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">% Realizado</div>
-                    <div className={`text-lg font-bold mt-1 ${devPct > 100 ? "text-destructive" : "text-primary"}`}>
+                  <div className="rounded-xl border border-border p-4 text-center" style={{ background: "linear-gradient(135deg, hsl(270 60% 96%), hsl(270 50% 92%))" }}>
+                    <div className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: "#7c3aed" }}>🎯 % Execução</div>
+                    <div className="text-xl font-extrabold mt-1.5" style={{ color: devPct > 100 ? "#dc2626" : "#6d28d9" }}>
                       {devPct.toFixed(1)}%
                     </div>
+                    <p className="text-[10px] text-muted-foreground mt-1">Percentual executado do total</p>
                   </div>
                 </div>
 
@@ -2005,38 +2012,62 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                   </div>
                 ) : (
                   <>
-                    {/* Bar chart: per phase */}
-                    <div className="border border-border rounded-lg p-4 bg-background">
-                      <h5 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Previsto x Realizado por Fase</h5>
-                      <div style={{ width: "100%", height: 320 }}>
+                    {/* Bar chart */}
+                    <div className="border border-border rounded-xl p-5 bg-background shadow-sm">
+                      <div className="mb-4">
+                        <h5 className="text-sm font-bold text-foreground">Previsto x Realizado por Fase</h5>
+                        <p className="text-xs text-muted-foreground mt-0.5">Barras azuis = valor orçado por fase. Barras verdes = valor medido acumulado.</p>
+                      </div>
+                      <div style={{ width: "100%", height: 340 }}>
                         <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={phaseChartData} margin={{ top: 5, right: 20, bottom: 30, left: 20 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                            <XAxis dataKey="name" tick={{ fontSize: 10 }} angle={-20} textAnchor="end" />
-                            <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `R$${(v / 1000).toFixed(0)}k`} />
-                            <Tooltip formatter={(value: any) => fmt(value)} />
-                            <Legend wrapperStyle={{ fontSize: 12 }} />
-                            <Bar dataKey="Previsto" fill="hsl(var(--muted-foreground))" radius={[4, 4, 0, 0]} />
-                            <Bar dataKey="Realizado" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                          <BarChart data={phaseChartData} margin={{ top: 10, right: 30, bottom: 40, left: 30 }} barGap={4}>
+                            <defs>
+                              <linearGradient id="gradPrevisto" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.9} />
+                                <stop offset="100%" stopColor="#1d4ed8" stopOpacity={0.8} />
+                              </linearGradient>
+                              <linearGradient id="gradRealizado" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="#22c55e" stopOpacity={0.9} />
+                                <stop offset="100%" stopColor="#16a34a" stopOpacity={0.8} />
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
+                            <XAxis dataKey="name" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} angle={-15} textAnchor="end" />
+                            <YAxis tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickFormatter={(v: any) => `R$${(v / 1000).toFixed(0)}k`} />
+                            <Tooltip
+                              formatter={(value: any, name: any) => [fmt(value), name === "Previsto" ? "💰 Previsto" : "📊 Realizado"]}
+                              contentStyle={{ borderRadius: 10, border: "1px solid hsl(var(--border))", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}
+                              labelStyle={{ fontWeight: 700, marginBottom: 4 }}
+                            />
+                            <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} formatter={(value: any) => value === "Previsto" ? "💰 Previsto (Orçado)" : "📊 Realizado (Medido)"} />
+                            <Bar dataKey="Previsto" fill="url(#gradPrevisto)" radius={[6, 6, 0, 0]} />
+                            <Bar dataKey="Realizado" fill="url(#gradRealizado)" radius={[6, 6, 0, 0]} />
                           </BarChart>
                         </ResponsiveContainer>
                       </div>
                     </div>
 
-                    {/* Line chart: timeline */}
+                    {/* Line chart */}
                     {timelineData.length > 0 && (
-                      <div className="border border-border rounded-lg p-4 bg-background">
-                        <h5 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Evolução Acumulada por Período</h5>
-                        <div style={{ width: "100%", height: 280 }}>
+                      <div className="border border-border rounded-xl p-5 bg-background shadow-sm">
+                        <div className="mb-4">
+                          <h5 className="text-sm font-bold text-foreground">Evolução Acumulada por Período</h5>
+                          <p className="text-xs text-muted-foreground mt-0.5">Linha tracejada azul = meta orçada. Linha contínua verde = valor medido acumulado ao longo do tempo.</p>
+                        </div>
+                        <div style={{ width: "100%", height: 300 }}>
                           <ResponsiveContainer width="100%" height="100%">
-                            <LineChart data={timelineData} margin={{ top: 5, right: 20, bottom: 5, left: 20 }}>
-                              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                              <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                              <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `R$${(v / 1000).toFixed(0)}k`} />
-                              <Tooltip formatter={(value: any) => fmt(value)} />
-                              <Legend wrapperStyle={{ fontSize: 12 }} />
-                              <Line type="monotone" dataKey="Previsto" stroke="hsl(var(--muted-foreground))" strokeWidth={2} strokeDasharray="5 5" dot={false} />
-                              <Line type="monotone" dataKey="Realizado" stroke="hsl(var(--primary))" strokeWidth={2.5} dot={{ r: 4 }} />
+                            <LineChart data={timelineData} margin={{ top: 10, right: 30, bottom: 10, left: 30 }}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
+                              <XAxis dataKey="name" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
+                              <YAxis tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickFormatter={(v: any) => `R$${(v / 1000).toFixed(0)}k`} />
+                              <Tooltip
+                                formatter={(value: any, name: any) => [fmt(value), name === "Previsto" ? "💰 Meta" : "📊 Acumulado"]}
+                                contentStyle={{ borderRadius: 10, border: "1px solid hsl(var(--border))", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}
+                                labelStyle={{ fontWeight: 700, marginBottom: 4 }}
+                              />
+                              <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} formatter={(value: any) => value === "Previsto" ? "💰 Meta (Orçado)" : "📊 Acumulado (Medido)"} />
+                              <Line type="monotone" dataKey="Previsto" stroke="#3b82f6" strokeWidth={2.5} strokeDasharray="8 4" dot={false} />
+                              <Line type="monotone" dataKey="Realizado" stroke="#22c55e" strokeWidth={3} dot={{ r: 5, fill: "#22c55e", stroke: "#fff", strokeWidth: 2 }} activeDot={{ r: 7 }} />
                             </LineChart>
                           </ResponsiveContainer>
                         </div>
@@ -2044,15 +2075,20 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                     )}
 
                     {/* Detail table */}
-                    <div className="border border-border rounded-lg overflow-hidden">
+                    <div className="border border-border rounded-xl overflow-hidden shadow-sm">
+                      <div className="bg-muted/60 px-4 py-3 border-b border-border">
+                        <h5 className="text-sm font-bold text-foreground">Detalhamento por Fase</h5>
+                        <p className="text-xs text-muted-foreground mt-0.5">Valores individuais por fase com desvio e barra de progresso.</p>
+                      </div>
                       <table className="w-full text-sm">
                         <thead>
-                          <tr className="bg-muted/50">
-                            <th className="text-left px-3 py-2.5 font-medium text-muted-foreground">Fase</th>
-                            <th className="text-right px-3 py-2.5 font-medium text-muted-foreground">Previsto</th>
-                            <th className="text-right px-3 py-2.5 font-medium text-muted-foreground">Realizado</th>
-                            <th className="text-right px-3 py-2.5 font-medium text-muted-foreground">Desvio</th>
-                            <th className="text-right px-3 py-2.5 font-medium text-muted-foreground">%</th>
+                          <tr className="bg-muted/30">
+                            <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Fase</th>
+                            <th className="text-right px-4 py-3 font-semibold" style={{ color: "#3b82f6" }}>💰 Previsto</th>
+                            <th className="text-right px-4 py-3 font-semibold" style={{ color: "#16a34a" }}>📊 Realizado</th>
+                            <th className="text-right px-4 py-3 font-semibold text-muted-foreground">📈 Desvio</th>
+                            <th className="text-right px-4 py-3 font-semibold text-muted-foreground">🎯 Execução</th>
+                            <th className="text-left px-4 py-3 font-semibold text-muted-foreground" style={{ minWidth: 120 }}>Progresso</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-border">
@@ -2060,17 +2096,34 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                             const dev = d.Realizado - d.Previsto;
                             const pct = d.Previsto > 0 ? (d.Realizado / d.Previsto) * 100 : 0;
                             return (
-                              <tr key={idx} className={idx % 2 === 0 ? "bg-background" : "bg-muted/20"}>
-                                <td className="px-3 py-2 text-foreground">{d.name}</td>
-                                <td className="px-3 py-2 text-right text-foreground tabular-nums">{fmt(d.Previsto)}</td>
-                                <td className="px-3 py-2 text-right text-primary tabular-nums">{fmt(d.Realizado)}</td>
-                                <td className={`px-3 py-2 text-right tabular-nums ${dev > 0 ? "text-destructive" : dev < 0 ? "text-green-600" : "text-foreground"}`}>
+                              <tr key={idx} className={idx % 2 === 0 ? "bg-background" : "bg-muted/10"}>
+                                <td className="px-4 py-2.5 text-foreground font-medium">{d.name}</td>
+                                <td className="px-4 py-2.5 text-right tabular-nums" style={{ color: "#1d4ed8" }}>{fmt(d.Previsto)}</td>
+                                <td className="px-4 py-2.5 text-right tabular-nums font-semibold" style={{ color: "#16a34a" }}>{fmt(d.Realizado)}</td>
+                                <td className="px-4 py-2.5 text-right tabular-nums font-medium" style={{ color: dev > 0 ? "#dc2626" : dev < 0 ? "#059669" : undefined }}>
                                   {dev > 0 ? "+" : ""}{fmt(dev)}
                                 </td>
-                                <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{pct.toFixed(1)}%</td>
+                                <td className="px-4 py-2.5 text-right tabular-nums font-semibold" style={{ color: pct > 100 ? "#dc2626" : "#7c3aed" }}>{pct.toFixed(1)}%</td>
+                                <td className="px-4 py-2.5">
+                                  <div className="w-full h-2.5 bg-muted rounded-full overflow-hidden">
+                                    <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(pct, 100)}%`, background: pct > 100 ? "#dc2626" : pct >= 50 ? "#22c55e" : "#3b82f6" }} />
+                                  </div>
+                                </td>
                               </tr>
                             );
                           })}
+                          <tr className="bg-muted/40 font-bold">
+                            <td className="px-4 py-3 text-foreground">TOTAL</td>
+                            <td className="px-4 py-3 text-right tabular-nums" style={{ color: "#1d4ed8" }}>{fmt(totalPrevisto)}</td>
+                            <td className="px-4 py-3 text-right tabular-nums" style={{ color: "#16a34a" }}>{fmt(totalRealizado)}</td>
+                            <td className="px-4 py-3 text-right tabular-nums" style={{ color: desvio > 0 ? "#dc2626" : "#059669" }}>{desvio > 0 ? "+" : ""}{fmt(desvio)}</td>
+                            <td className="px-4 py-3 text-right tabular-nums" style={{ color: "#7c3aed" }}>{devPct.toFixed(1)}%</td>
+                            <td className="px-4 py-3">
+                              <div className="w-full h-2.5 bg-muted rounded-full overflow-hidden">
+                                <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(devPct, 100)}%`, background: devPct > 100 ? "#dc2626" : "#22c55e" }} />
+                              </div>
+                            </td>
+                          </tr>
                         </tbody>
                       </table>
                     </div>
