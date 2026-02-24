@@ -332,8 +332,8 @@ export default function Budgets() {
               const paginated = filtered.slice((page - 1) * perPage, page * perPage);
               return (
                 <>
-                  <div className="flex-1 overflow-auto">
-                    <table className="w-full text-xs" style={{ borderSpacing: "0 48px", borderCollapse: "separate" }}>
+                  <div className="flex-1 overflow-auto mt-12">
+                    <table className="w-full text-xs border-collapse">
                       <thead className="sticky top-0 z-10">
                         <tr className="bg-amber-700 text-white">
                           <th className="text-left px-3 py-2 font-semibold whitespace-nowrap">Empresa</th>
