@@ -101,19 +101,17 @@ export default function Companies() {
 
   const matrices = items.filter((i) => i.company_type === "matriz");
 
-  const filtered = searched
-    ? items.filter((item) => {
-        if (filterName && !item.name?.toLowerCase().includes(filterName.toLowerCase())) return false;
-        if (filterDocument && !item.document?.includes(filterDocument.replace(/\D/g, ""))) return false;
-        if (filterCity && !item.city?.toLowerCase().includes(filterCity.toLowerCase())) return false;
-        if (filterState && item.state !== filterState) return false;
-        if (filterMatrix === "matriz" && item.company_type !== "matriz") return false;
-        if (filterMatrix === "filial" && item.company_type !== "filial") return false;
-        if (filterCondition === "ativo" && !item.active) return false;
-        if (filterCondition === "inativo" && item.active) return false;
-        return true;
-      })
-    : [];
+  const filtered = items.filter((item) => {
+    if (filterName && !item.name?.toLowerCase().includes(filterName.toLowerCase())) return false;
+    if (filterDocument && !item.document?.includes(filterDocument.replace(/\D/g, ""))) return false;
+    if (filterCity && !item.city?.toLowerCase().includes(filterCity.toLowerCase())) return false;
+    if (filterState && item.state !== filterState) return false;
+    if (filterMatrix === "matriz" && item.company_type !== "matriz") return false;
+    if (filterMatrix === "filial" && item.company_type !== "filial") return false;
+    if (filterCondition === "ativo" && !item.active) return false;
+    if (filterCondition === "inativo" && item.active) return false;
+    return true;
+  });
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages - 1);
@@ -343,7 +341,7 @@ export default function Companies() {
             items={items}
             isLoading={isLoading}
             filtered={filtered}
-            searched={searched}
+            
             paginatedItems={paginatedItems}
             totalPages={totalPages}
             currentPage={currentPage}
@@ -412,7 +410,7 @@ export default function Companies() {
 
 /* ───── Matriz/Filiais content ───── */
 function MatrizFiliaisContent({
-  items, isLoading, filtered, searched, paginatedItems, totalPages, currentPage, page, setPage,
+  items, isLoading, filtered, paginatedItems, totalPages, currentPage, page, setPage,
   fields, colWidths, onResizeStart, openNew, openEdit, deleteMutation, toggleActive,
   filterName, setFilterName, filterDocument, setFilterDocument, filterCity, setFilterCity,
   filterState, setFilterState, filterMatrix, setFilterMatrix, filterCondition, setFilterCondition,
@@ -483,117 +481,92 @@ function MatrizFiliaisContent({
       </div>
 
       {/* Main listing */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {!searched ? (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="flex items-center gap-16 max-w-4xl px-8">
-              <div className="text-center flex-1">
-                <div className="h-24 w-24 rounded-full bg-muted flex items-center justify-center mx-auto mb-6">
-                  <Search className="h-12 w-12 text-muted-foreground" />
-                </div>
-                <h3 className="text-xl font-semibold text-foreground mb-2">Faça sua pesquisa!</h3>
-                <p className="text-sm text-muted-foreground mb-4">Utilize os filtros para encontrar empresas cadastradas.</p>
-                <button onClick={() => setFiltersOpen(true)} className="px-6 py-2.5 bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 transition-opacity text-sm">
-                  Abrir Filtros
-                </button>
-              </div>
-              <div className="w-px h-48 bg-border" />
-              <div className="text-center flex-1">
-                <div className="h-24 w-24 rounded-full bg-muted flex items-center justify-center mx-auto mb-6">
-                  <Plus className="h-12 w-12 text-muted-foreground" />
-                </div>
-                <h3 className="text-xl font-semibold text-foreground mb-2">Inclua uma nova empresa!</h3>
-                <p className="text-sm text-muted-foreground mb-4">Cadastre matriz ou filiais.</p>
-                <button onClick={openNew} className="w-48 py-2.5 bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 transition-opacity uppercase tracking-wide text-sm">
-                  Incluir Novo
-                </button>
-              </div>
-            </div>
+      <div className="flex-1 flex flex-col overflow-hidden relative">
+        <div className="flex-1 flex flex-col overflow-hidden p-4">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-foreground">
+              {filtered.length} empresa{filtered.length !== 1 ? "s" : ""}
+            </h3>
+            <button onClick={() => setFiltersOpen(true)} className="flex items-center gap-2 px-4 py-2 border border-border rounded-lg text-sm font-medium hover:bg-accent">
+              <Search className="h-4 w-4" /> Filtros
+            </button>
           </div>
-        ) : (
-          <div className="flex-1 flex flex-col overflow-hidden p-4">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-foreground">
-                {filtered.length} resultado{filtered.length !== 1 ? "s" : ""} encontrado{filtered.length !== 1 ? "s" : ""}
-              </h3>
-              <div className="flex items-center gap-2">
-                <button onClick={() => setFiltersOpen(true)} className="flex items-center gap-2 px-4 py-2 border border-border rounded-lg text-sm font-medium hover:bg-accent">
-                  <Search className="h-4 w-4" /> Filtros
-                </button>
-                <button onClick={openNew} className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90">
-                  <Plus className="h-4 w-4" /> Novo
-                </button>
-              </div>
-            </div>
 
-            {isLoading ? (
-              <div className="flex justify-center py-12"><div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" /></div>
-            ) : filtered.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">Nenhum registro encontrado.</div>
-            ) : (
-              <>
-                <div className="flex-1 overflow-auto border border-border rounded-xl">
-                  <table className="text-sm" style={{ tableLayout: "fixed", minWidth: 800 }}>
-                    <thead className="sticky top-0 z-10">
-                      <tr className="bg-muted">
-                        <th className="px-4 py-3 font-medium text-muted-foreground" style={{ width: 80 }}>Ativo</th>
-                        {fields.map((f: any) => (
-                          <th key={f.name} className="text-left px-4 py-3 font-medium text-muted-foreground relative select-none" style={{ width: colWidths[f.name] || 120 }}>
-                            {f.label}
-                            <span
-                              onMouseDown={(e: any) => onResizeStart(f.name, e)}
-                              className="absolute right-0 top-1 bottom-1 w-1 rounded-full bg-muted-foreground/30 cursor-col-resize hover:bg-primary/60 active:bg-primary transition-colors"
-                            />
-                          </th>
-                        ))}
-                        <th className="px-4 py-3" style={{ width: 80 }} />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {paginatedItems.map((item: any, idx: number) => (
-                        <tr key={item.id} onClick={() => openEdit(item)} className={`transition-colors cursor-pointer ${!item.active ? "opacity-50" : ""} ${idx % 2 === 0 ? "bg-background" : "bg-muted/30"} hover:bg-primary/5`}>
-                          <td className="px-4 py-3" onClick={(e: any) => e.stopPropagation()}>
-                            <button
-                              onClick={() => toggleActive.mutate({ id: item.id, active: !item.active })}
-                              className={`relative w-14 h-7 rounded-full transition-colors duration-500 ease-in-out ${item.active ? "bg-primary" : "bg-destructive"}`}
-                              style={{ minWidth: 56 }}
-                            >
-                              <span className="absolute top-[3px] h-[22px] w-[22px] rounded-full bg-white shadow-lg transition-[left] duration-500 ease-in-out" style={{ left: item.active ? 29 : 3 }} />
-                            </button>
-                          </td>
-                          {fields.map((f: any) => {
-                            let display = item[f.name] ?? "—";
-                            if (f.name === "company_type") display = item[f.name] === "matriz" ? "Matriz" : "Filial";
-                            return <td key={f.name} className="px-4 py-3 text-foreground overflow-hidden text-ellipsis whitespace-nowrap" title={String(display)}>{String(display)}</td>;
-                          })}
-                          <td className="px-4 py-3" onClick={(e: any) => e.stopPropagation()}>
-                            <div className="flex gap-1">
-                              <button onClick={() => openEdit(item)} className="p-1.5 rounded-md hover:bg-accent text-primary hover:text-primary" title="Editar"><Pencil className="h-4 w-4" /></button>
-                              <button onClick={() => { if (confirm("Remover?")) deleteMutation.mutate(item.id); }} className="p-1.5 rounded-md hover:bg-accent text-destructive hover:text-destructive" title="Remover"><Trash2 className="h-4 w-4" /></button>
-                            </div>
-                          </td>
-                        </tr>
+          {isLoading ? (
+            <div className="flex justify-center py-12"><div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" /></div>
+          ) : filtered.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">Nenhum registro encontrado.</div>
+          ) : (
+            <>
+              <div className="flex-1 overflow-auto border border-border rounded-xl">
+                <table className="text-sm" style={{ tableLayout: "fixed", minWidth: 800 }}>
+                  <thead className="sticky top-0 z-10">
+                    <tr className="bg-muted">
+                      <th className="px-4 py-3 font-medium text-muted-foreground" style={{ width: 80 }}>Ativo</th>
+                      {fields.map((f: any) => (
+                        <th key={f.name} className="text-left px-4 py-3 font-medium text-muted-foreground relative select-none" style={{ width: colWidths[f.name] || 120 }}>
+                          {f.label}
+                          <span
+                            onMouseDown={(e: any) => onResizeStart(f.name, e)}
+                            className="absolute right-0 top-1 bottom-1 w-1 rounded-full bg-muted-foreground/30 cursor-col-resize hover:bg-primary/60 active:bg-primary transition-colors"
+                          />
+                        </th>
                       ))}
-                    </tbody>
-                  </table>
-                </div>
+                      <th className="px-4 py-3" style={{ width: 80 }} />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paginatedItems.map((item: any, idx: number) => (
+                      <tr key={item.id} onClick={() => openEdit(item)} className={`transition-colors cursor-pointer ${!item.active ? "opacity-50" : ""} ${idx % 2 === 0 ? "bg-background" : "bg-muted/30"} hover:bg-primary/5`}>
+                        <td className="px-4 py-3" onClick={(e: any) => e.stopPropagation()}>
+                          <button
+                            onClick={() => toggleActive.mutate({ id: item.id, active: !item.active })}
+                            className={`relative w-14 h-7 rounded-full transition-colors duration-500 ease-in-out ${item.active ? "bg-primary" : "bg-destructive"}`}
+                            style={{ minWidth: 56 }}
+                          >
+                            <span className="absolute top-[3px] h-[22px] w-[22px] rounded-full bg-white shadow-lg transition-[left] duration-500 ease-in-out" style={{ left: item.active ? 29 : 3 }} />
+                          </button>
+                        </td>
+                        {fields.map((f: any) => {
+                          let display = item[f.name] ?? "—";
+                          if (f.name === "company_type") display = item[f.name] === "matriz" ? "Matriz" : "Filial";
+                          return <td key={f.name} className="px-4 py-3 text-foreground overflow-hidden text-ellipsis whitespace-nowrap" title={String(display)}>{String(display)}</td>;
+                        })}
+                        <td className="px-4 py-3" onClick={(e: any) => e.stopPropagation()}>
+                          <div className="flex gap-1">
+                            <button onClick={() => openEdit(item)} className="p-1.5 rounded-md hover:bg-accent text-primary hover:text-primary" title="Editar"><Pencil className="h-4 w-4" /></button>
+                            <button onClick={() => { if (confirm("Remover?")) deleteMutation.mutate(item.id); }} className="p-1.5 rounded-md hover:bg-accent text-destructive hover:text-destructive" title="Remover"><Trash2 className="h-4 w-4" /></button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
 
-                {totalPages > 1 && (
-                  <div className="flex items-center justify-between text-sm text-muted-foreground mt-3">
-                    <span>{filtered.length} registro{filtered.length !== 1 ? "s" : ""}</span>
-                    <div className="flex items-center gap-2">
-                      <button onClick={() => setPage((p: number) => Math.max(0, p - 1))} disabled={currentPage === 0} className="p-1.5 rounded-md hover:bg-accent disabled:opacity-30"><ChevronLeft className="h-4 w-4" /></button>
-                      {Array.from({ length: totalPages }, (_, i) => (
-                        <button key={i} onClick={() => setPage(i)} className={`h-8 w-8 rounded-md text-sm font-medium ${i === currentPage ? "bg-primary text-primary-foreground" : "hover:bg-accent text-foreground"}`}>{i + 1}</button>
-                      )).slice(Math.max(0, currentPage - 2), Math.min(totalPages, currentPage + 3))}
-                      <button onClick={() => setPage((p: number) => Math.min(totalPages - 1, p + 1))} disabled={currentPage === totalPages - 1} className="p-1.5 rounded-md hover:bg-accent disabled:opacity-30"><ChevronRight className="h-4 w-4" /></button>
-                    </div>
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between text-sm text-muted-foreground mt-3">
+                  <span>{filtered.length} registro{filtered.length !== 1 ? "s" : ""}</span>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => setPage((p: number) => Math.max(0, p - 1))} disabled={currentPage === 0} className="p-1.5 rounded-md hover:bg-accent disabled:opacity-30"><ChevronLeft className="h-4 w-4" /></button>
+                    {Array.from({ length: totalPages }, (_, i) => (
+                      <button key={i} onClick={() => setPage(i)} className={`h-8 w-8 rounded-md text-sm font-medium ${i === currentPage ? "bg-primary text-primary-foreground" : "hover:bg-accent text-foreground"}`}>{i + 1}</button>
+                    )).slice(Math.max(0, currentPage - 2), Math.min(totalPages, currentPage + 3))}
+                    <button onClick={() => setPage((p: number) => Math.min(totalPages - 1, p + 1))} disabled={currentPage === totalPages - 1} className="p-1.5 rounded-md hover:bg-accent disabled:opacity-30"><ChevronRight className="h-4 w-4" /></button>
                   </div>
-                )}
-              </>
-            )}
-          </div>
-        )}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Floating button */}
+        <button
+          onClick={openNew}
+          className="absolute bottom-6 right-6 flex items-center gap-2 px-5 py-3 bg-primary text-primary-foreground rounded-full shadow-lg font-medium hover:opacity-90 transition-opacity text-sm uppercase tracking-wide"
+        >
+          <Plus className="h-5 w-5" /> Incluir Novo
+        </button>
       </div>
     </div>
   );
