@@ -428,9 +428,68 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
           )}
 
           {activeTab === "valores_custo" && (() => {
-            const phases = [...new Set(items.map((i) => i.category || "Geral"))];
-            const activePhase = selectedPhase || (phases.length > 0 ? null : "Geral");
-            const displayItems = activePhase ? items.filter((i) => (i.category || "Geral") === activePhase) : items;
+            const allCategories = [...new Set(items.map((i) => i.category || "Geral"))];
+            
+            // Detect hierarchy from category prefixes (e.g. "1 - X" parent of "1.1 - Y")
+            const getPhasePrefix = (cat: string) => {
+              const match = cat.match(/^(\d+(?:\.\d+)*)/);
+              return match ? match[1] : null;
+            };
+            const getParentPrefix = (prefix: string) => {
+              const parts = prefix.split(".");
+              return parts.length > 1 ? parts.slice(0, -1).join(".") : null;
+            };
+
+            interface PhaseNode { name: string; children: string[]; total: number; count: number; }
+            const phaseMap = new Map<string, PhaseNode>();
+            const rootPhases: string[] = [];
+
+            allCategories.forEach((cat) => {
+              const catItems = items.filter((i) => (i.category || "Geral") === cat);
+              const total = catItems.reduce((s, i) => s + (i.total_price || 0), 0);
+              phaseMap.set(cat, { name: cat, children: [], total, count: catItems.length });
+            });
+
+            allCategories.forEach((cat) => {
+              const prefix = getPhasePrefix(cat);
+              if (!prefix) { rootPhases.push(cat); return; }
+              const parentPrefix = getParentPrefix(prefix);
+              if (parentPrefix) {
+                const parent = allCategories.find((c) => getPhasePrefix(c) === parentPrefix);
+                if (parent && parent !== cat) {
+                  phaseMap.get(parent)!.children.push(cat);
+                  return;
+                }
+              }
+              rootPhases.push(cat);
+            });
+
+            const getDeepTotal = (cat: string): number => {
+              const node = phaseMap.get(cat);
+              if (!node) return 0;
+              return node.total + node.children.reduce((s, c) => s + getDeepTotal(c), 0);
+            };
+            const getDeepCount = (cat: string): number => {
+              const node = phaseMap.get(cat);
+              if (!node) return 0;
+              return node.count + node.children.reduce((s, c) => s + getDeepCount(c), 0);
+            };
+
+            const activePhase = selectedPhase || (allCategories.length > 0 ? null : "Geral");
+
+            // Collect all descendant categories of the selected phase
+            const getDescendants = (cat: string): string[] => {
+              const node = phaseMap.get(cat);
+              if (!node) return [];
+              const result: string[] = [];
+              node.children.forEach((c) => { result.push(c); result.push(...getDescendants(c)); });
+              return result;
+            };
+
+            const displayItems = activePhase ? items.filter((i) => {
+              const cat = i.category || "Geral";
+              return cat === activePhase || getDescendants(activePhase).includes(cat);
+            }) : items;
 
             return (
               <div className="flex gap-4 h-full">
@@ -441,7 +500,6 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                     <span className="text-xs font-semibold text-muted-foreground">Total (R$)</span>
                   </div>
                   <div className="divide-y divide-border max-h-[60vh] overflow-y-auto">
-                    {/* All phases button */}
                     <button
                       onClick={() => setSelectedPhase(null)}
                       className={`w-full text-left px-3 py-2.5 text-xs flex justify-between items-center transition-colors ${
@@ -451,20 +509,39 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                       <span className="truncate pr-2">📋 Todas as fases</span>
                       <span className="flex-shrink-0 font-medium">{totalCusto.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
                     </button>
-                    {phases.map((phase) => {
-                      const total = items.filter((i) => (i.category || "Geral") === phase).reduce((s, i) => s + (i.total_price || 0), 0);
-                      const count = items.filter((i) => (i.category || "Geral") === phase).length;
+                    {rootPhases.map((phase) => {
+                      const node = phaseMap.get(phase)!;
+                      const deepTotal = getDeepTotal(phase);
+                      const deepCount = getDeepCount(phase);
                       return (
-                        <button
-                          key={phase}
-                          onClick={() => setSelectedPhase(phase)}
-                          className={`w-full text-left px-3 py-2.5 text-xs flex justify-between items-center transition-colors ${
-                            activePhase === phase ? "bg-primary/10 text-primary font-semibold" : "text-foreground hover:bg-muted/50"
-                          }`}
-                        >
-                          <span className="truncate pr-2">{phase} <span className="text-muted-foreground">({count})</span></span>
-                          <span className="flex-shrink-0 font-medium">{total.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
-                        </button>
+                        <div key={phase}>
+                          <button
+                            onClick={() => setSelectedPhase(phase)}
+                            className={`w-full text-left px-3 py-2.5 text-xs flex justify-between items-center transition-colors ${
+                              activePhase === phase ? "bg-primary/10 text-primary font-semibold" : "text-foreground hover:bg-muted/50"
+                            }`}
+                          >
+                            <span className="truncate pr-2 font-semibold">{phase} <span className="text-muted-foreground font-normal">({deepCount})</span></span>
+                            <span className="flex-shrink-0 font-bold">{deepTotal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+                          </button>
+                          {node.children.map((sub) => {
+                            const subNode = phaseMap.get(sub)!;
+                            const subDeepTotal = getDeepTotal(sub);
+                            const subDeepCount = getDeepCount(sub);
+                            return (
+                              <button
+                                key={sub}
+                                onClick={() => setSelectedPhase(sub)}
+                                className={`w-full text-left pl-6 pr-3 py-2 text-xs flex justify-between items-center transition-colors border-t border-border/50 ${
+                                  activePhase === sub ? "bg-primary/10 text-primary font-semibold" : "text-muted-foreground hover:bg-muted/30 hover:text-foreground"
+                                }`}
+                              >
+                                <span className="truncate pr-2">↳ {sub} <span className="opacity-70">({subDeepCount})</span></span>
+                                <span className="flex-shrink-0 font-medium">{subDeepTotal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
                       );
                     })}
                   </div>
@@ -476,7 +553,7 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                   </div>
                 </div>
 
-                {/* Phase items - table format */}
+                {/* Phase items - table */}
                 <div className="flex-1 space-y-3 overflow-y-auto max-h-[60vh]">
                   <div className="flex items-center justify-between">
                     <h4 className="text-sm font-semibold text-foreground">{activePhase || "Todos os serviços"}</h4>
@@ -487,18 +564,18 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
 
                   {displayItems.length === 0 ? (
                     <div className="text-center py-12 text-muted-foreground text-sm">Nenhum item nesta fase.</div>
-                  ) : (
-                    <>
-                      {/* Group by phase when showing all */}
-                      {!activePhase ? (
-                        phases.map((phase) => {
-                          const phaseItems = items.filter((i) => (i.category || "Geral") === phase);
-                          const phaseTotal = phaseItems.reduce((s, i) => s + (i.total_price || 0), 0);
+                  ) : (() => {
+                    const groupedCats = [...new Set(displayItems.map((i) => i.category || "Geral"))];
+                    return (
+                      <>
+                        {groupedCats.map((cat) => {
+                          const catItems = displayItems.filter((i) => (i.category || "Geral") === cat);
+                          const catTotal = catItems.reduce((s, i) => s + (i.total_price || 0), 0);
                           return (
-                            <div key={phase} className="border border-border rounded-lg overflow-hidden">
-                              <div className="bg-muted/50 px-3 py-2 flex items-center justify-between cursor-pointer hover:bg-muted/70" onClick={() => setSelectedPhase(phase)}>
-                                <span className="text-xs font-semibold text-foreground">{phase} ({phaseItems.length})</span>
-                                <span className="text-xs font-bold text-foreground">{fmt(phaseTotal)}</span>
+                            <div key={cat} className="border border-border rounded-lg overflow-hidden">
+                              <div className="bg-muted/50 px-3 py-2 flex items-center justify-between cursor-pointer hover:bg-muted/70" onClick={() => setSelectedPhase(cat)}>
+                                <span className="text-xs font-semibold text-foreground">{cat} ({catItems.length})</span>
+                                <span className="text-xs font-bold text-foreground">{fmt(catTotal)}</span>
                               </div>
                               <table className="w-full text-xs">
                                 <thead>
@@ -512,7 +589,7 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-border">
-                                  {phaseItems.map((item, idx) => (
+                                  {catItems.map((item, idx) => (
                                     <tr key={item.id} className={`${idx % 2 === 0 ? "bg-background" : "bg-muted/20"} hover:bg-accent/50 cursor-pointer`} onClick={() => openEditItem(item)}>
                                       <td className="px-3 py-2 text-foreground">{item.description}</td>
                                       <td className="px-3 py-2 text-right text-foreground">{(item.quantity ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td>
@@ -531,49 +608,14 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                               </table>
                             </div>
                           );
-                        })
-                      ) : (
-                        <div className="border border-border rounded-lg overflow-hidden">
-                          <table className="w-full text-xs">
-                            <thead>
-                              <tr className="bg-muted/30">
-                                <th className="text-left px-3 py-1.5 font-medium text-muted-foreground">Descrição</th>
-                                <th className="text-right px-3 py-1.5 font-medium text-muted-foreground w-20">Qtd</th>
-                                <th className="text-left px-3 py-1.5 font-medium text-muted-foreground w-14">Un</th>
-                                <th className="text-right px-3 py-1.5 font-medium text-muted-foreground w-28">Preço Unit.</th>
-                                <th className="text-right px-3 py-1.5 font-medium text-muted-foreground w-28">Total</th>
-                                <th className="w-16"></th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-border">
-                              {displayItems.map((item, idx) => (
-                                <tr key={item.id} className={`${idx % 2 === 0 ? "bg-background" : "bg-muted/20"} hover:bg-accent/50 cursor-pointer`} onClick={() => openEditItem(item)}>
-                                  <td className="px-3 py-2 text-foreground">{item.description}</td>
-                                  <td className="px-3 py-2 text-right text-foreground">{(item.quantity ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td>
-                                  <td className="px-3 py-2 text-muted-foreground uppercase">{item.unit || "un"}</td>
-                                  <td className="px-3 py-2 text-right text-foreground">{fmt(item.unit_price)}</td>
-                                  <td className="px-3 py-2 text-right font-medium text-foreground">{fmt(item.total_price)}</td>
-                                  <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
-                                    <div className="flex gap-1 justify-center">
-                                      <button onClick={() => openEditItem(item)} className="p-1 rounded hover:bg-accent text-primary"><Pencil className="h-3.5 w-3.5" /></button>
-                                      <button onClick={() => { if (confirm("Remover item?")) deleteItem.mutate(item.id); }} className="p-1 rounded hover:bg-destructive/10 text-destructive"><Trash2 className="h-3.5 w-3.5" /></button>
-                                    </div>
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                            <tfoot>
-                              <tr className="bg-muted/50 border-t border-border">
-                                <td colSpan={4} className="px-3 py-2 text-right text-xs font-semibold text-foreground">Total da fase:</td>
-                                <td className="px-3 py-2 text-right text-xs font-bold text-foreground">{fmt(displayItems.reduce((s, i) => s + (i.total_price || 0), 0))}</td>
-                                <td></td>
-                              </tr>
-                            </tfoot>
-                          </table>
+                        })}
+                        <div className="bg-muted/30 border border-border rounded-lg p-3 flex justify-between">
+                          <span className="text-sm font-semibold text-foreground">Total:</span>
+                          <span className="text-sm font-bold text-foreground">{fmt(displayItems.reduce((s, i) => s + (i.total_price || 0), 0))}</span>
                         </div>
-                      )}
-                    </>
-                  )}
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
             );
