@@ -429,8 +429,8 @@ export default function Clients() {
                           })}
                           <td className="px-4 py-3">
                             <div className="flex gap-1">
-                              <button onClick={() => openEdit(item)} className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground"><Pencil className="h-4 w-4" /></button>
-                              <button onClick={() => { if (confirm("Remover?")) deleteMutation.mutate(item.id); }} className="p-1.5 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive"><Trash2 className="h-4 w-4" /></button>
+                              <button onClick={() => openEdit(item)} className="p-1.5 rounded-md hover:bg-blue-100 text-blue-500 hover:text-blue-700" title="Editar"><Pencil className="h-4 w-4" /></button>
+                              <button onClick={() => { if (confirm("Remover?")) deleteMutation.mutate(item.id); }} className="p-1.5 rounded-md hover:bg-red-100 text-red-500 hover:text-red-700" title="Remover"><Trash2 className="h-4 w-4" /></button>
                             </div>
                           </td>
                         </tr>
