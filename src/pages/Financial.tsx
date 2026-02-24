@@ -188,10 +188,6 @@ export default function Financial() {
       </div>
 
       <div className="flex gap-3 items-end">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
-          <input type="text" placeholder="Pesquisar..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring" />
-        </div>
         <div className="w-56">
           <select value={filterCompany} onChange={(e) => { setFilterCompany(e.target.value); setPage(0); }} className="w-full px-3 py-2.5 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm">
             <option value="">Todas empresas</option>
@@ -199,6 +195,10 @@ export default function Financial() {
               <option key={c.id} value={c.id}>{c.company_type === "filial" ? "↳ " : ""}{c.name}</option>
             ))}
           </select>
+        </div>
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
+          <input type="text" placeholder="Pesquisar..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring" />
         </div>
       </div>
 

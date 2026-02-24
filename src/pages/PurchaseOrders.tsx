@@ -161,6 +161,7 @@ export default function PurchaseOrders() {
               <p className="text-xs text-muted-foreground mt-1">Faça sua pesquisa aqui</p>
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              <CompanyFilterSelect value={filterCompany} onChange={setFilterCompany} companies={companiesList} className={inputClass} />
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Código</label>
                 <input type="text" value={filterCode} onChange={e => setFilterCode(e.target.value)} className={inputClass} />
@@ -187,7 +188,6 @@ export default function PurchaseOrders() {
                   <input type="date" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} className={inputClass} />
                 </div>
               </div>
-              <CompanyFilterSelect value={filterCompany} onChange={setFilterCompany} companies={companiesList} className={inputClass} />
             </div>
             <div className="p-4 border-t border-border flex gap-2">
               <button onClick={handleClearFilters} className="flex-1 flex items-center justify-center px-3 py-2.5 rounded-lg bg-background border border-border text-muted-foreground hover:bg-muted transition-colors"><Eraser className="h-5 w-5" /></button>

@@ -264,6 +264,7 @@ export default function Clients() {
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              <CompanyFilterSelect value={filterCompany} onChange={setFilterCompany} companies={companies} className={inputClass} />
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1.5">Tipo</label>
                 <div className="flex gap-4">
@@ -312,7 +313,6 @@ export default function Clients() {
                   ))}
                 </div>
               </div>
-              <CompanyFilterSelect value={filterCompany} onChange={setFilterCompany} companies={companies} className={inputClass} />
             </div>
 
             <div className="p-4 border-t border-border flex gap-2">
