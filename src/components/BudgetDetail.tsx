@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { X, Plus, Pencil, Trash2, FileText, ChevronDown, Settings, Upload, ClipboardList, Download } from "lucide-react";
 import BudgetImportModal from "./BudgetImportModal";
 import { fetchCompanyInfo, type CompanyInfo } from "@/utils/exportWithHeader";
+import { generateBudgetReport } from "@/utils/budgetReports";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from "recharts";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -2211,7 +2212,36 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
               label="Relatórios"
               icon={FileText}
               items={RELATORIOS}
-              onSelect={(item) => toast.info(`Relatório "${item}" será implementado em breve.`)}
+              onSelect={async (item) => {
+                try {
+                  toast.info(`Gerando "${item}"...`);
+                  // Fetch all measurement items across all measurements
+                  const allMeasIds = measurements.map((m: any) => m.id);
+                  let allMI: any[] = [];
+                  if (allMeasIds.length > 0) {
+                    const { data: miData } = await supabase
+                      .from("budget_measurement_items")
+                      .select("*")
+                      .in("measurement_id", allMeasIds);
+                    allMI = miData || [];
+                  }
+                  await generateBudgetReport(item, {
+                    budget,
+                    items,
+                    obra,
+                    client,
+                    company,
+                    measurements: measurements as any[],
+                    allMeasurementItems: allMI,
+                    planPeriods: planPeriods as any[],
+                    planItems: planItems as any[],
+                    userId: user!.id,
+                  });
+                  toast.success(`Relatório "${item}" gerado com sucesso!`);
+                } catch (err: any) {
+                  toast.error(`Erro: ${err?.message || "Falha ao gerar relatório"}`);
+                }
+              }}
             />
             <DropdownButton
               label="Ações"
