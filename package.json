@@ -16,6 +16,8 @@
     "autoprefixer": "^10.4.24",
     "cropperjs": "^2.1.0",
     "date-fns": "^4.1.0",
+    "jspdf": "^4.2.0",
+    "jspdf-autotable": "^5.0.7",
     "lovable-tagger": "^1.1.13",
     "lucide-react": "^0.575.0",
     "react": "^19.2.4",
@@ -27,6 +29,7 @@
     "tailwindcss": "^4.2.1",
     "tailwindcss-animate": "^1.0.7",
     "typescript": "^5.9.3",
-    "vite": "^7.3.1"
+    "vite": "^7.3.1",
+    "xlsx": "^0.18.5"
   }
 }

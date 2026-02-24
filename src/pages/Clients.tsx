@@ -7,7 +7,8 @@ import {
   Search, Plus, ChevronLeft, ChevronRight, Pencil, Trash2, X, Download, Upload,
   Eraser
 } from "lucide-react";
-import { exportToCSV } from "@/utils/exportCsv";
+import { exportCSV, exportExcel, exportPDF, fetchCompanyInfo } from "@/utils/exportWithHeader";
+import ExportDialog from "@/components/ExportDialog";
 import { maskCpfCnpj, validateCpfCnpj } from "@/utils/cpfCnpj";
 import { fetchCep } from "@/utils/cep";
 import Attachments from "@/components/Attachments";
@@ -70,6 +71,7 @@ export default function Clients() {
   const [activeTab, setActiveTab] = useState("dados");
   const [cepLoading, setCepLoading] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
 
   // Resizable columns
   const defaultWidths: Record<string, number> = { name: 180, category: 120, document: 140, email: 180, phone: 120, city: 120, state: 60 };
@@ -370,7 +372,7 @@ export default function Clients() {
               </h3>
               <div className="flex items-center gap-2">
                 {filtered.length > 0 && (
-                  <button onClick={() => exportToCSV(filtered, fields, "clients")} className="flex items-center gap-2 px-3 py-2 border border-border text-foreground rounded-lg text-sm hover:bg-muted transition-colors">
+                  <button onClick={() => setExportOpen(true)} className="flex items-center gap-2 px-3 py-2 border border-border text-foreground rounded-lg text-sm hover:bg-muted transition-colors">
                     <Download className="h-4 w-4" /> Exportar
                   </button>
                 )}
@@ -672,6 +674,22 @@ export default function Clients() {
           queryKey="clients"
           fields={fields.map(f => ({ name: f.name, label: f.label }))}
           onClose={() => setImportOpen(false)}
+        />
+      )}
+
+      {/* Export Dialog */}
+      {exportOpen && (
+        <ExportDialog
+          onClose={() => setExportOpen(false)}
+          onSelect={async (format) => {
+            setExportOpen(false);
+            const company = user ? await fetchCompanyInfo(user.id) : null;
+            const exportFields = fields.map(f => ({ name: f.name, label: f.label }));
+            if (format === "csv") exportCSV(filtered, exportFields, "clientes", company);
+            else if (format === "excel") exportExcel(filtered, exportFields, "clientes", company);
+            else if (format === "pdf") await exportPDF(filtered, exportFields, "clientes", company);
+            toast.success("Arquivo exportado!");
+          }}
         />
       )}
     </div>

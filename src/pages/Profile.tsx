@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import { User, Save, Camera, Lock, Bell, Eye, EyeOff, Check, X as XIcon } from "lucide-react";
+import { User, Save, Camera, Lock, Bell, Eye, EyeOff, Check, X as XIcon, Building2 } from "lucide-react";
 import ImageCropper from "@/components/ImageCropper";
 
 interface Profile {
@@ -33,6 +33,9 @@ export default function ProfilePage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [cropperSrc, setCropperSrc] = useState<string | null>(null);
+  const [companyForm, setCompanyForm] = useState<Record<string, string>>({
+    company_name: "", document: "", address: "", city: "", state: "", phone: "", email: "", logo_url: "",
+  });
 
   const passwordCriteria = {
     length: passwordForm.password.length >= 8,
@@ -72,6 +75,20 @@ export default function ProfilePage() {
     },
   });
 
+  const { data: companyData } = useQuery({
+    queryKey: ["company_settings", user?.id],
+    enabled: !!user,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("company_settings" as any)
+        .select("*")
+        .eq("user_id", user!.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data as any;
+    },
+  });
+
   useEffect(() => {
     if (profile) {
       setForm({ full_name: profile.full_name || "", phone: profile.phone || "" });
@@ -83,6 +100,21 @@ export default function ProfilePage() {
       setEmailNotifications(preferences.email_notifications);
     }
   }, [preferences]);
+
+  useEffect(() => {
+    if (companyData) {
+      setCompanyForm({
+        company_name: companyData.company_name || "",
+        document: companyData.document || "",
+        address: companyData.address || "",
+        city: companyData.city || "",
+        state: companyData.state || "",
+        phone: companyData.phone || "",
+        email: companyData.email || "",
+        logo_url: companyData.logo_url || "",
+      });
+    }
+  }, [companyData]);
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -113,10 +145,25 @@ export default function ProfilePage() {
           .insert({ user_id: user.id, email_notifications: emailNotifications } as any);
         if (error) throw error;
       }
+      // Save company settings
+      const companyPayload = { ...companyForm, user_id: user.id } as any;
+      if (companyData) {
+        const { error } = await supabase
+          .from("company_settings" as any)
+          .update(companyPayload)
+          .eq("user_id", user.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from("company_settings" as any)
+          .insert(companyPayload);
+        if (error) throw error;
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["profile"] });
       qc.invalidateQueries({ queryKey: ["user_preferences"] });
+      qc.invalidateQueries({ queryKey: ["company_settings"] });
       toast.success("Perfil atualizado!");
     },
     onError: (e: any) => toast.error(e.message),
@@ -347,6 +394,72 @@ export default function ProfilePage() {
             </div>
           </form>
         )}
+      </div>
+
+      {/* Dados da Empresa */}
+      <div className="border border-border rounded-xl p-6 space-y-4">
+        <h3 className="font-semibold text-foreground text-sm flex items-center gap-2">
+          <Building2 className="h-4 w-4" /> Dados da Empresa
+        </h3>
+        <p className="text-xs text-muted-foreground">Esses dados serão usados no cabeçalho das exportações (PDF, Excel, CSV).</p>
+        <div>
+          <label className="block text-sm font-medium text-foreground mb-1">Logomarca</label>
+          <div className="flex items-center gap-3">
+            {companyForm.logo_url ? (
+              <img src={companyForm.logo_url} alt="Logo" className="h-14 w-14 object-contain rounded border border-border" />
+            ) : (
+              <div className="h-14 w-14 rounded border border-dashed border-border flex items-center justify-center text-muted-foreground">
+                <Building2 className="h-6 w-6" />
+              </div>
+            )}
+            <label className="px-3 py-1.5 text-xs bg-muted rounded-lg cursor-pointer hover:bg-muted/80 border border-border">
+              Enviar logo
+              <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file || !user) return;
+                const path = `${user.id}/company-logo.jpg`;
+                const { error: upErr } = await supabase.storage.from("attachments").upload(path, file, { upsert: true });
+                if (upErr) { toast.error("Erro ao enviar logo"); return; }
+                const { data: pub } = supabase.storage.from("attachments").getPublicUrl(path);
+                setCompanyForm(p => ({ ...p, logo_url: pub.publicUrl }));
+                toast.success("Logo enviada!");
+              }} />
+            </label>
+            {companyForm.logo_url && (
+              <button onClick={() => setCompanyForm(p => ({ ...p, logo_url: "" }))} className="text-xs text-destructive hover:underline">Remover</button>
+            )}
+          </div>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1">Nome da Empresa</label>
+            <input value={companyForm.company_name} onChange={e => setCompanyForm(p => ({ ...p, company_name: e.target.value }))} className={inputClass} placeholder="Razão social" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1">CPF/CNPJ</label>
+            <input value={companyForm.document} onChange={e => setCompanyForm(p => ({ ...p, document: e.target.value }))} className={inputClass} placeholder="00.000.000/0000-00" />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="block text-sm font-medium text-foreground mb-1">Endereço</label>
+            <input value={companyForm.address} onChange={e => setCompanyForm(p => ({ ...p, address: e.target.value }))} className={inputClass} placeholder="Rua, número, bairro" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1">Cidade</label>
+            <input value={companyForm.city} onChange={e => setCompanyForm(p => ({ ...p, city: e.target.value }))} className={inputClass} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1">Estado</label>
+            <input value={companyForm.state} onChange={e => setCompanyForm(p => ({ ...p, state: e.target.value }))} className={inputClass} placeholder="UF" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1">Telefone</label>
+            <input value={companyForm.phone} onChange={e => setCompanyForm(p => ({ ...p, phone: e.target.value }))} className={inputClass} placeholder="(00) 0000-0000" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1">E-mail</label>
+            <input value={companyForm.email} onChange={e => setCompanyForm(p => ({ ...p, email: e.target.value }))} className={inputClass} placeholder="empresa@email.com" />
+          </div>
+        </div>
       </div>
 
       {/* Preferências */}
