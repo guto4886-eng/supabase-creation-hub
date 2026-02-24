@@ -655,7 +655,7 @@ export default function Clients() {
               <button type="button" onClick={closeForm} className="px-4 py-2 rounded-lg bg-white text-foreground border border-border hover:bg-gray-50 text-sm">
                 Cancelar
               </button>
-              {activeTab === "dados" && (
+              {(activeTab === "dados" || activeTab === "portal") && (
                 <button type="submit" form="client-form" disabled={saveMutation.isPending} className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50">
                   {saveMutation.isPending ? "Salvando..." : "Salvar"}
                 </button>
