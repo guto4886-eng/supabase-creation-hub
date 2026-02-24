@@ -3,8 +3,11 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import { X, Plus, Pencil, Trash2, FileText, ChevronDown, Settings, Upload, ClipboardList } from "lucide-react";
+import { X, Plus, Pencil, Trash2, FileText, ChevronDown, Settings, Upload, ClipboardList, Download } from "lucide-react";
 import BudgetImportModal from "./BudgetImportModal";
+import { fetchCompanyInfo, type CompanyInfo } from "@/utils/exportWithHeader";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 interface BudgetDetailProps {
   budgetId: string;
@@ -1152,18 +1155,201 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
 
             const activeMed = measurements.find((m: any) => m.id === activeMeasurement) as any;
 
+            // Generate measurement report PDF
+            const generateMeasurementReport = async () => {
+              try {
+                const companyInfo = user?.id ? await fetchCompanyInfo(user.id) : null;
+                const doc = new jsPDF({ orientation: "landscape" });
+                let y = 15;
+
+                // Company header
+                if (companyInfo) {
+                  if (companyInfo.logo_url) {
+                    try {
+                      const img = new Image();
+                      img.crossOrigin = "anonymous";
+                      const imgData = await new Promise<string>((resolve, reject) => {
+                        img.onload = () => {
+                          const canvas = document.createElement("canvas");
+                          canvas.width = img.width;
+                          canvas.height = img.height;
+                          canvas.getContext("2d")!.drawImage(img, 0, 0);
+                          resolve(canvas.toDataURL("image/jpeg"));
+                        };
+                        img.onerror = reject;
+                        img.src = companyInfo.logo_url!;
+                      });
+                      doc.addImage(imgData, "JPEG", 14, 10, 25, 25);
+                      y = 12;
+                    } catch { /* skip logo */ }
+                  }
+                  const textX = companyInfo.logo_url ? 44 : 14;
+                  doc.setFontSize(14);
+                  doc.setFont("helvetica", "bold");
+                  if (companyInfo.company_name) { doc.text(companyInfo.company_name, textX, y); y += 6; }
+                  doc.setFontSize(9);
+                  doc.setFont("helvetica", "normal");
+                  if (companyInfo.document) { doc.text(`CNPJ/CPF: ${companyInfo.document}`, textX, y); y += 4; }
+                  const addrParts = [companyInfo.address, companyInfo.city, companyInfo.state].filter(Boolean).join(" - ");
+                  if (addrParts) { doc.text(addrParts, textX, y); y += 4; }
+                  if (companyInfo.phone) { doc.text(`Tel: ${companyInfo.phone}`, textX, y); y += 4; }
+                  if (companyInfo.email) { doc.text(companyInfo.email, textX, y); y += 4; }
+                  y += 4;
+                }
+
+                // Report title
+                doc.setFontSize(13);
+                doc.setFont("helvetica", "bold");
+                doc.text(`Relatório de Medições — ${budget.budget_code || ""} — ${obra?.name || ""}`, 14, y);
+                y += 8;
+
+                // Overall summary
+                const totalOrcado = serviceItemsMed.reduce((s, svc) => s + (svc.total_price || 0), 0);
+                const totalMedidoAcc = serviceItemsMed.reduce((sum, svc) => {
+                  const accPct = getAccumulatedPct(svc.id);
+                  return sum + (svc.total_price || 0) * (accPct / 100);
+                }, 0);
+                const totalSaldo = totalOrcado - totalMedidoAcc;
+                const progressPct = totalOrcado > 0 ? Math.min((totalMedidoAcc / totalOrcado) * 100, 100) : 0;
+
+                doc.setFontSize(10);
+                doc.setFont("helvetica", "normal");
+                doc.text(`Total Orçado: ${fmt(totalOrcado)}   |   Medido Acumulado: ${fmt(totalMedidoAcc)} (${progressPct.toFixed(1)}%)   |   Saldo Restante: ${fmt(totalSaldo)}`, 14, y);
+                y += 8;
+
+                // Measurements summary table
+                doc.setFontSize(11);
+                doc.setFont("helvetica", "bold");
+                doc.text("Medições Realizadas", 14, y);
+                y += 2;
+
+                autoTable(doc, {
+                  startY: y,
+                  head: [["Nº", "Período", "Status", "Criação", "Valor Medido"]],
+                  body: measurements.map((med: any) => {
+                    const medItems = (allMeasurementItems as any[]).filter((mi: any) => mi.measurement_id === med.id);
+                    const medValue = medItems.reduce((sum: number, mi: any) => {
+                      const svc = serviceItemsMed.find(s => s.id === mi.budget_item_id);
+                      return sum + ((svc?.total_price || 0) * ((mi.measured_percentage || 0) / 100));
+                    }, 0);
+                    return [
+                      `#${med.measurement_number}`,
+                      med.reference_period || "—",
+                      med.status === "aberta" ? "Aberta" : "Fechada",
+                      new Date(med.created_at).toLocaleDateString("pt-BR"),
+                      fmt(medValue),
+                    ];
+                  }),
+                  styles: { fontSize: 8, cellPadding: 2 },
+                  headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: "bold" },
+                  alternateRowStyles: { fillColor: [245, 245, 245] },
+                });
+
+                y = (doc as any).lastAutoTable.finalY + 10;
+
+                // Detail per phase/item
+                doc.setFontSize(11);
+                doc.setFont("helvetica", "bold");
+                if (y > 170) { doc.addPage(); y = 15; }
+                doc.text("Detalhamento por Item", 14, y);
+                y += 2;
+
+                const detailBody = serviceItemsMed.map((svc) => {
+                  const accPct = getAccumulatedPct(svc.id);
+                  const accValue = (svc.total_price || 0) * (accPct / 100);
+                  const saldo = (svc.total_price || 0) - accValue;
+                  return [
+                    svc.category || "—",
+                    svc.description,
+                    `${svc.quantity ?? 0} ${svc.unit || ""}`,
+                    fmt(svc.unit_price),
+                    fmt(svc.total_price),
+                    `${accPct.toFixed(2)}%`,
+                    fmt(accValue),
+                    fmt(saldo),
+                  ];
+                });
+
+                autoTable(doc, {
+                  startY: y,
+                  head: [["Fase", "Descrição", "Qtd", "Unit.", "Total Orçado", "% Acum.", "Valor Acum.", "Saldo"]],
+                  body: detailBody,
+                  styles: { fontSize: 7, cellPadding: 1.5 },
+                  headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: "bold" },
+                  alternateRowStyles: { fillColor: [245, 245, 245] },
+                  columnStyles: {
+                    0: { cellWidth: 30 },
+                    1: { cellWidth: 60 },
+                  },
+                });
+
+                doc.save(`Relatorio_Medicoes_${budget.budget_code || budgetId}.pdf`);
+                toast.success("Relatório gerado com sucesso!");
+              } catch (err: any) {
+                toast.error("Erro ao gerar relatório: " + (err?.message || ""));
+              }
+            };
+
             return (
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <h4 className="text-sm font-semibold text-foreground">Medição Física</h4>
-                  <button
-                    onClick={createMeasurement}
-                    className="flex items-center gap-1.5 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90"
-                  >
-                    <Plus className="h-4 w-4" />
-                    Abrir medição
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {measurements.length > 0 && (
+                      <button
+                        onClick={() => generateMeasurementReport()}
+                        className="flex items-center gap-1.5 px-4 py-2 border border-border bg-background text-foreground rounded-lg text-sm font-medium hover:bg-muted"
+                      >
+                        <Download className="h-4 w-4" />
+                        Relatório
+                      </button>
+                    )}
+                    <button
+                      onClick={createMeasurement}
+                      className="flex items-center gap-1.5 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Abrir medição
+                    </button>
+                  </div>
                 </div>
+
+                {/* Overall progress bar on main listing */}
+                {measurements.length > 0 && !activeMeasurement && (() => {
+                  const totalOrcado = serviceItemsMed.reduce((s, svc) => s + (svc.total_price || 0), 0);
+                  const totalMedidoAcc = serviceItemsMed.reduce((sum, svc) => {
+                    const accPct = getAccumulatedPct(svc.id);
+                    return sum + (svc.total_price || 0) * (accPct / 100);
+                  }, 0);
+                  const totalSaldo = totalOrcado - totalMedidoAcc;
+                  const progressPct = totalOrcado > 0 ? Math.min((totalMedidoAcc / totalOrcado) * 100, 100) : 0;
+                  return (
+                    <div className="bg-muted/50 rounded-lg border border-border px-4 py-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-semibold text-foreground">Progresso Geral da Obra</span>
+                        <span className="text-sm font-bold text-primary">{progressPct.toFixed(1)}%</span>
+                      </div>
+                      <div className="w-full h-4 bg-muted rounded-full overflow-hidden border border-border">
+                        <div
+                          className="h-full rounded-full transition-all duration-500 ease-out"
+                          style={{
+                            width: `${progressPct}%`,
+                            background: progressPct >= 100
+                              ? 'hsl(var(--chart-2))'
+                              : progressPct >= 50
+                                ? 'hsl(var(--primary))'
+                                : 'hsl(var(--chart-4))',
+                          }}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
+                        <span>Valor da Obra: <strong className="text-foreground">{fmt(totalOrcado)}</strong></span>
+                        <span>Medido: <strong className="text-primary">{fmt(totalMedidoAcc)}</strong></span>
+                        <span>Saldo: <strong className={totalSaldo > 0 ? "text-foreground" : totalSaldo === 0 ? "text-green-600" : "text-destructive"}>{fmt(totalSaldo)}</strong></span>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {measurements.length === 0 && !activeMeasurement ? (
                   <div className="text-center py-16 text-muted-foreground border border-border rounded-lg bg-muted/10">
