@@ -588,25 +588,37 @@ export type Database = {
         Row: {
           category: string | null
           created_at: string
+          entry_date: string
           id: string
           message: string
           obra_id: string
+          phase: string | null
+          service: string | null
+          show_to_client: boolean
           user_id: string
         }
         Insert: {
           category?: string | null
           created_at?: string
+          entry_date?: string
           id?: string
           message: string
           obra_id: string
+          phase?: string | null
+          service?: string | null
+          show_to_client?: boolean
           user_id: string
         }
         Update: {
           category?: string | null
           created_at?: string
+          entry_date?: string
           id?: string
           message?: string
           obra_id?: string
+          phase?: string | null
+          service?: string | null
+          show_to_client?: boolean
           user_id?: string
         }
         Relationships: [
