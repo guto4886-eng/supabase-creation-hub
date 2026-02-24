@@ -65,6 +65,7 @@ export default function PurchaseQuotations() {
   const [filterTitle, setFilterTitle] = useState("");
   const [filterStatuses, setFilterStatuses] = useState<string[]>(STATUS_OPTIONS.filter(s => s.defaultChecked).map(s => s.value));
   const [filterObra, setFilterObra] = useState("");
+  const [filterCompany, setFilterCompany] = useState("");
   const [filterSupplier, setFilterSupplier] = useState("");
   const [filterDateFrom, setFilterDateFrom] = useState("");
   const [filterDateTo, setFilterDateTo] = useState("");
@@ -111,6 +112,15 @@ export default function PurchaseQuotations() {
       const { data, error } = await supabase.from("suppliers").select("id, name").eq("active", true).order("name");
       if (error) throw error;
       return data;
+    },
+  });
+
+  const { data: companies = [] } = useQuery({
+    queryKey: ["companies_list_pq"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).from("companies").select("id, name, company_type, parent_id").eq("active", true).order("name");
+      if (error) throw error;
+      return data as any[];
     },
   });
 
@@ -165,6 +175,7 @@ export default function PurchaseQuotations() {
     ? items.filter((item) => {
         if (filterTitle && !item.title?.toLowerCase().includes(filterTitle.toLowerCase())) return false;
         if (filterStatuses.length > 0 && !filterStatuses.includes(item.status)) return false;
+        if (filterCompany && item.company_id !== filterCompany) return false;
         if (filterObra && item.obra_id !== filterObra) return false;
         if (filterSupplier && !(item.quotation_suppliers || []).some((qs: any) => qs.supplier_id === filterSupplier)) return false;
         if (filterDateFrom && item.created_at < filterDateFrom) return false;
@@ -348,7 +359,7 @@ export default function PurchaseQuotations() {
 
   const handleSearch = () => { setSearched(true); setPage(0); };
   const handleClearFilters = () => {
-    setFilterTitle(""); setFilterStatuses(STATUS_OPTIONS.filter(s => s.defaultChecked).map(s => s.value)); setFilterObra(""); setFilterSupplier(""); setFilterDateFrom(""); setFilterDateTo(""); setFilterCondition("ativo"); setSearched(false); setPage(0);
+    setFilterTitle(""); setFilterStatuses(STATUS_OPTIONS.filter(s => s.defaultChecked).map(s => s.value)); setFilterCompany(""); setFilterObra(""); setFilterSupplier(""); setFilterDateFrom(""); setFilterDateTo(""); setFilterCondition("ativo"); setSearched(false); setPage(0);
   };
 
   const statusColor = (s: string) => {
@@ -552,6 +563,15 @@ export default function PurchaseQuotations() {
                   <span className="text-sm text-muted-foreground">até</span>
                   <input type="date" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} className={inputClass} />
                 </div>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-foreground mb-1">Empresa</label>
+                <select value={filterCompany} onChange={e => setFilterCompany(e.target.value)} className={inputClass}>
+                  <option value="">Todas</option>
+                  {companies.map((c: any) => (
+                    <option key={c.id} value={c.id}>{c.company_type === "filial" ? "↳ " : ""}{c.name}{c.company_type === "matriz" ? " (Matriz)" : " (Filial)"}</option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="block text-sm font-semibold text-foreground mb-1">Obra</label>
