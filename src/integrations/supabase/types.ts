@@ -671,6 +671,7 @@ export type Database = {
           neighborhood: string | null
           notes: string | null
           planning_frequency: string | null
+          rdo_sections: string[] | null
           resp_obra: string | null
           resp_tecnico: string | null
           start_date: string | null
@@ -720,6 +721,7 @@ export type Database = {
           neighborhood?: string | null
           notes?: string | null
           planning_frequency?: string | null
+          rdo_sections?: string[] | null
           resp_obra?: string | null
           resp_tecnico?: string | null
           start_date?: string | null
@@ -769,6 +771,7 @@ export type Database = {
           neighborhood?: string | null
           notes?: string | null
           planning_frequency?: string | null
+          rdo_sections?: string[] | null
           resp_obra?: string | null
           resp_tecnico?: string | null
           start_date?: string | null
