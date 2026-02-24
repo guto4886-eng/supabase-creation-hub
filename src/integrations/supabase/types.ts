@@ -925,6 +925,7 @@ export type Database = {
           description: string | null
           id: string
           notes: string | null
+          obra_id: string | null
           status: string | null
           supplier_id: string | null
           title: string
@@ -937,6 +938,7 @@ export type Database = {
           description?: string | null
           id?: string
           notes?: string | null
+          obra_id?: string | null
           status?: string | null
           supplier_id?: string | null
           title: string
@@ -949,6 +951,7 @@ export type Database = {
           description?: string | null
           id?: string
           notes?: string | null
+          obra_id?: string | null
           status?: string | null
           supplier_id?: string | null
           title?: string
@@ -956,6 +959,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "purchase_quotations_obra_id_fkey"
+            columns: ["obra_id"]
+            isOneToOne: false
+            referencedRelation: "obras"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "purchase_quotations_supplier_id_fkey"
             columns: ["supplier_id"]
