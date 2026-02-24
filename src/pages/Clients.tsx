@@ -106,15 +106,19 @@ export default function Clients() {
       if (editing) {
         const { error } = await supabase.from("clients").update(values).eq("id", editing.id);
         if (error) throw error;
+        return editing;
       } else {
-        const { error } = await supabase.from("clients").insert({ ...values, user_id: user!.id } as any);
+        const { data, error } = await supabase.from("clients").insert({ ...values, user_id: user!.id } as any).select().single();
         if (error) throw error;
+        return data;
       }
     },
-    onSuccess: () => {
+    onSuccess: (savedClient: any) => {
       qc.invalidateQueries({ queryKey: ["clients"] });
       toast.success(editing ? "Atualizado!" : "Criado!");
-      closeForm();
+      // Keep modal open and set editing to the saved client so tabs work
+      setEditing(savedClient);
+      setForm({ ...savedClient });
     },
     onError: (e: any) => toast.error(e.message),
   });
