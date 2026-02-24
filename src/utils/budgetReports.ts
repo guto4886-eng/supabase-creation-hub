@@ -407,9 +407,9 @@ async function reportCurvaABC(data: ReportData) {
     didParseCell: (hookData: any) => {
       if (hookData.section === "body" && hookData.column.index === 8) {
         const val = hookData.cell.raw;
-        if (val === "A") hookData.cell.styles.fillColor = [231, 76, 60];
+        if (val === "A") hookData.cell.styles.fillColor = [46, 204, 113];
         else if (val === "B") hookData.cell.styles.fillColor = [241, 196, 15];
-        else hookData.cell.styles.fillColor = [46, 204, 113];
+        else hookData.cell.styles.fillColor = [231, 76, 60];
         hookData.cell.styles.textColor = 255;
         hookData.cell.styles.fontStyle = "bold";
       }
