@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import { Shield } from "lucide-react";
+import { Shield, Save } from "lucide-react";
 
 interface Props {
   clientId: string;
@@ -33,6 +33,12 @@ const appModules = [
   { key: "mensagens", label: "Mensagens" },
 ];
 
+type LocalState = Record<string, boolean>; // key: `${platform}:${module}`
+
+function makeKey(platform: string, module: string) {
+  return `${platform}:${module}`;
+}
+
 export default function ClientPortalPermissions({ clientId }: Props) {
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -50,39 +56,70 @@ export default function ClientPortalPermissions({ clientId }: Props) {
     },
   });
 
-  const toggleMutation = useMutation({
-    mutationFn: async ({ module, platform, enabled }: { module: string; platform: string; enabled: boolean }) => {
-      const existing = permissions.find((p) => p.module === module && p.platform === platform);
-      if (existing) {
-        const { error } = await supabase
-          .from("client_portal_permissions" as any)
-          .update({ enabled } as any)
-          .eq("id", existing.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from("client_portal_permissions" as any)
-          .insert({ client_id: clientId, user_id: user!.id, module, platform, enabled } as any);
-        if (error) throw error;
+  // Local state mirrors DB, user toggles locally then saves
+  const [local, setLocal] = useState<LocalState>({});
+  const [dirty, setDirty] = useState(false);
+
+  // Sync local state from DB
+  useEffect(() => {
+    const state: LocalState = {};
+    permissions.forEach((p) => {
+      state[makeKey(p.platform, p.module)] = p.enabled;
+    });
+    setLocal(state);
+    setDirty(false);
+  }, [permissions]);
+
+  const toggle = (platform: string, module: string, enabled: boolean) => {
+    setLocal((prev) => ({ ...prev, [makeKey(platform, module)]: enabled }));
+    setDirty(true);
+  };
+
+  const toggleAll = (platform: string, modules: { key: string }[], enabled: boolean) => {
+    setLocal((prev) => {
+      const next = { ...prev };
+      modules.forEach((m) => { next[makeKey(platform, m.key)] = enabled; });
+      return next;
+    });
+    setDirty(true);
+  };
+
+  const isEnabled = (module: string, platform: string) => local[makeKey(platform, module)] ?? false;
+  const allEnabled = (platform: string, modules: { key: string }[]) =>
+    modules.every((m) => isEnabled(m.key, platform));
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      const allModules = [
+        ...portalModules.map((m) => ({ ...m, platform: "portal" })),
+        ...appModules.map((m) => ({ ...m, platform: "app" })),
+      ];
+      for (const m of allModules) {
+        const enabled = local[makeKey(m.platform, m.key)] ?? false;
+        const existing = permissions.find((p) => p.module === m.key && p.platform === m.platform);
+        if (existing) {
+          if (existing.enabled !== enabled) {
+            const { error } = await supabase
+              .from("client_portal_permissions" as any)
+              .update({ enabled } as any)
+              .eq("id", existing.id);
+            if (error) throw error;
+          }
+        } else if (enabled) {
+          const { error } = await supabase
+            .from("client_portal_permissions" as any)
+            .insert({ client_id: clientId, user_id: user!.id, module: m.key, platform: m.platform, enabled } as any);
+          if (error) throw error;
+        }
       }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey });
+      toast.success("Permissões salvas!");
+      setDirty(false);
     },
     onError: (e: any) => toast.error(e.message),
   });
-
-  const isEnabled = (module: string, platform: string) => {
-    const perm = permissions.find((p) => p.module === module && p.platform === platform);
-    return perm ? perm.enabled : false;
-  };
-
-  const allEnabled = (platform: string, modules: { key: string }[]) =>
-    modules.every((m) => isEnabled(m.key, platform));
-
-  const toggleAll = (platform: string, modules: { key: string }[], enabled: boolean) => {
-    modules.forEach((m) => toggleMutation.mutate({ module: m.key, platform, enabled }));
-  };
 
   const renderSection = (title: string, platform: string, modules: { key: string; label: string }[]) => (
     <div className="space-y-2">
@@ -104,7 +141,7 @@ export default function ClientPortalPermissions({ clientId }: Props) {
             <input
               type="checkbox"
               checked={isEnabled(m.key, platform)}
-              onChange={(e) => toggleMutation.mutate({ module: m.key, platform, enabled: e.target.checked })}
+              onChange={(e) => toggle(platform, m.key, e.target.checked)}
               className="rounded border-input"
             />
             <span className="text-foreground">{m.label}</span>
@@ -130,6 +167,17 @@ export default function ClientPortalPermissions({ clientId }: Props) {
         <div className="space-y-4">
           {renderSection("Portal do Cliente", "portal", portalModules)}
           {renderSection("Aplicativo Móvel", "app", appModules)}
+
+          <div className="flex justify-end pt-2">
+            <button
+              onClick={() => saveMutation.mutate()}
+              disabled={saveMutation.isPending || !dirty}
+              className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
+            >
+              <Save className="h-4 w-4" />
+              {saveMutation.isPending ? "Salvando..." : "Salvar"}
+            </button>
+          </div>
         </div>
       )}
     </div>
