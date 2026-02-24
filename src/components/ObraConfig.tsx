@@ -19,11 +19,31 @@ const DAYS = [
 
 const COST_TYPES = ["Equipamentos", "Fretes", "Mão de obra", "Materiais", "Serviços", "Outros"];
 
+const RDO_SECTIONS = [
+  { key: "turno_tempo", label: "Turno/tempo" },
+  { key: "tarefas_realizadas", label: "Tarefas realizadas" },
+  { key: "imagens", label: "Imagens (pasta da obra)" },
+  { key: "ocorrencias", label: "Ocorrências (dia a dia obra)" },
+  { key: "equipe", label: "Equipe envolvida" },
+  { key: "maquinas", label: "Máquinas e equipamentos" },
+  { key: "materiais_recebidos", label: "Materiais recebidos" },
+  { key: "materiais_utilizados", label: "Materiais utilizados" },
+];
+
 export default function ObraConfig({ obraId, form, setForm }: Props) {
   const { user } = useAuth();
   const qc = useQueryClient();
   const inputClass = "px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm";
   const [rateType, setRateType] = useState<"custo" | "fase">("custo");
+
+  const rdoSections: string[] = form.rdo_sections || RDO_SECTIONS.map(s => s.key);
+  const toggleRdoSection = (key: string) => {
+    const current = [...rdoSections];
+    const idx = current.indexOf(key);
+    if (idx >= 0) current.splice(idx, 1);
+    else current.push(key);
+    setForm(p => ({ ...p, rdo_sections: current }));
+  };
 
   const { data: rates = [] } = useQuery({
     queryKey: ["obra_admin_rates", obraId],
@@ -228,6 +248,25 @@ export default function ObraConfig({ obraId, form, setForm }: Props) {
           </table>
         )}
       </div>
+
+      {/* RDO - Relatório Diário de Obra */}
+      <fieldset className="border border-border rounded-lg p-4 space-y-3">
+        <legend className="px-2 text-sm font-bold text-foreground">RDO - Relatório Diário de Obra</legend>
+        <p className="text-xs text-muted-foreground">Selecione as seções que devem ser exibidas no RDO dessa obra</p>
+        <div className="space-y-2">
+          {RDO_SECTIONS.map(s => (
+            <label key={s.key} className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
+              <input
+                type="checkbox"
+                checked={rdoSections.includes(s.key)}
+                onChange={() => toggleRdoSection(s.key)}
+                className="h-4 w-4 rounded border-input accent-primary"
+              />
+              {s.label}
+            </label>
+          ))}
+        </div>
+      </fieldset>
 
       <div className="flex justify-end">
         <button onClick={() => saveRatesMutation.mutate()} disabled={saveRatesMutation.isPending} className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50">

@@ -178,7 +178,7 @@ export default function Obras() {
     "cep", "address", "address_number", "neighborhood", "complement", "state", "city",
     "billing_cep", "billing_address", "billing_number", "billing_neighborhood", "billing_complement", "billing_state", "billing_city", "billing_address_source",
     "stock_control", "stock_type", "client_access", "billing_type", "billing_frequency", "document_type", "planning_frequency", "tracking_method", "work_days",
-    "total_budget", "description",
+    "total_budget", "description", "rdo_sections",
   ];
 
   const openNew = () => {
