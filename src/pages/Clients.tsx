@@ -270,12 +270,12 @@ export default function Clients() {
       <div className="flex flex-shrink-0">
         <div className={`border-r border-border bg-muted transition-all duration-300 overflow-hidden ${filtersOpen ? "w-80" : "w-0"}`}>
           <div className="flex flex-col h-full w-80">
-            <div className="p-4 border-b border-border">
-              <h2 className="text-lg font-bold text-primary uppercase flex items-center gap-2">
+            <div className="p-4 border-b border-border bg-primary">
+              <h2 className="text-lg font-bold text-primary-foreground uppercase flex items-center gap-2">
                 <Search className="h-5 w-5" />
                 Clientes
               </h2>
-              <p className="text-xs text-muted-foreground mt-1">Faça sua pesquisa aqui</p>
+              <p className="text-xs text-primary-foreground/70 mt-1">Faça sua pesquisa aqui</p>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
