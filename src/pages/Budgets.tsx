@@ -126,7 +126,7 @@ export default function Budgets() {
   // Item CRUD
   const saveItem = useMutation({
     mutationFn: async () => {
-      const payload = { description: itemForm.description, category: itemForm.category || null, quantity: parseFloat(itemForm.quantity) || 1, unit: itemForm.unit || "un", unit_price: parseFloat(itemForm.unit_price) || 0, total_price: (parseFloat(itemForm.quantity) || 1) * (parseFloat(itemForm.unit_price) || 0) };
+      const payload = { description: itemForm.description, category: itemForm.category || null, quantity: parseFloat(itemForm.quantity) || 1, unit: itemForm.unit || "un", unit_price: parseFloat(itemForm.unit_price) || 0 };
       if (editingItem) { const { error } = await supabase.from("budget_items").update(payload).eq("id", editingItem.id); if (error) throw error; }
       else if (addingTo) { const { error } = await supabase.from("budget_items").insert({ ...payload, budget_id: addingTo }); if (error) throw error; }
     },
@@ -428,7 +428,6 @@ export default function Budgets() {
                           quantity: item.quantity,
                           unit: item.unit,
                           unit_price: item.unit_price,
-                          total_price: item.total_price,
                           sort_order: item.sort_order,
                         }));
                         await supabase.from("budget_items").insert(copies);

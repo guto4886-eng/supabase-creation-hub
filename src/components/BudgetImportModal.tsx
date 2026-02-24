@@ -244,7 +244,6 @@ export default function BudgetImportModal({ budgetId, onClose }: Props) {
         quantity,
         unit: sanitizeText(item.unit, "un") || "un",
         unit_price: unitPrice,
-        total_price: quantity * unitPrice,
         sort_order: idx,
       };
     });

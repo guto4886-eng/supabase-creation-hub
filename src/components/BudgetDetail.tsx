@@ -200,7 +200,6 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
         quantity: parseFloat(itemForm.quantity) || 1,
         unit: itemForm.unit || "un",
         unit_price: parseFloat(itemForm.unit_price) || 0,
-        total_price: (parseFloat(itemForm.quantity) || 1) * (parseFloat(itemForm.unit_price) || 0),
       };
       if (editingItem) {
         const { error } = await supabase.from("budget_items").update(payload).eq("id", editingItem.id);
