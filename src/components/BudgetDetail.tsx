@@ -429,9 +429,8 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
 
           {activeTab === "valores_custo" && (() => {
             const phases = [...new Set(items.map((i) => i.category || "Geral"))];
-            const activePhase = selectedPhase || phases[0] || "Geral";
-            const phaseItems = items.filter((i) => (i.category || "Geral") === activePhase);
-            const phaseTotal = phaseItems.reduce((s, i) => s + (i.total_price || 0), 0);
+            const activePhase = selectedPhase || (phases.length > 0 ? null : "Geral");
+            const displayItems = activePhase ? items.filter((i) => (i.category || "Geral") === activePhase) : items;
 
             return (
               <div className="flex gap-4 h-full">
@@ -442,8 +441,19 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                     <span className="text-xs font-semibold text-muted-foreground">Total (R$)</span>
                   </div>
                   <div className="divide-y divide-border max-h-[60vh] overflow-y-auto">
+                    {/* All phases button */}
+                    <button
+                      onClick={() => setSelectedPhase(null)}
+                      className={`w-full text-left px-3 py-2.5 text-xs flex justify-between items-center transition-colors ${
+                        !activePhase ? "bg-primary/10 text-primary font-semibold" : "text-foreground hover:bg-muted/50"
+                      }`}
+                    >
+                      <span className="truncate pr-2">📋 Todas as fases</span>
+                      <span className="flex-shrink-0 font-medium">{totalCusto.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+                    </button>
                     {phases.map((phase) => {
                       const total = items.filter((i) => (i.category || "Geral") === phase).reduce((s, i) => s + (i.total_price || 0), 0);
+                      const count = items.filter((i) => (i.category || "Geral") === phase).length;
                       return (
                         <button
                           key={phase}
@@ -452,7 +462,7 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                             activePhase === phase ? "bg-primary/10 text-primary font-semibold" : "text-foreground hover:bg-muted/50"
                           }`}
                         >
-                          <span className="truncate pr-2">{phase}</span>
+                          <span className="truncate pr-2">{phase} <span className="text-muted-foreground">({count})</span></span>
                           <span className="flex-shrink-0 font-medium">{total.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
                         </button>
                       );
@@ -466,52 +476,104 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                   </div>
                 </div>
 
-                {/* Phase items */}
-                <div className="flex-1 space-y-4 overflow-y-auto max-h-[60vh]">
+                {/* Phase items - table format */}
+                <div className="flex-1 space-y-3 overflow-y-auto max-h-[60vh]">
                   <div className="flex items-center justify-between">
-                    <h4 className="text-sm font-semibold text-foreground">{activePhase}</h4>
-                    <button onClick={() => { setItemForm({ description: "", category: activePhase, quantity: "1", unit: "un", unit_price: "0" }); setEditingItem(null); setAddingItem(true); }} className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-lg text-xs font-medium hover:opacity-90">
+                    <h4 className="text-sm font-semibold text-foreground">{activePhase || "Todos os serviços"}</h4>
+                    <button onClick={() => { setItemForm({ description: "", category: activePhase || "", quantity: "1", unit: "un", unit_price: "0" }); setEditingItem(null); setAddingItem(true); }} className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-lg text-xs font-medium hover:opacity-90">
                       <Plus className="h-3.5 w-3.5" /> Adicionar item
                     </button>
                   </div>
 
-                  {phaseItems.length === 0 ? (
+                  {displayItems.length === 0 ? (
                     <div className="text-center py-12 text-muted-foreground text-sm">Nenhum item nesta fase.</div>
                   ) : (
-                    <div className="space-y-3">
-                      {phaseItems.map((item) => (
-                        <div key={item.id} className="border border-border rounded-lg p-4 space-y-3">
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm font-semibold text-foreground">{item.description}</span>
-                            <div className="flex gap-1">
-                              <button onClick={() => openEditItem(item)} className="p-1 rounded hover:bg-accent text-primary"><Pencil className="h-3.5 w-3.5" /></button>
-                              <button onClick={() => { if (confirm("Remover item?")) deleteItem.mutate(item.id); }} className="p-1 rounded hover:bg-destructive/10 text-destructive"><Trash2 className="h-3.5 w-3.5" /></button>
+                    <>
+                      {/* Group by phase when showing all */}
+                      {!activePhase ? (
+                        phases.map((phase) => {
+                          const phaseItems = items.filter((i) => (i.category || "Geral") === phase);
+                          const phaseTotal = phaseItems.reduce((s, i) => s + (i.total_price || 0), 0);
+                          return (
+                            <div key={phase} className="border border-border rounded-lg overflow-hidden">
+                              <div className="bg-muted/50 px-3 py-2 flex items-center justify-between cursor-pointer hover:bg-muted/70" onClick={() => setSelectedPhase(phase)}>
+                                <span className="text-xs font-semibold text-foreground">{phase} ({phaseItems.length})</span>
+                                <span className="text-xs font-bold text-foreground">{fmt(phaseTotal)}</span>
+                              </div>
+                              <table className="w-full text-xs">
+                                <thead>
+                                  <tr className="bg-muted/30">
+                                    <th className="text-left px-3 py-1.5 font-medium text-muted-foreground">Descrição</th>
+                                    <th className="text-right px-3 py-1.5 font-medium text-muted-foreground w-20">Qtd</th>
+                                    <th className="text-left px-3 py-1.5 font-medium text-muted-foreground w-14">Un</th>
+                                    <th className="text-right px-3 py-1.5 font-medium text-muted-foreground w-28">Preço Unit.</th>
+                                    <th className="text-right px-3 py-1.5 font-medium text-muted-foreground w-28">Total</th>
+                                    <th className="w-16"></th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-border">
+                                  {phaseItems.map((item, idx) => (
+                                    <tr key={item.id} className={`${idx % 2 === 0 ? "bg-background" : "bg-muted/20"} hover:bg-accent/50 cursor-pointer`} onClick={() => openEditItem(item)}>
+                                      <td className="px-3 py-2 text-foreground">{item.description}</td>
+                                      <td className="px-3 py-2 text-right text-foreground">{(item.quantity ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td>
+                                      <td className="px-3 py-2 text-muted-foreground uppercase">{item.unit || "un"}</td>
+                                      <td className="px-3 py-2 text-right text-foreground">{fmt(item.unit_price)}</td>
+                                      <td className="px-3 py-2 text-right font-medium text-foreground">{fmt(item.total_price)}</td>
+                                      <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+                                        <div className="flex gap-1 justify-center">
+                                          <button onClick={() => openEditItem(item)} className="p-1 rounded hover:bg-accent text-primary"><Pencil className="h-3.5 w-3.5" /></button>
+                                          <button onClick={() => { if (confirm("Remover item?")) deleteItem.mutate(item.id); }} className="p-1 rounded hover:bg-destructive/10 text-destructive"><Trash2 className="h-3.5 w-3.5" /></button>
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
                             </div>
-                          </div>
-                          <div className="flex items-center gap-6 text-sm">
-                            <div className="flex items-center gap-2">
-                              <span className="text-muted-foreground">Quantidade</span>
-                              <span className="font-medium text-foreground">{(item.quantity ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
-                              <span className="text-muted-foreground uppercase text-xs">{item.unit || "un"}</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-muted-foreground">Valor unitário:</span>
-                              <span className="font-semibold text-foreground">{fmt(item.unit_price)}</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-muted-foreground">Valor total:</span>
-                              <span className="font-bold text-foreground">{fmt(item.total_price)}</span>
-                            </div>
-                          </div>
+                          );
+                        })
+                      ) : (
+                        <div className="border border-border rounded-lg overflow-hidden">
+                          <table className="w-full text-xs">
+                            <thead>
+                              <tr className="bg-muted/30">
+                                <th className="text-left px-3 py-1.5 font-medium text-muted-foreground">Descrição</th>
+                                <th className="text-right px-3 py-1.5 font-medium text-muted-foreground w-20">Qtd</th>
+                                <th className="text-left px-3 py-1.5 font-medium text-muted-foreground w-14">Un</th>
+                                <th className="text-right px-3 py-1.5 font-medium text-muted-foreground w-28">Preço Unit.</th>
+                                <th className="text-right px-3 py-1.5 font-medium text-muted-foreground w-28">Total</th>
+                                <th className="w-16"></th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-border">
+                              {displayItems.map((item, idx) => (
+                                <tr key={item.id} className={`${idx % 2 === 0 ? "bg-background" : "bg-muted/20"} hover:bg-accent/50 cursor-pointer`} onClick={() => openEditItem(item)}>
+                                  <td className="px-3 py-2 text-foreground">{item.description}</td>
+                                  <td className="px-3 py-2 text-right text-foreground">{(item.quantity ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td>
+                                  <td className="px-3 py-2 text-muted-foreground uppercase">{item.unit || "un"}</td>
+                                  <td className="px-3 py-2 text-right text-foreground">{fmt(item.unit_price)}</td>
+                                  <td className="px-3 py-2 text-right font-medium text-foreground">{fmt(item.total_price)}</td>
+                                  <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+                                    <div className="flex gap-1 justify-center">
+                                      <button onClick={() => openEditItem(item)} className="p-1 rounded hover:bg-accent text-primary"><Pencil className="h-3.5 w-3.5" /></button>
+                                      <button onClick={() => { if (confirm("Remover item?")) deleteItem.mutate(item.id); }} className="p-1 rounded hover:bg-destructive/10 text-destructive"><Trash2 className="h-3.5 w-3.5" /></button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                            <tfoot>
+                              <tr className="bg-muted/50 border-t border-border">
+                                <td colSpan={4} className="px-3 py-2 text-right text-xs font-semibold text-foreground">Total da fase:</td>
+                                <td className="px-3 py-2 text-right text-xs font-bold text-foreground">{fmt(displayItems.reduce((s, i) => s + (i.total_price || 0), 0))}</td>
+                                <td></td>
+                              </tr>
+                            </tfoot>
+                          </table>
                         </div>
-                      ))}
-                    </div>
+                      )}
+                    </>
                   )}
-
-                  <div className="bg-muted/30 border border-border rounded-lg p-3 flex justify-between">
-                    <span className="text-sm font-semibold text-foreground">Total da fase:</span>
-                    <span className="text-sm font-bold text-foreground">{fmt(phaseTotal)}</span>
-                  </div>
                 </div>
               </div>
             );
