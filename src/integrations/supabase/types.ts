@@ -111,6 +111,7 @@ export type Database = {
           budget_item_id: string
           created_at: string
           id: string
+          measured_at: string | null
           measured_percentage: number | null
           measured_quantity: number | null
           measurement_id: string
@@ -120,6 +121,7 @@ export type Database = {
           budget_item_id: string
           created_at?: string
           id?: string
+          measured_at?: string | null
           measured_percentage?: number | null
           measured_quantity?: number | null
           measurement_id: string
@@ -129,6 +131,7 @@ export type Database = {
           budget_item_id?: string
           created_at?: string
           id?: string
+          measured_at?: string | null
           measured_percentage?: number | null
           measured_quantity?: number | null
           measurement_id?: string
