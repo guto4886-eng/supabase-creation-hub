@@ -119,6 +119,35 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
   const [selectedPhase, setSelectedPhase] = useState<string | null>(null);
   const [expandedAbc, setExpandedAbc] = useState<string | null>(null);
   const [activeMeasurement, setActiveMeasurement] = useState<string | null>(null);
+  const [planSelectedPhase, setPlanSelectedPhase] = useState<string | null>(null);
+
+  // Fetch plan periods
+  const { data: planPeriods = [] } = useQuery({
+    queryKey: ["budget_plan_periods", budgetId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("budget_plan_periods" as any)
+        .select("*")
+        .eq("budget_id", budgetId)
+        .order("period_date", { ascending: true });
+      if (error) throw error;
+      return data as any[];
+    },
+  });
+
+  const planPeriodIds = planPeriods.map((p: any) => p.id);
+  const { data: planItems = [] } = useQuery({
+    queryKey: ["budget_plan_items", budgetId, planPeriodIds.join(",")],
+    enabled: planPeriodIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("budget_plan_items" as any)
+        .select("*")
+        .in("plan_period_id", planPeriodIds);
+      if (error) throw error;
+      return data as any[];
+    },
+  });
 
   // Fetch measurements for medicao tab
   const { data: measurements = [] } = useQuery({
@@ -1022,16 +1051,268 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
             </div>
           )}
 
-          {activeTab === "planejamento" && (
-            <div className="space-y-4">
-              <h4 className="text-sm font-semibold text-foreground">Planejamento Físico/Econômico</h4>
-              <div className="text-center py-16 text-muted-foreground border border-border rounded-lg bg-muted/10">
-                <Settings className="h-10 w-10 mx-auto mb-3 text-muted-foreground/50" />
-                <p className="text-sm">Módulo de planejamento físico/econômico em desenvolvimento.</p>
-                <p className="text-xs mt-1">Aqui será possível planejar a distribuição de custos ao longo do tempo.</p>
+          {activeTab === "planejamento" && (() => {
+            const getPrefixPlan = (desc: string) => {
+              const m = desc.trim().match(/^(\d+(?:\.\d+)*)/);
+              return m ? m[1] : null;
+            };
+            const phaseItemsPlan = items.filter((i) => (i.category || "").toLowerCase() === "fase");
+            const serviceItemsPlan = items.filter((i) => ["serviço", "servico"].includes((i.category || "").toLowerCase()));
+            const rootPhasesPlan = phaseItemsPlan.filter((p) => {
+              const pfx = getPrefixPlan(p.description);
+              return pfx && !pfx.includes(".");
+            });
+            const phaseDataPlan = rootPhasesPlan.map((phase) => {
+              const rootIdx = getPrefixPlan(phase.description)!;
+              const children = serviceItemsPlan.filter((s) => {
+                const sp = getPrefixPlan(s.description);
+                return sp ? sp.split(".")[0] === rootIdx : false;
+              });
+              const total = children.reduce((sum, s) => sum + (s.total_price || 0), 0);
+              return { rootIdx, label: phase.description, total, services: children };
+            }).filter((p) => p.services.length > 0).sort((a, b) => parseInt(a.rootIdx) - parseInt(b.rootIdx));
+
+            const addPlanPeriod = async () => {
+              if (!user) return;
+              const now = new Date();
+              const nextOrder = planPeriods.length;
+              const { data, error } = await supabase
+                .from("budget_plan_periods" as any)
+                .insert({
+                  budget_id: budgetId,
+                  period_date: now.toISOString().split("T")[0],
+                  period_label: `${String(now.getMonth() + 1).padStart(2, "0")}/${now.getFullYear()}`,
+                  sort_order: nextOrder,
+                  user_id: user.id,
+                } as any)
+                .select()
+                .single();
+              if (error) { toast.error(error.message); return; }
+              // Create plan items for all services
+              const itemsToInsert = serviceItemsPlan.map((svc) => ({
+                plan_period_id: (data as any).id,
+                budget_item_id: svc.id,
+                planned_percentage: 0,
+              }));
+              if (itemsToInsert.length > 0) {
+                await supabase.from("budget_plan_items" as any).insert(itemsToInsert as any);
+              }
+              qc.invalidateQueries({ queryKey: ["budget_plan_periods", budgetId] });
+              qc.invalidateQueries({ queryKey: ["budget_plan_items", budgetId] });
+              toast.success("Período adicionado!");
+            };
+
+            const deletePlanPeriod = async (periodId: string) => {
+              if (!confirm("Excluir este período de planejamento?")) return;
+              await supabase.from("budget_plan_items" as any).delete().eq("plan_period_id", periodId);
+              await supabase.from("budget_plan_periods" as any).delete().eq("id", periodId);
+              qc.invalidateQueries({ queryKey: ["budget_plan_periods", budgetId] });
+              qc.invalidateQueries({ queryKey: ["budget_plan_items", budgetId] });
+              toast.success("Período excluído!");
+            };
+
+            const updatePlanPeriodDate = async (periodId: string, newDate: string) => {
+              await supabase.from("budget_plan_periods" as any).update({ period_date: newDate } as any).eq("id", periodId);
+              qc.invalidateQueries({ queryKey: ["budget_plan_periods", budgetId] });
+            };
+
+            const updatePlanPeriodLabel = async (periodId: string, label: string) => {
+              await supabase.from("budget_plan_periods" as any).update({ period_label: label } as any).eq("id", periodId);
+              qc.invalidateQueries({ queryKey: ["budget_plan_periods", budgetId] });
+            };
+
+            const updatePlanItemPct = async (planItemId: string, pct: number) => {
+              await supabase.from("budget_plan_items" as any).update({ planned_percentage: pct } as any).eq("id", planItemId);
+              qc.invalidateQueries({ queryKey: ["budget_plan_items", budgetId] });
+            };
+
+            const getPlanAccPct = (budgetItemId: string) => {
+              return planItems
+                .filter((pi: any) => pi.budget_item_id === budgetItemId)
+                .reduce((sum: number, pi: any) => sum + (pi.planned_percentage || 0), 0);
+            };
+
+            return (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-semibold text-foreground">Planejamento Físico/Econômico</h4>
+                  <button
+                    onClick={addPlanPeriod}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Adicionar período
+                  </button>
+                </div>
+
+                {planPeriods.length === 0 ? (
+                  <div className="text-center py-16 text-muted-foreground border border-border rounded-lg bg-muted/10">
+                    <ClipboardList className="h-10 w-10 mx-auto mb-3 text-muted-foreground/50" />
+                    <p className="text-sm">Nenhum período de planejamento cadastrado.</p>
+                    <p className="text-xs mt-1">Adicione períodos para planejar as medições previstas até o fim da obra.</p>
+                  </div>
+                ) : (
+                  <div className="flex gap-4" style={{ minHeight: 400 }}>
+                    {/* Sidebar: phases */}
+                    <div className="w-72 border border-border rounded-lg overflow-hidden flex-shrink-0">
+                      <div className="bg-muted/50 px-3 py-2 text-xs font-semibold text-muted-foreground border-b border-border">Fases da Obra</div>
+                      <div className="divide-y divide-border max-h-[500px] overflow-auto">
+                        {phaseDataPlan.map(({ rootIdx, label, total, services }) => {
+                          const accPlanPct = services.reduce((sum, svc) => sum + getPlanAccPct(svc.id), 0);
+                          const avgPct = services.length > 0 ? accPlanPct / services.length : 0;
+                          const isSelected = planSelectedPhase === rootIdx;
+                          return (
+                            <button
+                              key={rootIdx}
+                              onClick={() => setPlanSelectedPhase(isSelected ? null : rootIdx)}
+                              className={`w-full text-left px-3 py-2.5 text-sm hover:bg-muted/40 transition-colors ${isSelected ? "bg-primary/10 border-l-2 border-primary" : ""}`}
+                            >
+                              <div className="font-medium text-foreground truncate">{label}</div>
+                              <div className="flex items-center justify-between mt-1">
+                                <span className="text-xs text-muted-foreground">{fmt(total)}</span>
+                                <span className="text-xs font-medium text-primary">{avgPct.toFixed(1)}% plan.</span>
+                              </div>
+                              <div className="w-full h-1.5 bg-muted rounded-full mt-1 overflow-hidden">
+                                <div className="h-full bg-primary/60 rounded-full transition-all" style={{ width: `${Math.min(avgPct, 100)}%` }} />
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Right: periods and services */}
+                    <div className="flex-1 overflow-auto">
+                      {!planSelectedPhase ? (
+                        <div className="space-y-3">
+                          {/* Periods listing */}
+                          <div className="border border-border rounded-lg overflow-hidden">
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr className="bg-muted/50">
+                                  <th className="text-left px-3 py-2.5 font-medium text-muted-foreground">Período</th>
+                                  <th className="text-left px-3 py-2.5 font-medium text-muted-foreground">Data</th>
+                                  <th className="text-right px-3 py-2.5 font-medium text-muted-foreground">% Previsto Médio</th>
+                                  <th className="text-center px-3 py-2.5 font-medium text-muted-foreground">Ações</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-border">
+                                {planPeriods.map((period: any, idx: number) => {
+                                  const periodItems = planItems.filter((pi: any) => pi.plan_period_id === period.id);
+                                  const avgPct = periodItems.length > 0
+                                    ? periodItems.reduce((s: number, pi: any) => s + (pi.planned_percentage || 0), 0) / periodItems.length
+                                    : 0;
+                                  return (
+                                    <tr key={period.id} className={idx % 2 === 0 ? "bg-background" : "bg-muted/20"}>
+                                      <td className="px-3 py-2">
+                                        <input
+                                          type="text"
+                                          defaultValue={period.period_label || ""}
+                                          onBlur={(e) => updatePlanPeriodLabel(period.id, e.target.value)}
+                                          className="w-32 px-2 py-1 text-sm rounded border border-input bg-background text-foreground"
+                                          placeholder="Ex: 01/2025"
+                                        />
+                                      </td>
+                                      <td className="px-3 py-2">
+                                        <input
+                                          type="date"
+                                          defaultValue={period.period_date}
+                                          onBlur={(e) => updatePlanPeriodDate(period.id, e.target.value)}
+                                          className="px-2 py-1 text-sm rounded border border-input bg-background text-foreground"
+                                        />
+                                      </td>
+                                      <td className="px-3 py-2 text-right text-foreground tabular-nums">{avgPct.toFixed(1)}%</td>
+                                      <td className="px-3 py-2 text-center">
+                                        <button
+                                          onClick={() => deletePlanPeriod(period.id)}
+                                          className="px-2 py-1 text-xs bg-destructive text-destructive-foreground rounded hover:opacity-90"
+                                          title="Excluir período"
+                                        >
+                                          <Trash2 className="h-3.5 w-3.5" />
+                                        </button>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                          <p className="text-xs text-muted-foreground">Selecione uma fase ao lado para lançar as previsões por serviço e período.</p>
+                        </div>
+                      ) : (() => {
+                        const phaseData = phaseDataPlan.find((p) => p.rootIdx === planSelectedPhase);
+                        if (!phaseData) return null;
+                        return (
+                          <div className="space-y-3">
+                            <h5 className="text-sm font-semibold text-foreground mb-2">{phaseData.label}</h5>
+                            {/* Grid: services x periods */}
+                            <div className="border border-border rounded-lg overflow-auto">
+                              <table className="w-full text-sm">
+                                <thead>
+                                  <tr className="bg-muted/50">
+                                    <th className="text-left px-3 py-2 font-medium text-muted-foreground min-w-[200px] sticky left-0 bg-muted/50 z-10">Serviço</th>
+                                    <th className="text-right px-3 py-2 font-medium text-muted-foreground min-w-[80px]">Total</th>
+                                    {planPeriods.map((period: any) => (
+                                      <th key={period.id} className="text-center px-2 py-2 font-medium text-muted-foreground min-w-[90px]">
+                                        {period.period_label || new Date(period.period_date).toLocaleDateString("pt-BR")}
+                                      </th>
+                                    ))}
+                                    <th className="text-right px-3 py-2 font-medium text-muted-foreground min-w-[80px]">Acum. Plan.</th>
+                                    <th className="text-right px-3 py-2 font-medium text-muted-foreground min-w-[80px]">Saldo</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-border">
+                                  {phaseData.services.map((svc, idx) => {
+                                    const accPlan = getPlanAccPct(svc.id);
+                                    const saldoPct = 100 - accPlan;
+                                    return (
+                                      <tr key={svc.id} className={idx % 2 === 0 ? "bg-background" : "bg-muted/20"}>
+                                        <td className="px-3 py-2 text-foreground sticky left-0 bg-inherit z-10">
+                                          <div className="text-xs font-medium truncate max-w-[200px]">{svc.description}</div>
+                                          <div className="text-[10px] text-muted-foreground">{svc.quantity} {svc.unit} — {fmt(svc.unit_price)}</div>
+                                        </td>
+                                        <td className="px-3 py-2 text-right text-foreground tabular-nums text-xs">{fmt(svc.total_price)}</td>
+                                        {planPeriods.map((period: any) => {
+                                          const pi = planItems.find((item: any) => item.plan_period_id === period.id && item.budget_item_id === svc.id);
+                                          return (
+                                            <td key={period.id} className="px-1 py-1.5 text-center">
+                                              <input
+                                                type="number"
+                                                min="0"
+                                                max="100"
+                                                step="0.01"
+                                                defaultValue={pi?.planned_percentage || 0}
+                                                key={`plan-${pi?.id}-${pi?.planned_percentage}`}
+                                                onBlur={(e) => {
+                                                  if (pi) updatePlanItemPct(pi.id, parseFloat(e.target.value) || 0);
+                                                }}
+                                                className="w-full px-1.5 py-1 text-xs rounded border border-input bg-background text-foreground tabular-nums text-center"
+                                                disabled={!pi}
+                                              />
+                                            </td>
+                                          );
+                                        })}
+                                        <td className="px-3 py-2 text-right tabular-nums text-xs">
+                                          <span className={accPlan > 100 ? "text-destructive font-bold" : "text-primary font-medium"}>{accPlan.toFixed(1)}%</span>
+                                        </td>
+                                        <td className="px-3 py-2 text-right tabular-nums text-xs">
+                                          <span className={saldoPct < 0 ? "text-destructive" : "text-muted-foreground"}>{saldoPct.toFixed(1)}%</span>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {activeTab === "medicao" && (() => {
             const getPrefixMed = (desc: string) => {

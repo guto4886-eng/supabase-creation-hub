@@ -198,6 +198,83 @@ export type Database = {
           },
         ]
       }
+      budget_plan_items: {
+        Row: {
+          budget_item_id: string
+          created_at: string
+          id: string
+          plan_period_id: string
+          planned_percentage: number | null
+        }
+        Insert: {
+          budget_item_id: string
+          created_at?: string
+          id?: string
+          plan_period_id: string
+          planned_percentage?: number | null
+        }
+        Update: {
+          budget_item_id?: string
+          created_at?: string
+          id?: string
+          plan_period_id?: string
+          planned_percentage?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_plan_items_budget_item_id_fkey"
+            columns: ["budget_item_id"]
+            isOneToOne: false
+            referencedRelation: "budget_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_plan_items_plan_period_id_fkey"
+            columns: ["plan_period_id"]
+            isOneToOne: false
+            referencedRelation: "budget_plan_periods"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      budget_plan_periods: {
+        Row: {
+          budget_id: string
+          created_at: string
+          id: string
+          period_date: string
+          period_label: string | null
+          sort_order: number | null
+          user_id: string
+        }
+        Insert: {
+          budget_id: string
+          created_at?: string
+          id?: string
+          period_date: string
+          period_label?: string | null
+          sort_order?: number | null
+          user_id: string
+        }
+        Update: {
+          budget_id?: string
+          created_at?: string
+          id?: string
+          period_date?: string
+          period_label?: string | null
+          sort_order?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_plan_periods_budget_id_fkey"
+            columns: ["budget_id"]
+            isOneToOne: false
+            referencedRelation: "budgets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       budgets: {
         Row: {
           budget_code: string | null
