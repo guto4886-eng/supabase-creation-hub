@@ -1385,23 +1385,52 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                         return sum + (svc.total_price || 0) * ((mi?.measured_percentage || 0) / 100);
                       }, 0);
                       const totalSaldo = totalOrcado - totalMedidoAcc;
+                      const progressPct = totalOrcado > 0 ? Math.min((totalMedidoAcc / totalOrcado) * 100, 100) : 0;
                       return (
-                        <div className="bg-muted/50 rounded-lg border border-border px-4 py-3 grid grid-cols-4 gap-4 text-sm">
-                          <div>
-                            <span className="text-muted-foreground">Total Orçado: </span>
-                            <span className="font-bold text-foreground">{fmt(totalOrcado)}</span>
+                        <div className="space-y-3">
+                          {/* Progress bar */}
+                          <div className="bg-muted/50 rounded-lg border border-border px-4 py-3">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-sm font-semibold text-foreground">Progresso da Obra</span>
+                              <span className="text-sm font-bold text-primary">{progressPct.toFixed(1)}%</span>
+                            </div>
+                            <div className="w-full h-4 bg-muted rounded-full overflow-hidden border border-border">
+                              <div
+                                className="h-full rounded-full transition-all duration-500 ease-out"
+                                style={{
+                                  width: `${progressPct}%`,
+                                  background: progressPct >= 100
+                                    ? 'hsl(var(--chart-2))'
+                                    : progressPct >= 50
+                                      ? 'hsl(var(--primary))'
+                                      : 'hsl(var(--chart-4))',
+                                }}
+                              />
+                            </div>
+                            <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
+                              <span>Valor da Obra: <strong className="text-foreground">{fmt(totalOrcado)}</strong></span>
+                              <span>Medido: <strong className="text-primary">{fmt(totalMedidoAcc)}</strong></span>
+                              <span>Saldo Restante: <strong className={totalSaldo > 0 ? "text-foreground" : totalSaldo === 0 ? "text-green-600" : "text-destructive"}>{fmt(totalSaldo)}</strong></span>
+                            </div>
                           </div>
-                          <div>
-                            <span className="text-muted-foreground">Esta Medição: </span>
-                            <span className="font-bold text-foreground">{fmt(totalMedidoEsta)}</span>
-                          </div>
-                          <div>
-                            <span className="text-muted-foreground">Acumulado: </span>
-                            <span className="font-bold text-primary">{fmt(totalMedidoAcc)}</span>
-                          </div>
-                          <div>
-                            <span className="text-muted-foreground">Saldo Restante: </span>
-                            <span className={`font-bold ${totalSaldo > 0 ? "text-foreground" : totalSaldo === 0 ? "text-green-600" : "text-destructive"}`}>{fmt(totalSaldo)}</span>
+                          {/* Totals grid */}
+                          <div className="bg-muted/50 rounded-lg border border-border px-4 py-3 grid grid-cols-4 gap-4 text-sm">
+                            <div>
+                              <span className="text-muted-foreground">Total Orçado: </span>
+                              <span className="font-bold text-foreground">{fmt(totalOrcado)}</span>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">Esta Medição: </span>
+                              <span className="font-bold text-foreground">{fmt(totalMedidoEsta)}</span>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">Acumulado: </span>
+                              <span className="font-bold text-primary">{fmt(totalMedidoAcc)}</span>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">Saldo Restante: </span>
+                              <span className={`font-bold ${totalSaldo > 0 ? "text-foreground" : totalSaldo === 0 ? "text-green-600" : "text-destructive"}`}>{fmt(totalSaldo)}</span>
+                            </div>
                           </div>
                         </div>
                       );
