@@ -268,7 +268,7 @@ export default function Clients() {
     <div className="flex h-[calc(100vh-49px)] overflow-hidden relative">
       {/* Filter Panel + Toggle */}
       <div className="flex flex-shrink-0">
-        <div className={`border-r border-border bg-muted transition-all duration-300 overflow-hidden ${filtersOpen ? "w-80" : "w-0"}`}>
+        <div className={`bg-muted transition-all duration-300 overflow-hidden ${filtersOpen ? "w-80" : "w-0"}`}>
           <div className="flex flex-col h-full w-80">
             <div className="p-4 border-b border-border">
               <h2 className="text-lg font-bold text-primary uppercase flex items-center gap-2">
