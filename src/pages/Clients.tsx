@@ -468,15 +468,15 @@ export default function Clients() {
             </div>
 
             {/* Tabs bar - distinct background */}
-            <div className="flex bg-muted px-5 gap-1 border-b border-border">
+            <div className="grid grid-cols-5 bg-muted border-b border-border">
               {ALL_TABS.map((t) => (
                 <button
                   key={t.key}
                   onClick={() => setActiveTab(t.key)}
-                  className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
+                  className={`py-3 text-sm font-medium border-b-2 transition-colors -mb-px text-center ${
                     activeTab === t.key
-                      ? "border-primary text-primary bg-card rounded-t-lg"
-                      : "border-transparent text-muted-foreground hover:text-foreground"
+                      ? "border-primary text-primary bg-card"
+                      : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/80"
                   }`}
                 >
                   {t.label}
