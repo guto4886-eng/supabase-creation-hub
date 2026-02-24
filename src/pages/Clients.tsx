@@ -357,7 +357,7 @@ export default function Clients() {
         {/* Toggle filter panel button - full height bar */}
         <button
           onClick={() => setFiltersOpen(!filtersOpen)}
-          className="flex-shrink-0 w-6 bg-primary text-primary-foreground flex items-center justify-center hover:opacity-90 transition-opacity z-10 cursor-pointer"
+          className={`flex-shrink-0 w-6 text-white flex items-center justify-center hover:opacity-90 transition-all z-10 cursor-pointer ${filtersOpen ? "bg-primary" : "bg-amber-700"}`}
           title={filtersOpen ? "Fechar filtros" : "Filtros de pesquisa"}
         >
           <span className="text-xs font-bold uppercase tracking-widest whitespace-nowrap" style={{ writingMode: "vertical-lr" }}>
