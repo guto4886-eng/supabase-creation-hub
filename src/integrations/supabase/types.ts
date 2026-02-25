@@ -2436,7 +2436,9 @@ export type Database = {
           insurer: string
           notes: string | null
           payment_method: string | null
+          policy_file_name: string | null
           policy_number: string | null
+          policy_path: string | null
           premium_value: number | null
           start_date: string | null
           status: string
@@ -2455,7 +2457,9 @@ export type Database = {
           insurer: string
           notes?: string | null
           payment_method?: string | null
+          policy_file_name?: string | null
           policy_number?: string | null
+          policy_path?: string | null
           premium_value?: number | null
           start_date?: string | null
           status?: string
@@ -2474,7 +2478,9 @@ export type Database = {
           insurer?: string
           notes?: string | null
           payment_method?: string | null
+          policy_file_name?: string | null
           policy_number?: string | null
+          policy_path?: string | null
           premium_value?: number | null
           start_date?: string | null
           status?: string

@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, X, Shield } from "lucide-react";
+import { Plus, Pencil, Trash2, X, Shield, Upload, Download, FileText } from "lucide-react";
 
 const STATUS_OPTIONS = [
   { value: "vigente", label: "Vigente" },
@@ -98,6 +98,29 @@ export default function VehicleInsurance({ vehicleId }: { vehicleId: string }) {
   const statusColor = (s: string) => s === "vigente" ? "text-green-600" : s === "vencido" ? "text-destructive" : "text-muted-foreground";
   const fmt = (v: any) => v ? Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "—";
 
+  const uploadPolicy = useCallback(async (insuranceId: string, file: File) => {
+    if (!user) return;
+    try {
+      const ext = file.name.split(".").pop();
+      const path = `${user.id}/insurance_policies/${insuranceId}/${crypto.randomUUID()}.${ext}`;
+      const { error: uploadError } = await supabase.storage.from("attachments").upload(path, file);
+      if (uploadError) throw uploadError;
+      const { error: dbError } = await supabase.from("vehicle_insurance" as any)
+        .update({ policy_path: path, policy_file_name: file.name } as any).eq("id", insuranceId);
+      if (dbError) throw dbError;
+      qc.invalidateQueries({ queryKey: ["vehicle_insurance", vehicleId] });
+      toast.success("Apólice anexada!");
+    } catch (err: any) { toast.error(err.message); }
+  }, [user, vehicleId, qc]);
+
+  const downloadPolicy = async (item: any) => {
+    const { data, error } = await supabase.storage.from("attachments").download(item.policy_path);
+    if (error) { toast.error("Erro ao baixar"); return; }
+    const url = URL.createObjectURL(data);
+    const a = document.createElement("a"); a.href = url; a.download = item.policy_file_name || "apolice"; a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="space-y-3">
       <div className="flex justify-between items-center">
@@ -135,6 +158,28 @@ export default function VehicleInsurance({ vehicleId }: { vehicleId: string }) {
                 <div><span className="text-muted-foreground text-xs">Parcelas:</span><p className="text-foreground">{item.installment_count ?? 1}x</p></div>
               </div>
               {item.notes && <p className="text-xs text-muted-foreground mt-2 italic">{item.notes}</p>}
+              {/* Policy attachment */}
+              <div className="mt-3 pt-2 border-t border-border flex items-center gap-3">
+                {item.policy_path ? (
+                  <button onClick={() => downloadPolicy(item)} className="flex items-center gap-1.5 text-xs text-primary hover:underline">
+                    <FileText className="h-3.5 w-3.5" /> {item.policy_file_name || "Apólice anexada"}
+                  </button>
+                ) : (
+                  <span className="text-xs text-muted-foreground">Nenhuma apólice anexada</span>
+                )}
+                <button
+                  onClick={() => {
+                    const input = document.createElement("input");
+                    input.type = "file";
+                    input.accept = ".pdf,.jpg,.jpeg,.png,.doc,.docx";
+                    input.onchange = (e: any) => { if (e.target.files?.[0]) uploadPolicy(item.id, e.target.files[0]); };
+                    input.click();
+                  }}
+                  className="flex items-center gap-1 text-xs px-2 py-1 rounded border border-border hover:bg-muted text-muted-foreground"
+                >
+                  <Upload className="h-3 w-3" /> {item.policy_path ? "Substituir" : "Anexar apólice"}
+                </button>
+              </div>
             </div>
           ))}
         </div>
