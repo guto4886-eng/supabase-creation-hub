@@ -4,14 +4,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import {
-  Search, Plus, ChevronLeft, ChevronRight, Pencil, Trash2, X, Download, Eraser, Car
+  Search, Plus, ChevronLeft, ChevronRight, Pencil, Trash2, X, Download, Eraser, Car, FileText
 } from "lucide-react";
 import { exportToCSV } from "@/utils/exportCsv";
 import Attachments from "@/components/Attachments";
 import VehicleDocuments from "@/components/VehicleDocuments";
 import VehicleMaintenances from "@/components/VehicleMaintenances";
 import VehicleFueling from "@/components/VehicleFueling";
+import VehicleInsurance from "@/components/VehicleInsurance";
 import { useCompanies, CompanyFilterSelect } from "@/hooks/useCompanies";
+import { generateVehicleReport } from "@/utils/vehicleReport";
 
 const CATEGORY_OPTIONS = [
   { value: "carro", label: "Carro" },
@@ -134,6 +136,7 @@ export default function Fleet() {
     category: "carro", fuel_type: "flex", renavam: "", chassis: "",
     owner_name: "", owner_document: "", acquisition_date: "", acquisition_value: "",
     km_current: "0", status: "ativo", notes: "", company_id: "",
+    market_value: "", depreciation_rate: "",
   });
 
   const openNew = () => {
@@ -181,10 +184,32 @@ export default function Fleet() {
   const allTabs = [
     { key: "dados", label: "Dados" },
     { key: "documentos", label: "Documentos/Taxas" },
+    { key: "seguro", label: "Seguro" },
     { key: "manutencoes", label: "Manutenções" },
     { key: "abastecimentos", label: "Abastecimentos" },
     ...(editing ? [{ key: "anexos", label: "Anexos" }] : []),
   ];
+
+  // Calculate market value and depreciation
+  const calcDepreciation = () => {
+    const acquisitionValue = Number(form.acquisition_value) || 0;
+    const yearModel = Number(form.year_model) || new Date().getFullYear();
+    const currentYear = new Date().getFullYear();
+    const age = Math.max(0, currentYear - yearModel);
+    // Average annual depreciation rate ~15% first year, ~10% subsequent years (FIPE-based estimate)
+    const rate = age === 0 ? 0 : age === 1 ? 15 : 10;
+    let marketValue = acquisitionValue;
+    if (acquisitionValue > 0) {
+      // First year: 15%, subsequent: 10% each
+      if (age >= 1) marketValue *= 0.85;
+      if (age >= 2) marketValue *= Math.pow(0.90, age - 1);
+    }
+    setForm(p => ({
+      ...p,
+      market_value: Math.round(marketValue * 100) / 100,
+      depreciation_rate: rate,
+    }));
+  };
 
   const fmt = (v: any) => v ? Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "";
 
@@ -501,6 +526,32 @@ export default function Fleet() {
                     </div>
                   </fieldset>
 
+                  {/* Valor de Mercado e Depreciação */}
+                  <fieldset className="border border-border rounded-lg p-4 space-y-3">
+                    <legend className="px-2 text-sm font-medium text-foreground italic">Valor de Mercado e Depreciação</legend>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium text-foreground mb-1">Valor de Mercado Estimado (R$)</label>
+                        <input type="number" step="0.01" value={form.market_value || ""} onChange={e => setForm(p => ({ ...p, market_value: e.target.value }))} className={inputCls} />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-foreground mb-1">Taxa de Depreciação (% a.a.)</label>
+                        <input type="number" step="0.1" value={form.depreciation_rate || ""} onChange={e => setForm(p => ({ ...p, depreciation_rate: e.target.value }))} className={inputCls} />
+                      </div>
+                      <div className="flex items-end">
+                        <button type="button" onClick={calcDepreciation} className="px-3 py-2 bg-amber-700 text-white rounded-lg text-sm hover:bg-amber-800 transition-colors" title="Calcula com base no valor de aquisição e ano do modelo">
+                          📊 Calcular Automático
+                        </button>
+                      </div>
+                    </div>
+                    {form.market_value && form.acquisition_value && Number(form.acquisition_value) > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        Depreciação acumulada: {((1 - Number(form.market_value) / Number(form.acquisition_value)) * 100).toFixed(1)}% 
+                        ({(Number(form.acquisition_value) - Number(form.market_value)).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })})
+                      </p>
+                    )}
+                  </fieldset>
+
                   {/* Observações */}
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-1">Observações</label>
@@ -514,6 +565,12 @@ export default function Fleet() {
               )}
               {activeTab === "documentos" && !editing && (
                 <div className="p-6 text-center text-muted-foreground py-12">Salve o veículo primeiro para adicionar documentos</div>
+              )}
+              {activeTab === "seguro" && editing && (
+                <div className="p-6"><VehicleInsurance vehicleId={editing.id} /></div>
+              )}
+              {activeTab === "seguro" && !editing && (
+                <div className="p-6 text-center text-muted-foreground py-12">Salve o veículo primeiro para adicionar seguros</div>
               )}
               {activeTab === "manutencoes" && editing && (
                 <div className="p-6"><VehicleMaintenances vehicleId={editing.id} /></div>
@@ -533,11 +590,20 @@ export default function Fleet() {
             </div>
 
             {/* Footer */}
-            <div className="flex justify-end gap-3 px-6 py-3 border-t border-border bg-muted rounded-b-xl">
-              <button type="button" onClick={closeForm} className="px-4 py-2 rounded-lg border border-border bg-background text-foreground hover:bg-muted">Cancelar</button>
-              <button type="submit" form="fleet-form" disabled={saveMutation.isPending} className="px-5 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 disabled:opacity-50 flex items-center gap-2">
-                {saveMutation.isPending ? "Salvando..." : "💾 Salvar"}
-              </button>
+            <div className="flex justify-between gap-3 px-6 py-3 border-t border-border bg-muted rounded-b-xl">
+              <div>
+                {editing && (
+                  <button type="button" onClick={() => generateVehicleReport(editing)} className="px-4 py-2 rounded-lg border border-border bg-background text-foreground hover:bg-muted flex items-center gap-2 text-sm">
+                    <FileText className="h-4 w-4" /> Gerar Relatório PDF
+                  </button>
+                )}
+              </div>
+              <div className="flex gap-3">
+                <button type="button" onClick={closeForm} className="px-4 py-2 rounded-lg border border-border bg-background text-foreground hover:bg-muted">Cancelar</button>
+                <button type="submit" form="fleet-form" disabled={saveMutation.isPending} className="px-5 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 disabled:opacity-50 flex items-center gap-2">
+                  {saveMutation.isPending ? "Salvando..." : "💾 Salvar"}
+                </button>
+              </div>
             </div>
           </div>
         </div>

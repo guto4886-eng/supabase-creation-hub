@@ -2252,6 +2252,59 @@ export type Database = {
         }
         Relationships: []
       }
+      vehicle_doc_installments: {
+        Row: {
+          created_at: string
+          document_id: string
+          due_date: string | null
+          id: string
+          installment_number: number
+          notes: string | null
+          payment_date: string | null
+          proof_file_name: string | null
+          proof_path: string | null
+          status: string
+          user_id: string
+          value: number | null
+        }
+        Insert: {
+          created_at?: string
+          document_id: string
+          due_date?: string | null
+          id?: string
+          installment_number?: number
+          notes?: string | null
+          payment_date?: string | null
+          proof_file_name?: string | null
+          proof_path?: string | null
+          status?: string
+          user_id: string
+          value?: number | null
+        }
+        Update: {
+          created_at?: string
+          document_id?: string
+          due_date?: string | null
+          id?: string
+          installment_number?: number
+          notes?: string | null
+          payment_date?: string | null
+          proof_file_name?: string | null
+          proof_path?: string | null
+          status?: string
+          user_id?: string
+          value?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicle_doc_installments_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vehicle_documents: {
         Row: {
           created_at: string
@@ -2259,9 +2312,11 @@ export type Database = {
           doc_type: string
           due_date: string | null
           id: string
+          installment_count: number | null
           insurer: string | null
           notes: string | null
           payment_date: string | null
+          payment_mode: string | null
           policy_number: string | null
           reference_year: number | null
           status: string
@@ -2275,9 +2330,11 @@ export type Database = {
           doc_type?: string
           due_date?: string | null
           id?: string
+          installment_count?: number | null
           insurer?: string | null
           notes?: string | null
           payment_date?: string | null
+          payment_mode?: string | null
           policy_number?: string | null
           reference_year?: number | null
           status?: string
@@ -2291,9 +2348,11 @@ export type Database = {
           doc_type?: string
           due_date?: string | null
           id?: string
+          installment_count?: number | null
           insurer?: string | null
           notes?: string | null
           payment_date?: string | null
+          payment_mode?: string | null
           policy_number?: string | null
           reference_year?: number | null
           status?: string
@@ -2357,6 +2416,74 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "vehicle_fueling_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vehicle_insurance: {
+        Row: {
+          broker: string | null
+          coverage_type: string | null
+          created_at: string
+          deductible_value: number | null
+          end_date: string | null
+          id: string
+          installment_count: number | null
+          insured_name: string | null
+          insurer: string
+          notes: string | null
+          payment_method: string | null
+          policy_number: string | null
+          premium_value: number | null
+          start_date: string | null
+          status: string
+          user_id: string
+          vehicle_id: string
+        }
+        Insert: {
+          broker?: string | null
+          coverage_type?: string | null
+          created_at?: string
+          deductible_value?: number | null
+          end_date?: string | null
+          id?: string
+          installment_count?: number | null
+          insured_name?: string | null
+          insurer: string
+          notes?: string | null
+          payment_method?: string | null
+          policy_number?: string | null
+          premium_value?: number | null
+          start_date?: string | null
+          status?: string
+          user_id: string
+          vehicle_id: string
+        }
+        Update: {
+          broker?: string | null
+          coverage_type?: string | null
+          created_at?: string
+          deductible_value?: number | null
+          end_date?: string | null
+          id?: string
+          installment_count?: number | null
+          insured_name?: string | null
+          insurer?: string
+          notes?: string | null
+          payment_method?: string | null
+          policy_number?: string | null
+          premium_value?: number | null
+          start_date?: string | null
+          status?: string
+          user_id?: string
+          vehicle_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicle_insurance_vehicle_id_fkey"
             columns: ["vehicle_id"]
             isOneToOne: false
             referencedRelation: "vehicles"
@@ -2438,9 +2565,11 @@ export type Database = {
           color: string | null
           company_id: string | null
           created_at: string
+          depreciation_rate: number | null
           fuel_type: string | null
           id: string
           km_current: number | null
+          market_value: number | null
           model: string | null
           notes: string | null
           owner_document: string | null
@@ -2463,9 +2592,11 @@ export type Database = {
           color?: string | null
           company_id?: string | null
           created_at?: string
+          depreciation_rate?: number | null
           fuel_type?: string | null
           id?: string
           km_current?: number | null
+          market_value?: number | null
           model?: string | null
           notes?: string | null
           owner_document?: string | null
@@ -2488,9 +2619,11 @@ export type Database = {
           color?: string | null
           company_id?: string | null
           created_at?: string
+          depreciation_rate?: number | null
           fuel_type?: string | null
           id?: string
           km_current?: number | null
+          market_value?: number | null
           model?: string | null
           notes?: string | null
           owner_document?: string | null
