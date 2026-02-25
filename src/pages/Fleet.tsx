@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -190,26 +190,25 @@ export default function Fleet() {
     ...(editing ? [{ key: "anexos", label: "Anexos" }] : []),
   ];
 
-  // Calculate market value and depreciation
-  const calcDepreciation = () => {
+  // Auto-calculate market value and depreciation when relevant fields change
+  useEffect(() => {
     const acquisitionValue = Number(form.acquisition_value) || 0;
-    const yearModel = Number(form.year_model) || new Date().getFullYear();
+    const yearModel = Number(form.year_model) || 0;
+    if (acquisitionValue <= 0 || yearModel <= 0) return;
+
     const currentYear = new Date().getFullYear();
     const age = Math.max(0, currentYear - yearModel);
-    // Average annual depreciation rate ~15% first year, ~10% subsequent years (FIPE-based estimate)
     const rate = age === 0 ? 0 : age === 1 ? 15 : 10;
     let marketValue = acquisitionValue;
-    if (acquisitionValue > 0) {
-      // First year: 15%, subsequent: 10% each
-      if (age >= 1) marketValue *= 0.85;
-      if (age >= 2) marketValue *= Math.pow(0.90, age - 1);
-    }
+    if (age >= 1) marketValue *= 0.85;
+    if (age >= 2) marketValue *= Math.pow(0.90, age - 1);
+
     setForm(p => ({
       ...p,
       market_value: Math.round(marketValue * 100) / 100,
       depreciation_rate: rate,
     }));
-  };
+  }, [form.acquisition_value, form.year_model]);
 
   const fmt = (v: any) => v ? Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "";
 
@@ -529,19 +528,14 @@ export default function Fleet() {
                   {/* Valor de Mercado e Depreciação */}
                   <fieldset className="border border-border rounded-lg p-4 space-y-3">
                     <legend className="px-2 text-sm font-medium text-foreground italic">Valor de Mercado e Depreciação</legend>
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="block text-xs font-medium text-foreground mb-1">Valor de Mercado Estimado (R$)</label>
-                        <input type="number" step="0.01" value={form.market_value || ""} onChange={e => setForm(p => ({ ...p, market_value: e.target.value }))} className={inputCls} />
+                        <input type="number" step="0.01" readOnly value={form.market_value || ""} className={`${inputCls} bg-muted`} />
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-foreground mb-1">Taxa de Depreciação (% a.a.)</label>
-                        <input type="number" step="0.1" value={form.depreciation_rate || ""} onChange={e => setForm(p => ({ ...p, depreciation_rate: e.target.value }))} className={inputCls} />
-                      </div>
-                      <div className="flex items-end">
-                        <button type="button" onClick={calcDepreciation} className="px-3 py-2 bg-amber-700 text-white rounded-lg text-sm hover:bg-amber-800 transition-colors" title="Calcula com base no valor de aquisição e ano do modelo">
-                          📊 Calcular Automático
-                        </button>
+                        <input type="number" step="0.1" readOnly value={form.depreciation_rate || ""} className={`${inputCls} bg-muted`} />
                       </div>
                     </div>
                     {form.market_value && form.acquisition_value && Number(form.acquisition_value) > 0 && (
@@ -550,6 +544,7 @@ export default function Fleet() {
                         ({(Number(form.acquisition_value) - Number(form.market_value)).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })})
                       </p>
                     )}
+                    <p className="text-xs text-muted-foreground italic">* Calculado automaticamente com base no valor de aquisição e ano do modelo (padrão FIPE: 15% 1º ano, 10% a.a.)</p>
                   </fieldset>
 
                   {/* Observações */}
