@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -190,25 +190,67 @@ export default function Fleet() {
     ...(editing ? [{ key: "anexos", label: "Anexos" }] : []),
   ];
 
-  // Auto-calculate market value and depreciation when relevant fields change
+  // FIPE lookup state
+  const FIPE_BASE = "https://parallelum.com.br/fipe/api/v1";
+  const [fipeTipo, setFipeTipo] = useState<string>("carros");
+  const [fipeMarcas, setFipeMarcas] = useState<any[]>([]);
+  const [fipeMarca, setFipeMarca] = useState("");
+  const [fipeModelos, setFipeModelos] = useState<any[]>([]);
+  const [fipeModelo, setFipeModelo] = useState("");
+  const [fipeAnos, setFipeAnos] = useState<any[]>([]);
+  const [fipeAno, setFipeAno] = useState("");
+  const [fipeLoading, setFipeLoading] = useState(false);
+  const [fipeError, setFipeError] = useState("");
+
+  // Load marcas when tipo changes
   useEffect(() => {
-    const acquisitionValue = Number(form.acquisition_value) || 0;
-    const yearModel = Number(form.year_model) || 0;
-    if (acquisitionValue <= 0 || yearModel <= 0) return;
+    if (!formOpen) return;
+    setFipeMarcas([]); setFipeMarca(""); setFipeModelos([]); setFipeModelo(""); setFipeAnos([]); setFipeAno("");
+    fetch(`${FIPE_BASE}/${fipeTipo}/marcas`).then(r => r.json()).then(setFipeMarcas).catch(() => {});
+  }, [fipeTipo, formOpen]);
 
-    const currentYear = new Date().getFullYear();
-    const age = Math.max(0, currentYear - yearModel);
-    const rate = age === 0 ? 0 : age === 1 ? 15 : 10;
-    let marketValue = acquisitionValue;
-    if (age >= 1) marketValue *= 0.85;
-    if (age >= 2) marketValue *= Math.pow(0.90, age - 1);
+  // Load modelos when marca changes
+  useEffect(() => {
+    if (!fipeMarca) { setFipeModelos([]); setFipeModelo(""); setFipeAnos([]); setFipeAno(""); return; }
+    fetch(`${FIPE_BASE}/${fipeTipo}/marcas/${fipeMarca}/modelos`).then(r => r.json()).then(d => {
+      setFipeModelos(d.modelos || []);
+      setFipeAnos(d.anos || []);
+    }).catch(() => {});
+    setFipeModelo(""); setFipeAno("");
+  }, [fipeMarca, fipeTipo]);
 
-    setForm(p => ({
-      ...p,
-      market_value: Math.round(marketValue * 100) / 100,
-      depreciation_rate: rate,
-    }));
-  }, [form.acquisition_value, form.year_model]);
+  // Load anos when modelo changes
+  useEffect(() => {
+    if (!fipeModelo || !fipeMarca) { setFipeAnos([]); setFipeAno(""); return; }
+    fetch(`${FIPE_BASE}/${fipeTipo}/marcas/${fipeMarca}/modelos/${fipeModelo}/anos`).then(r => r.json()).then(setFipeAnos).catch(() => {});
+    setFipeAno("");
+  }, [fipeModelo, fipeMarca, fipeTipo]);
+
+  const consultarFipe = useCallback(async () => {
+    if (!fipeMarca || !fipeModelo || !fipeAno) { toast.error("Selecione marca, modelo e ano"); return; }
+    setFipeLoading(true); setFipeError("");
+    try {
+      const res = await fetch(`${FIPE_BASE}/${fipeTipo}/marcas/${fipeMarca}/modelos/${fipeModelo}/anos/${fipeAno}`);
+      if (!res.ok) throw new Error("Erro ao consultar FIPE");
+      const data = await res.json();
+      const priceStr = data.Valor || data.valor || "";
+      const price = Number(priceStr.replace(/[^\d,]/g, "").replace(",", ".")) || 0;
+      if (price > 0) {
+        const acquisitionValue = Number(form.acquisition_value) || 0;
+        const depRate = acquisitionValue > 0 && price < acquisitionValue
+          ? Math.round(((1 - price / acquisitionValue) * 100) * 10) / 10
+          : 0;
+        setForm(p => ({ ...p, market_value: price, depreciation_rate: depRate }));
+        toast.success(`Valor FIPE: ${priceStr}`);
+      } else {
+        setFipeError("Valor não encontrado na tabela FIPE");
+      }
+    } catch (err: any) {
+      setFipeError(err.message || "Erro na consulta FIPE");
+    } finally {
+      setFipeLoading(false);
+    }
+  }, [fipeTipo, fipeMarca, fipeModelo, fipeAno, form.acquisition_value]);
 
   const fmt = (v: any) => v ? Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "";
 
@@ -525,16 +567,58 @@ export default function Fleet() {
                     </div>
                   </fieldset>
 
+                  {/* Consulta FIPE */}
+                  <fieldset className="border border-border rounded-lg p-4 space-y-3">
+                    <legend className="px-2 text-sm font-medium text-foreground italic">Consulta Tabela FIPE</legend>
+                    <div className="grid grid-cols-4 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-foreground mb-1">Tipo</label>
+                        <select value={fipeTipo} onChange={e => setFipeTipo(e.target.value)} className={inputCls}>
+                          <option value="carros">Carros</option>
+                          <option value="motos">Motos</option>
+                          <option value="caminhoes">Caminhões</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-foreground mb-1">Marca</label>
+                        <select value={fipeMarca} onChange={e => setFipeMarca(e.target.value)} className={inputCls}>
+                          <option value="">Selecione</option>
+                          {fipeMarcas.map((m: any) => <option key={m.codigo} value={m.codigo}>{m.nome}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-foreground mb-1">Modelo</label>
+                        <select value={fipeModelo} onChange={e => setFipeModelo(e.target.value)} className={inputCls} disabled={!fipeMarca}>
+                          <option value="">Selecione</option>
+                          {fipeModelos.map((m: any) => <option key={m.codigo} value={m.codigo}>{m.nome}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-foreground mb-1">Ano</label>
+                        <select value={fipeAno} onChange={e => setFipeAno(e.target.value)} className={inputCls} disabled={!fipeModelo}>
+                          <option value="">Selecione</option>
+                          {fipeAnos.map((a: any) => <option key={a.codigo} value={a.codigo}>{a.nome}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <button type="button" onClick={consultarFipe} disabled={fipeLoading || !fipeAno} className="px-4 py-2 bg-amber-700 text-white rounded-lg text-sm font-medium hover:bg-amber-800 disabled:opacity-50 flex items-center gap-2">
+                        <Search className="h-4 w-4" /> {fipeLoading ? "Consultando..." : "Consultar FIPE"}
+                      </button>
+                      {fipeError && <span className="text-xs text-destructive">{fipeError}</span>}
+                    </div>
+                  </fieldset>
+
                   {/* Valor de Mercado e Depreciação */}
                   <fieldset className="border border-border rounded-lg p-4 space-y-3">
                     <legend className="px-2 text-sm font-medium text-foreground italic">Valor de Mercado e Depreciação</legend>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-xs font-medium text-foreground mb-1">Valor de Mercado Estimado (R$)</label>
+                        <label className="block text-xs font-medium text-foreground mb-1">Valor de Mercado FIPE (R$)</label>
                         <input type="number" step="0.01" readOnly value={form.market_value || ""} className={`${inputCls} bg-muted`} />
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-foreground mb-1">Taxa de Depreciação (% a.a.)</label>
+                        <label className="block text-xs font-medium text-foreground mb-1">Depreciação sobre Aquisição (%)</label>
                         <input type="number" step="0.1" readOnly value={form.depreciation_rate || ""} className={`${inputCls} bg-muted`} />
                       </div>
                     </div>
@@ -544,7 +628,7 @@ export default function Fleet() {
                         ({(Number(form.acquisition_value) - Number(form.market_value)).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })})
                       </p>
                     )}
-                    <p className="text-xs text-muted-foreground italic">* Calculado automaticamente com base no valor de aquisição e ano do modelo (padrão FIPE: 15% 1º ano, 10% a.a.)</p>
+                    <p className="text-xs text-muted-foreground italic">* Valor de mercado obtido da Tabela FIPE. Use os campos acima para consultar.</p>
                   </fieldset>
 
                   {/* Observações */}
