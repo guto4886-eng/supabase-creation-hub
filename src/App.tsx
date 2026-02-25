@@ -21,6 +21,7 @@ import Financial from "@/pages/Financial";
 import Profile from "@/pages/Profile";
 import Plans from "@/pages/Plans";
 import Companies from "@/pages/Companies";
+import Fleet from "@/pages/Fleet";
 
 const queryClient = new QueryClient();
 
@@ -65,6 +66,7 @@ function App() {
                 <Route path="financial" element={<Financial />} />
                 <Route path="profile" element={<Profile />} />
                 <Route path="companies" element={<Companies />} />
+                <Route path="fleet" element={<Fleet />} />
                 <Route path="plans" element={<Plans />} />
               </Route>
             </Routes>
