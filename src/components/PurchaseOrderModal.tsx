@@ -335,33 +335,91 @@ export default function PurchaseOrderModal({
       };
 
       let orderId: string;
+      const isEffective = orderData.status !== "rascunho" && orderData.status !== "cancelada";
+
       if (editing) {
         const { error } = await (supabase as any).from("purchase_orders").update(orderData).eq("id", editing.id);
         if (error) throw error;
         orderId = editing.id;
         // Delete old items
         await (supabase as any).from("purchase_order_items").delete().eq("purchase_order_id", orderId);
+
+        // Sync financial doc for effective orders
+        if (isEffective) {
+          const supplierName = suppliers.find((s: any) => s.id === form.supplier_id)?.name || "";
+          const desc = `OC ${form.order_code || orderId.slice(0, 8)} - ${supplierName}`.trim();
+          // Check if financial doc already exists for this order
+          const { data: existingDoc } = await supabase
+            .from("financial_docs")
+            .select("id")
+            .eq("origin", "ordem_compra")
+            .eq("origin_id", orderId)
+            .maybeSingle();
+
+          if (existingDoc) {
+            // Update existing financial doc
+            await supabase.from("financial_docs").update({
+              description: desc,
+              value: grandTotal,
+              due_date: form.delivery_date || null,
+              obra_id: form.obra_id || null,
+              supplier_id: form.supplier_id || null,
+              company_id: form.company_id || null,
+            }).eq("id", existingDoc.id);
+          } else {
+            // Create new financial doc
+            await supabase.from("financial_docs").insert({
+              user_id: user!.id,
+              description: desc,
+              type: "despesa",
+              value: grandTotal,
+              status: "pendente",
+              due_date: form.delivery_date || null,
+              category: "Ordem de Compra",
+              obra_id: form.obra_id || null,
+              supplier_id: form.supplier_id || null,
+              company_id: form.company_id || null,
+              origin: "ordem_compra",
+              origin_id: orderId,
+              notes: `Gerado automaticamente pela Ordem de Compra ${form.order_code || ""}`.trim(),
+            });
+          }
+        } else if (orderData.status === "cancelada") {
+          // Cancel linked financial doc if order is cancelled
+          const { data: existingDoc } = await supabase
+            .from("financial_docs")
+            .select("id")
+            .eq("origin", "ordem_compra")
+            .eq("origin_id", orderId)
+            .maybeSingle();
+          if (existingDoc) {
+            await supabase.from("financial_docs").update({ status: "cancelado" }).eq("id", existingDoc.id);
+          }
+        }
       } else {
         const { data, error } = await (supabase as any).from("purchase_orders").insert({ ...orderData, user_id: user!.id }).select("id").single();
         if (error) throw error;
         orderId = data.id;
 
-        // Auto-generate financial doc (despesa) for new orders
-        const supplierName = suppliers.find((s: any) => s.id === form.supplier_id)?.name || "";
-        const financialPayload = {
-          user_id: user!.id,
-          description: `OC ${form.order_code || orderId.slice(0, 8)} - ${supplierName}`.trim(),
-          type: "despesa",
-          value: grandTotal,
-          status: "pendente",
-          due_date: form.delivery_date || null,
-          category: "Ordem de Compra",
-          obra_id: form.obra_id || null,
-          supplier_id: form.supplier_id || null,
-          company_id: form.company_id || null,
-          notes: `Gerado automaticamente pela Ordem de Compra ${form.order_code || ""}`.trim(),
-        };
-        await supabase.from("financial_docs").insert(financialPayload);
+        // Auto-generate financial doc for effective new orders
+        if (isEffective) {
+          const supplierName = suppliers.find((s: any) => s.id === form.supplier_id)?.name || "";
+          await supabase.from("financial_docs").insert({
+            user_id: user!.id,
+            description: `OC ${form.order_code || orderId.slice(0, 8)} - ${supplierName}`.trim(),
+            type: "despesa",
+            value: grandTotal,
+            status: "pendente",
+            due_date: form.delivery_date || null,
+            category: "Ordem de Compra",
+            obra_id: form.obra_id || null,
+            supplier_id: form.supplier_id || null,
+            company_id: form.company_id || null,
+            origin: "ordem_compra",
+            origin_id: orderId,
+            notes: `Gerado automaticamente pela Ordem de Compra ${form.order_code || ""}`.trim(),
+          });
+        }
       }
 
       // Insert items
@@ -392,7 +450,9 @@ export default function PurchaseOrderModal({
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["purchase_orders"] });
       qc.invalidateQueries({ queryKey: ["financial_docs"] });
-      toast.success(editing ? "Ordem atualizada!" : "Ordem criada! Cobrança gerada no financeiro.");
+      const isEffective = form.status !== "rascunho" && form.status !== "cancelada";
+      const finMsg = isEffective ? " Lançamento financeiro sincronizado." : "";
+      toast.success((editing ? "Ordem atualizada!" : "Ordem criada!") + finMsg);
       onSaved();
       onClose();
     },
