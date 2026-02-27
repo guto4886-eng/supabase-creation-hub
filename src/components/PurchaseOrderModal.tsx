@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -708,8 +708,9 @@ function AddressSection({
 
   const handleSourceChange = (val: string) => {
     setForm(p => ({ ...p, [sourceKey]: val }));
-    if (val === "obra" && form.obra_id) {
-      loadObraAddress(form.obra_id);
+    if (val === "obra") {
+      const obraId = form[`${prefix}_obra_ref`] || form.obra_id;
+      if (obraId) loadObraAddress(obraId);
     }
   };
 
@@ -717,6 +718,16 @@ function AddressSection({
     setForm(p => ({ ...p, [`${prefix}_obra_ref`]: obraId }));
     if (obraId) loadObraAddress(obraId);
   };
+
+  // Auto-load when obra_id changes and source is "obra"
+  const currentObraRef = form[`${prefix}_obra_ref`] || form.obra_id;
+  const prevObraRef = React.useRef(currentObraRef);
+  React.useEffect(() => {
+    if (source === "obra" && currentObraRef && currentObraRef !== prevObraRef.current) {
+      loadObraAddress(currentObraRef);
+    }
+    prevObraRef.current = currentObraRef;
+  }, [currentObraRef, source]);
 
   const loadObraAddress = async (obraId: string) => {
     const { data } = await (supabase as any).from("obras").select("cep, address, address_number, complement, neighborhood, state, city").eq("id", obraId).single();
