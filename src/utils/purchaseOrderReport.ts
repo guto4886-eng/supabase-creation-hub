@@ -109,12 +109,26 @@ export async function generatePurchaseOrderPDF(data: POReportData) {
   const { data: prof } = await supabase.from("profiles").select("*").eq("user_id", userId).maybeSingle();
   profile = prof;
 
-  // ── Header ──
+  // ── Header ── Use billing company data if available, fallback to company_settings
+  let headerInfo: CompanyInfo | null = companyInfo;
+  if (billingCompany) {
+    headerInfo = {
+      company_name: billingCompany.name || billingCompany.trade_name || null,
+      document: billingCompany.document || null,
+      logo_url: billingCompany.logo_url || null,
+      address: [billingCompany.address, billingCompany.address_number, billingCompany.neighborhood].filter(Boolean).join(", ") || null,
+      city: billingCompany.city || null,
+      state: billingCompany.state || null,
+      phone: billingCompany.phone || billingCompany.cellphone || null,
+      email: billingCompany.email || null,
+    };
+  }
+
   const titleParts = [`ORDEM DE COMPRA ${order.order_code || ""}`];
   const subtitleParts: string[] = [];
   if (obraName && obraName !== "—") subtitleParts.push(obraName);
   
-  let y = await addReportHeader(doc, companyInfo, titleParts[0], subtitleParts.length > 0 ? subtitleParts.join(" - ") : undefined);
+  let y = await addReportHeader(doc, headerInfo, titleParts[0], subtitleParts.length > 0 ? subtitleParts.join(" - ") : undefined);
 
   // ════════════════════════════════════════
   // DADOS DA ORDEM DE COMPRA
