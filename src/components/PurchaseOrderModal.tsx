@@ -1092,39 +1092,137 @@ export default function PurchaseOrderModal({
       </div>
 
       {/* Lancamento Modal */}
-      {lancamentoModalOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onClick={() => setLancamentoModalOpen(false)}>
-          <div className="bg-card border border-border rounded-xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-muted rounded-t-xl">
-              <h3 className="text-base font-semibold text-primary">Dados da Entrega</h3>
-              <button onClick={() => setLancamentoModalOpen(false)} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
-            </div>
-            <div className="p-6 space-y-4">
-              <div className="bg-muted/30 rounded-lg p-3 text-sm">
-                <p className="text-muted-foreground">Itens selecionados: <strong className="text-foreground">{Array.from(recSelectedItems).filter(id => (receivings[id] || 0) > 0).length}</strong></p>
+      {lancamentoModalOpen && (() => {
+        const selIds = Array.from(recSelectedItems).filter(id => (receivings[id] || 0) > 0);
+        const selItems = orderItems.filter(it => it.id && selIds.includes(it.id));
+        const totalBruto = selItems.reduce((s, it) => s + (receivings[it.id!] || 0) * it.unit_price, 0);
+        const totalFrete = selItems.reduce((s, it) => s + (it.freight || 0), 0);
+        const totalPagar = totalBruto + totalFrete;
+        const supplierName = suppliers.find((s: any) => s.id === form.supplier_id)?.name || "—";
+        const obraName = obras.find((o: any) => o.id === form.obra_id)?.name || "—";
+        const companyName = companiesList.find((c: any) => c.id === form.company_id)?.name || "—";
+
+        return (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onClick={() => setLancamentoModalOpen(false)}>
+            <div className="bg-card border border-border rounded-xl w-full max-w-3xl" onClick={e => e.stopPropagation()}>
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-muted rounded-t-xl">
+                <h3 className="text-lg font-semibold text-primary">Novo documento a pagar</h3>
+                <button onClick={() => setLancamentoModalOpen(false)} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Data da entrega *</label>
-                <input type="date" value={lancamentoDate} onChange={e => setLancamentoDate(e.target.value)} className={inputClass} />
+
+              <div className="p-6 space-y-4 max-h-[65vh] overflow-y-auto">
+                {/* Row: Empresa */}
+                <div className="grid grid-cols-[120px_1fr] items-center gap-x-3">
+                  <label className="text-sm font-medium text-muted-foreground text-right">Empresa</label>
+                  <span className="text-sm text-foreground font-medium truncate">{companyName}</span>
+                </div>
+
+                {/* Row: Tipo */}
+                <div className="grid grid-cols-[120px_1fr] items-center gap-x-3">
+                  <label className="text-sm font-medium text-muted-foreground text-right">Tipo</label>
+                  <div className="flex gap-4">
+                    {[{ v: "provisao", l: "Provisão" }, { v: "previsao", l: "Previsão" }, { v: "adiantamento", l: "Adiantamento" }].map(o => (
+                      <label key={o.v} className="flex items-center gap-1.5 text-sm text-foreground cursor-pointer">
+                        <input type="radio" name="lancamento_tipo" value={o.v} defaultChecked={o.v === "provisao"} className="accent-primary" />
+                        {o.l}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Row: Fornecedor */}
+                <div className="grid grid-cols-[120px_1fr] items-center gap-x-3">
+                  <label className="text-sm font-medium text-muted-foreground text-right">Fornecedor</label>
+                  <span className="text-sm text-foreground font-medium bg-muted/40 px-3 py-2 rounded-lg border border-input truncate">{supplierName}</span>
+                </div>
+
+                {/* Row: Descrição + Obra */}
+                <div className="grid grid-cols-[120px_1fr_80px_1fr] items-center gap-x-3">
+                  <label className="text-sm font-medium text-muted-foreground text-right">Descrição</label>
+                  <span className="text-sm text-foreground bg-muted/40 px-3 py-2 rounded-lg border border-input truncate">
+                    OC {form.order_code || editing?.id?.slice(0, 8) || ""} - {supplierName}
+                  </span>
+                  <label className="text-sm font-medium text-muted-foreground text-right">Obra *</label>
+                  <span className="text-sm text-foreground bg-muted/40 px-3 py-2 rounded-lg border border-input truncate">{obraName}</span>
+                </div>
+
+                {/* Row: Observação */}
+                <div className="grid grid-cols-[120px_1fr] items-start gap-x-3">
+                  <label className="text-sm font-medium text-muted-foreground text-right pt-2">Observação</label>
+                  <textarea value={lancamentoNotes} onChange={e => setLancamentoNotes(e.target.value)} rows={2} className={inputClass} placeholder="Observações sobre a entrega..." />
+                </div>
+
+                <hr className="border-border" />
+
+                {/* Row: Tipo doc + Número */}
+                <div className="grid grid-cols-[120px_1fr_80px_1fr] items-center gap-x-3">
+                  <label className="text-sm font-medium text-muted-foreground text-right">Tipo doc. *</label>
+                  <select defaultValue="romaneio" className={inputClass}>
+                    <option value="romaneio">Romaneio</option>
+                    <option value="nota_fiscal">Nota Fiscal</option>
+                    <option value="recibo">Recibo</option>
+                    <option value="outros">Outros</option>
+                  </select>
+                  <label className="text-sm font-medium text-muted-foreground text-right">Número</label>
+                  <input value={lancamentoRomaneio} onChange={e => setLancamentoRomaneio(e.target.value)} className={inputClass} placeholder="Ex: ROM-001, NF 12345..." />
+                </div>
+
+                {/* Row: Valor + Dt. Emissão + Dt. Entrada */}
+                <div className="grid grid-cols-[120px_1fr_100px_1fr_100px_1fr] items-center gap-x-3">
+                  <label className="text-sm font-medium text-muted-foreground text-right">Valor *</label>
+                  <span className="text-sm text-foreground font-semibold bg-muted/40 px-3 py-2 rounded-lg border border-input text-right tabular-nums">{formatCurrency(totalBruto)}</span>
+                  <label className="text-sm font-medium text-muted-foreground text-right">Dt. Emissão *</label>
+                  <input type="date" value={lancamentoDate} onChange={e => setLancamentoDate(e.target.value)} className={inputClass} />
+                  <label className="text-sm font-medium text-muted-foreground text-right">Dt. Entrada *</label>
+                  <input type="date" defaultValue={new Date().toISOString().slice(0, 10)} className={inputClass} />
+                </div>
+
+                <hr className="border-border" />
+
+                {/* Row: Itens selecionados summary */}
+                <div className="bg-muted/30 rounded-lg p-4 space-y-2">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Resumo do Lançamento</p>
+                  <div className="space-y-1">
+                    {selItems.map(it => (
+                      <div key={it.id} className="flex items-center justify-between text-sm">
+                        <span className="text-foreground truncate max-w-[60%]">{it.description}</span>
+                        <span className="tabular-nums text-muted-foreground">{(receivings[it.id!] || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })} {it.unit} × {formatCurrency(it.unit_price)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <hr className="border-border" />
+
+                {/* Totals row */}
+                <div className="grid grid-cols-3 gap-4 text-sm">
+                  <div className="flex items-center justify-between bg-muted/30 rounded-lg px-4 py-3 border border-border">
+                    <span className="text-muted-foreground font-medium">Bruto</span>
+                    <span className="font-semibold text-foreground tabular-nums">{formatCurrency(totalBruto)}</span>
+                  </div>
+                  <div className="flex items-center justify-between bg-muted/30 rounded-lg px-4 py-3 border border-border">
+                    <span className="text-muted-foreground font-medium">Frete</span>
+                    <span className="font-semibold text-foreground tabular-nums">{formatCurrency(totalFrete)}</span>
+                  </div>
+                  <div className="flex items-center justify-between bg-primary/10 rounded-lg px-4 py-3 border border-primary/30">
+                    <span className="text-primary font-medium">Valor a pagar</span>
+                    <span className="font-bold text-primary tabular-nums">{formatCurrency(totalPagar)}</span>
+                  </div>
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Romaneio / Nº documento</label>
-                <input value={lancamentoRomaneio} onChange={e => setLancamentoRomaneio(e.target.value)} className={inputClass} placeholder="Ex: ROM-001, NF 12345..." />
+
+              {/* Footer */}
+              <div className="border-t border-border px-6 py-4 flex justify-end gap-3 bg-muted/30 rounded-b-xl">
+                <button type="button" onClick={() => setLancamentoModalOpen(false)} className="px-4 py-2 rounded-lg border border-border bg-background text-foreground hover:bg-muted text-sm">Cancelar</button>
+                <button type="button" onClick={handleLancamento} className="px-5 py-2 bg-primary text-primary-foreground rounded-lg font-semibold hover:opacity-90 text-sm">
+                  💾 Salvar
+                </button>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Observações</label>
-                <textarea value={lancamentoNotes} onChange={e => setLancamentoNotes(e.target.value)} rows={3} className={inputClass} placeholder="Observações sobre a entrega..." />
-              </div>
-            </div>
-            <div className="border-t border-border px-6 py-4 flex justify-end gap-3 bg-muted/30 rounded-b-xl">
-              <button type="button" onClick={() => setLancamentoModalOpen(false)} className="px-4 py-2 rounded-lg border border-border bg-background text-foreground hover:bg-muted text-sm">Cancelar</button>
-              <button type="button" onClick={handleLancamento} className="px-5 py-2 bg-primary text-primary-foreground rounded-lg font-semibold hover:opacity-90 text-sm">
-                Confirmar Lançamento
-              </button>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
