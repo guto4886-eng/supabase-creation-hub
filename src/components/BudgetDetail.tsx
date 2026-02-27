@@ -222,6 +222,44 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
     },
   });
 
+  // Fetch distinct phases from obra_daily_entries for this obra
+  const { data: obraPhases = [] } = useQuery({
+    queryKey: ["obra_phases", budget?.obra_id],
+    enabled: !!budget?.obra_id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("obra_daily_entries")
+        .select("phase")
+        .eq("obra_id", budget!.obra_id!)
+        .not("phase", "is", null)
+        .order("phase");
+      if (error) throw error;
+      const unique = [...new Set((data || []).map((d: any) => d.phase).filter((p: string) => p && p.trim() !== ""))];
+      return unique as string[];
+    },
+  });
+
+  // Fetch distinct services from obra_daily_entries filtered by selected phase
+  const [selectedItemPhase, setSelectedItemPhase] = useState<string>("");
+  const { data: obraServices = [] } = useQuery({
+    queryKey: ["obra_services", budget?.obra_id, selectedItemPhase],
+    enabled: !!budget?.obra_id,
+    queryFn: async () => {
+      let query = supabase
+        .from("obra_daily_entries")
+        .select("service")
+        .eq("obra_id", budget!.obra_id!)
+        .not("service", "is", null);
+      if (selectedItemPhase) {
+        query = query.eq("phase", selectedItemPhase);
+      }
+      const { data, error } = await query.order("service");
+      if (error) throw error;
+      const unique = [...new Set((data || []).map((d: any) => d.service).filter((s: string) => s && s.trim() !== ""))];
+      return unique as string[];
+    },
+  });
+
   // Fetch client
   const { data: client } = useQuery({
     queryKey: ["budget_client", obra?.client_id],
@@ -318,11 +356,13 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
   const openAddItem = () => {
     setEditingItem(null);
     setAddingItem(true);
+    setSelectedItemPhase("");
     setItemForm({ description: "", category: "", quantity: "1", unit: "un", unit_price: "0" });
   };
   const openEditItem = (item: BudgetItem) => {
     setEditingItem(item);
     setAddingItem(true);
+    setSelectedItemPhase(item.category || "");
     setItemForm({ description: item.description, category: item.category || "", quantity: String(item.quantity ?? 1), unit: item.unit || "un", unit_price: String(item.unit_price ?? 0) });
   };
   const closeItemForm = () => { setEditingItem(null); setAddingItem(false); };
@@ -2278,12 +2318,52 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
               </div>
               <form onSubmit={(e) => { e.preventDefault(); saveItem.mutate(); }} className="p-5 space-y-3">
                 <div>
-                  <label className="block text-sm font-medium text-card-foreground mb-1">Descrição *</label>
-                  <input value={itemForm.description} onChange={(e) => setItemForm((p) => ({ ...p, description: e.target.value }))} required className={inputClass} />
+                  <label className="block text-sm font-medium text-card-foreground mb-1">Fase da obra</label>
+                  <select
+                    value={itemForm.category}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setSelectedItemPhase(val);
+                      setItemForm((p) => ({ ...p, category: val }));
+                    }}
+                    className={inputClass}
+                  >
+                    <option value="">Selecione a fase...</option>
+                    {obraPhases.map((phase) => (
+                      <option key={phase} value={phase}>{phase}</option>
+                    ))}
+                  </select>
+                  {obraPhases.length === 0 && (
+                    <p className="text-xs text-muted-foreground mt-1">Nenhuma fase cadastrada no Dia a dia desta obra. Você pode digitar manualmente abaixo.</p>
+                  )}
+                  {obraPhases.length === 0 && (
+                    <input
+                      value={itemForm.category}
+                      onChange={(e) => setItemForm((p) => ({ ...p, category: e.target.value }))}
+                      className={inputClass + " mt-1"}
+                      placeholder="Digite a fase manualmente..."
+                    />
+                  )}
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-card-foreground mb-1">Fase da obra</label>
-                  <input value={itemForm.category} onChange={(e) => setItemForm((p) => ({ ...p, category: e.target.value }))} className={inputClass} />
+                  <label className="block text-sm font-medium text-card-foreground mb-1">Serviço</label>
+                  <select
+                    value={itemForm.description}
+                    onChange={(e) => setItemForm((p) => ({ ...p, description: e.target.value }))}
+                    className={inputClass}
+                  >
+                    <option value="">Selecione o serviço...</option>
+                    {obraServices.map((svc) => (
+                      <option key={svc} value={svc}>{svc}</option>
+                    ))}
+                  </select>
+                  {obraServices.length === 0 && (
+                    <p className="text-xs text-muted-foreground mt-1">Nenhum serviço cadastrado para esta fase.</p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-card-foreground mb-1">Descrição *</label>
+                  <input value={itemForm.description} onChange={(e) => setItemForm((p) => ({ ...p, description: e.target.value }))} required className={inputClass} />
                 </div>
                 <div className="grid grid-cols-3 gap-3">
                   <div>
