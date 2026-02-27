@@ -3,10 +3,11 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import { X, Search, Plus, Trash2, Pencil, Paperclip, History } from "lucide-react";
+import { X, Search, Plus, Trash2, Pencil, Paperclip, History, FileText } from "lucide-react";
 import { fetchCep } from "@/utils/cep";
 import { useCompanies, CompanyFilterSelect } from "@/hooks/useCompanies";
 import Attachments from "@/components/Attachments";
+import { generatePurchaseOrderPDF } from "@/utils/purchaseOrderReport";
 
 const inputClass = "w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm";
 
@@ -391,6 +392,23 @@ export default function PurchaseOrderModal({
   const handleSave = () => {
     if (!form.supplier_id) { toast.error("Selecione um fornecedor"); return; }
     saveMutation.mutate();
+  };
+
+  const handleGeneratePDF = async () => {
+    if (!form.supplier_id) { toast.error("Salve a ordem antes de gerar o documento"); return; }
+    try {
+      await generatePurchaseOrderPDF({
+        order: form,
+        items: orderItems.map(it => ({ ...it, total: calcItemTotal(it) })),
+        supplierName: suppliers.find((s: any) => s.id === form.supplier_id)?.name || "—",
+        obraName: obras.find((o: any) => o.id === form.obra_id)?.name || "—",
+        companyName: companiesList.find((c: any) => c.id === form.company_id)?.name || "—",
+        userId: user!.id,
+      });
+      toast.success("PDF gerado com sucesso!");
+    } catch (e: any) {
+      toast.error("Erro ao gerar PDF: " + e.message);
+    }
   };
 
   const selectInsumo = (insumo: Insumo) => {
@@ -1102,9 +1120,14 @@ export default function PurchaseOrderModal({
               </div>
               <span>Total: <strong className="text-primary">{formatCurrency(grandTotal)}</strong></span>
             </div>
-            <button type="button" onClick={handleSave} disabled={saveMutation.isPending} className="px-5 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 disabled:opacity-50">
-              {saveMutation.isPending ? "Salvando..." : "💾 Salvar"}
-            </button>
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={handleGeneratePDF} className="flex items-center gap-2 px-4 py-2 rounded-lg border border-border bg-background text-foreground hover:bg-muted text-sm font-medium">
+                <FileText className="h-4 w-4" /> Gerar PDF
+              </button>
+              <button type="button" onClick={handleSave} disabled={saveMutation.isPending} className="px-5 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 disabled:opacity-50">
+                {saveMutation.isPending ? "Salvando..." : "💾 Salvar"}
+              </button>
+            </div>
           </div>
         </div>
       </div>
