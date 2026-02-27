@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import { X, Search, Plus, Trash2, Pencil } from "lucide-react";
+import { X, Search, Plus, Trash2, Pencil, Paperclip } from "lucide-react";
 import { fetchCep } from "@/utils/cep";
 import { useCompanies, CompanyFilterSelect } from "@/hooks/useCompanies";
 import Attachments from "@/components/Attachments";
@@ -90,6 +90,7 @@ export default function PurchaseOrderModal({
   const [lancamentoRomaneio, setLancamentoRomaneio] = useState("");
   const [lancamentoNotes, setLancamentoNotes] = useState("");
   const [lancamentoDate, setLancamentoDate] = useState(new Date().toISOString().slice(0, 10));
+  const [attachmentItemId, setAttachmentItemId] = useState<string | null>(null);
 
   const emptyItem: OrderItem = {
     item_type: "insumo", description: "", brand: "", complement: "",
@@ -925,6 +926,7 @@ export default function PurchaseOrderModal({
                           <th className="text-right px-3 py-2.5 font-semibold">Total (R$)</th>
                           <th className="text-center px-3 py-2.5 font-semibold min-w-[150px]">Lançados/Recebidos</th>
                           <th className="text-center px-3 py-2.5 font-semibold min-w-[140px]">Qtd. Lançamento</th>
+                          <th className="text-center px-3 py-2.5 font-semibold w-14">Anexo</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -985,6 +987,16 @@ export default function PurchaseOrderModal({
                                     className="w-24 px-2 py-1.5 rounded-lg border border-input bg-background text-xs text-right tabular-nums disabled:opacity-40 focus:ring-2 focus:ring-ring focus:outline-none"
                                   />
                                 </div>
+                              </td>
+                              <td className="px-3 py-2.5 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => setAttachmentItemId(itemId)}
+                                  className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-primary transition-colors"
+                                  title="Anexos"
+                                >
+                                  <Paperclip className="h-4 w-4" />
+                                </button>
                               </td>
                             </tr>
                           );
@@ -1091,6 +1103,21 @@ export default function PurchaseOrderModal({
         </div>
       </div>
 
+      {/* Attachment overlay for recebimento items */}
+      {attachmentItemId && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onClick={() => setAttachmentItemId(null)}>
+          <div className="bg-card border border-border rounded-xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-muted rounded-t-xl">
+              <h3 className="text-sm font-semibold text-primary flex items-center gap-2"><Paperclip className="h-4 w-4" /> Anexos do Item</h3>
+              <button onClick={() => setAttachmentItemId(null)} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+            </div>
+            <div className="p-4">
+              <Attachments entityType="po_item" entityId={attachmentItemId} />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Lancamento Modal */}
       {lancamentoModalOpen && (() => {
         const selIds = Array.from(recSelectedItems).filter(id => (receivings[id] || 0) > 0);
@@ -1180,16 +1207,49 @@ export default function PurchaseOrderModal({
 
                 <hr className="border-border" />
 
-                {/* Row: Itens selecionados summary */}
-                <div className="bg-muted/30 rounded-lg p-4 space-y-2">
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Resumo do Lançamento</p>
-                  <div className="space-y-1">
-                    {selItems.map(it => (
-                      <div key={it.id} className="flex items-center justify-between text-sm">
-                        <span className="text-foreground truncate max-w-[60%]">{it.description}</span>
-                        <span className="tabular-nums text-muted-foreground">{(receivings[it.id!] || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })} {it.unit} × {formatCurrency(it.unit_price)}</span>
-                      </div>
-                    ))}
+                {/* Itens do lançamento */}
+                <div className="bg-muted/30 rounded-lg overflow-hidden border border-border">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-2 bg-muted/50 border-b border-border">Itens do Lançamento</p>
+                  <div className="overflow-auto max-h-[200px]">
+                    <table className="w-full text-xs">
+                      <thead className="sticky top-0">
+                        <tr className="bg-primary/80 text-primary-foreground">
+                          <th className="text-left px-3 py-2 font-semibold">Item</th>
+                          <th className="text-left px-3 py-2 font-semibold">Orçamento (Fase/Serviço)</th>
+                          <th className="text-right px-3 py-2 font-semibold">Qtd.</th>
+                          <th className="text-center px-3 py-2 font-semibold">Un.</th>
+                          <th className="text-right px-3 py-2 font-semibold">Vlr. Unit.</th>
+                          <th className="text-right px-3 py-2 font-semibold">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selItems.map((it, idx) => {
+                          const qty = receivings[it.id!] || 0;
+                          const itemTotal = qty * it.unit_price;
+                          const budgetRef = [it.phase, it.service].filter(Boolean).join(" | ");
+                          return (
+                            <tr key={it.id} className={`border-b border-border ${idx % 2 === 0 ? "bg-background" : "bg-muted/20"}`}>
+                              <td className="px-3 py-2 text-foreground font-medium truncate max-w-[180px]" title={it.description}>{it.description}</td>
+                              <td className="px-3 py-2 text-muted-foreground truncate max-w-[160px]" title={budgetRef}>{budgetRef || "—"}</td>
+                              <td className="px-3 py-2 text-right tabular-nums">{qty.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td>
+                              <td className="px-3 py-2 text-center text-muted-foreground">{it.unit}</td>
+                              <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(it.unit_price)}</td>
+                              <td className="px-3 py-2 text-right font-semibold tabular-nums">{formatCurrency(itemTotal)}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Anexos do Lançamento */}
+                <div className="border border-border rounded-lg overflow-hidden">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-2 bg-muted/50 border-b border-border flex items-center gap-1.5">
+                    <Paperclip className="h-3.5 w-3.5" /> Anexos (Romaneio, NF, etc.)
+                  </p>
+                  <div className="p-3">
+                    <Attachments entityType="po_receiving" entityId={editing?.id || ""} />
                   </div>
                 </div>
 
