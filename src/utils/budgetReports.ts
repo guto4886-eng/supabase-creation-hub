@@ -1,5 +1,6 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { supabase } from "@/integrations/supabase/client";
 import {
   addReportHeader, addPageFooter, fetchCompanyInfo, type CompanyInfo,
   fmtCurrency as fmt, fmtQty as fmtNum, fmtPct,
@@ -8,6 +9,32 @@ import {
 
 // Re-export for backward compatibility
 export { fetchCompanyInfo, type CompanyInfo };
+
+// ── Fetch company info from the linked company (companies table) or fall back to company_settings ──
+async function getReportCompanyInfo(data: ReportData): Promise<CompanyInfo | null> {
+  // If budget has a linked company, use that
+  if (data.company?.id) {
+    const { data: comp } = await supabase
+      .from("companies")
+      .select("*")
+      .eq("id", data.company.id)
+      .maybeSingle();
+    if (comp) {
+      return {
+        company_name: comp.name || comp.trade_name || null,
+        document: comp.document || null,
+        logo_url: comp.logo_url || null,
+        address: [comp.address, comp.address_number, comp.neighborhood].filter(Boolean).join(", ") || null,
+        city: comp.city || null,
+        state: comp.state || null,
+        phone: comp.phone || comp.cellphone || null,
+        email: comp.email || null,
+      };
+    }
+  }
+  // Fallback to company_settings
+  return fetchCompanyInfo(data.userId);
+}
 
 // ─── Types ───
 interface BudgetItem {
@@ -50,7 +77,7 @@ function buildSubtitle(budgetCode?: string, obraName?: string): string | undefin
 // ─── 1. Orçamento de custo ───
 async function reportOrcamentoCusto(data: ReportData) {
   const doc = new jsPDF({ orientation: "landscape" });
-  const ci = await fetchCompanyInfo(data.userId);
+  const ci = await getReportCompanyInfo(data);
   let startY = await addReportHeader(doc, ci, "Orçamento de Custo", buildSubtitle(data.budget.budget_code, data.obra?.name));
 
   const phases = getPhases(data.items);
@@ -94,7 +121,7 @@ async function reportOrcamentoCusto(data: ReportData) {
 // ─── 2. Orçamento de venda ───
 async function reportOrcamentoVenda(data: ReportData) {
   const doc = new jsPDF({ orientation: "landscape" });
-  const ci = await fetchCompanyInfo(data.userId);
+  const ci = await getReportCompanyInfo(data);
   let startY = await addReportHeader(doc, ci, "Orçamento de Venda", buildSubtitle(data.budget.budget_code, data.obra?.name));
 
   const bdiDefault = 0;
@@ -151,7 +178,7 @@ async function reportOrcamentoVenda(data: ReportData) {
 // ─── 3. Relatórios de planejamento ───
 async function reportPlanejamento(data: ReportData) {
   const doc = new jsPDF({ orientation: "landscape" });
-  const ci = await fetchCompanyInfo(data.userId);
+  const ci = await getReportCompanyInfo(data);
   const y = await addReportHeader(doc, ci, "Planejamento Físico-Econômico", buildSubtitle(data.budget.budget_code, data.obra?.name));
 
   const periods = data.planPeriods || [];
@@ -200,7 +227,7 @@ async function reportPlanejamento(data: ReportData) {
 // ─── 4. Previsto x Realizado - Custo ───
 async function reportPrevistoRealizadoCusto(data: ReportData) {
   const doc = new jsPDF({ orientation: "landscape" });
-  const ci = await fetchCompanyInfo(data.userId);
+  const ci = await getReportCompanyInfo(data);
   const y = await addReportHeader(doc, ci, "Previsto x Realizado — Custo", buildSubtitle(data.budget.budget_code, data.obra?.name));
 
   const phases = getPhases(data.items);
@@ -246,7 +273,7 @@ async function reportPrevistoRealizadoCusto(data: ReportData) {
 // ─── 5. Previsto x Realizado de Insumos ───
 async function reportPrevistoRealizadoInsumos(data: ReportData) {
   const doc = new jsPDF({ orientation: "landscape" });
-  const ci = await fetchCompanyInfo(data.userId);
+  const ci = await getReportCompanyInfo(data);
   let startY = await addReportHeader(doc, ci, "Previsto x Realizado — Insumos", buildSubtitle(data.budget.budget_code, data.obra?.name));
 
   const allMI = data.allMeasurementItems || [];
@@ -299,7 +326,7 @@ async function reportPrevistoRealizadoInsumos(data: ReportData) {
 // ─── 6. Curva ABC ───
 async function reportCurvaABC(data: ReportData) {
   const doc = new jsPDF({ orientation: "landscape" });
-  const ci = await fetchCompanyInfo(data.userId);
+  const ci = await getReportCompanyInfo(data);
   let startY = await addReportHeader(doc, ci, "Curva ABC", buildSubtitle(data.budget.budget_code, data.obra?.name));
 
   const total = data.items.reduce((s, i) => s + (i.total_price || 0), 0);
@@ -367,7 +394,7 @@ async function reportCurvaABC(data: ReportData) {
 // ─── 7. Formulário de orçamento ───
 async function reportFormularioOrcamento(data: ReportData) {
   const doc = new jsPDF();
-  const ci = await fetchCompanyInfo(data.userId);
+  const ci = await getReportCompanyInfo(data);
   let cy = await addReportHeader(doc, ci, "Formulário de Orçamento", buildSubtitle(data.budget.budget_code, data.obra?.name));
 
   cy += 2;
@@ -436,7 +463,7 @@ async function reportFormularioOrcamento(data: ReportData) {
 // ─── 8. Prestação de serviço ───
 async function reportPrestacaoServico(data: ReportData) {
   const doc = new jsPDF();
-  const ci = await fetchCompanyInfo(data.userId);
+  const ci = await getReportCompanyInfo(data);
   let cy = await addReportHeader(doc, ci, "Prestação de Serviço", buildSubtitle(data.budget.budget_code, data.obra?.name));
 
   cy += 2;
@@ -483,7 +510,7 @@ async function reportPrestacaoServico(data: ReportData) {
 // ─── 9. Proposta comercial ───
 async function reportPropostaComercial(data: ReportData) {
   const doc = new jsPDF();
-  const ci = await fetchCompanyInfo(data.userId);
+  const ci = await getReportCompanyInfo(data);
   let cy = await addReportHeader(doc, ci, "Proposta Comercial", buildSubtitle(data.budget.budget_code, data.obra?.name));
 
   cy += 2;
@@ -538,7 +565,7 @@ async function reportPropostaComercial(data: ReportData) {
 // ─── 10. Histograma de recursos ───
 async function reportHistogramaRecursos(data: ReportData) {
   const doc = new jsPDF({ orientation: "landscape" });
-  const ci = await fetchCompanyInfo(data.userId);
+  const ci = await getReportCompanyInfo(data);
   const y = await addReportHeader(doc, ci, "Histograma de Recursos", buildSubtitle(data.budget.budget_code, data.obra?.name));
 
   const byUnit: Record<string, { items: BudgetItem[]; totalQty: number; totalValue: number }> = {};
