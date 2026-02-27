@@ -28,6 +28,18 @@ const CATEGORY_OPTIONS = [
   "Aluguel", "Impostos", "Administrativo", "Outro",
 ];
 
+const PAYMENT_METHOD_OPTIONS = [
+  "Dinheiro", "PIX", "Boleto", "Cartão de Crédito", "Cartão de Débito",
+  "Transferência", "Cheque", "Débito Automático", "Outro",
+];
+
+const ORIGIN_OPTIONS = [
+  { value: "manual", label: "Manual" },
+  { value: "ordem_compra", label: "Ordem de Compra" },
+  { value: "contrato", label: "Contrato" },
+  { value: "recorrente", label: "Recorrente" },
+];
+
 const inputClass = "w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm";
 
 interface FinancialDoc {
@@ -43,11 +55,21 @@ interface FinancialDoc {
   obra_id: string | null;
   supplier_id: string | null;
   company_id: string | null;
+  client_id: string | null;
+  document_number: string | null;
+  payment_method: string | null;
+  payment_terms: string | null;
+  cost_center: string | null;
+  installments: number | null;
+  current_installment: number | null;
+  origin: string | null;
+  origin_id: string | null;
   created_at: string;
   updated_at: string;
   obras?: { name: string } | null;
   suppliers?: { name: string } | null;
   companies?: { name: string } | null;
+  clients?: { name: string } | null;
 }
 
 export default function Financial() {
@@ -76,8 +98,12 @@ export default function Financial() {
   const [editing, setEditing] = useState<FinancialDoc | null>(null);
   const [form, setForm] = useState({
     description: "", type: "despesa", value: "0", status: "pendente",
-    due_date: "", payment_date: "", category: "", notes: "", obra_id: "", supplier_id: "", company_id: "",
+    due_date: "", payment_date: "", category: "", notes: "", obra_id: "",
+    supplier_id: "", company_id: "", client_id: "", document_number: "",
+    payment_method: "", payment_terms: "", cost_center: "",
+    installments: "1", current_installment: "1", origin: "manual",
   });
+  const [modalTab, setModalTab] = useState("dados");
 
   const { data: companiesList = [] } = useCompanies();
 
@@ -99,12 +125,21 @@ export default function Financial() {
     },
   });
 
+  const { data: clients = [] } = useQuery({
+    queryKey: ["clients_fin"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("clients").select("id, name").eq("active", true).order("name");
+      if (error) throw error;
+      return data as { id: string; name: string }[];
+    },
+  });
+
   const { data: items = [], isLoading } = useQuery({
     queryKey: ["financial_docs"],
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("financial_docs")
-        .select("*, obras(name), suppliers:suppliers(name), companies(name)")
+        .select("*, obras(name), suppliers:suppliers(name), companies(name), clients(name)")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data as FinancialDoc[];
@@ -156,7 +191,7 @@ export default function Financial() {
   // Mutations
   const saveMutation = useMutation({
     mutationFn: async () => {
-      const payload = {
+      const payload: any = {
         description: form.description,
         type: form.type,
         value: parseFloat(form.value) || 0,
@@ -168,6 +203,14 @@ export default function Financial() {
         obra_id: form.obra_id || null,
         supplier_id: form.supplier_id || null,
         company_id: form.company_id || null,
+        client_id: form.client_id || null,
+        document_number: form.document_number || null,
+        payment_method: form.payment_method || null,
+        payment_terms: form.payment_terms || null,
+        cost_center: form.cost_center || null,
+        installments: parseInt(form.installments) || 1,
+        current_installment: parseInt(form.current_installment) || 1,
+        origin: form.origin || "manual",
       };
       if (editing) {
         const { error } = await supabase.from("financial_docs").update(payload).eq("id", editing.id);
@@ -197,9 +240,18 @@ export default function Financial() {
     onError: (e: any) => toast.error(e.message),
   });
 
+  const defaultForm = {
+    description: "", type: "despesa", value: "0", status: "pendente",
+    due_date: "", payment_date: "", category: "", notes: "", obra_id: "",
+    supplier_id: "", company_id: "", client_id: "", document_number: "",
+    payment_method: "", payment_terms: "", cost_center: "",
+    installments: "1", current_installment: "1", origin: "manual",
+  };
+
   const openNew = () => {
     setEditing(null);
-    setForm({ description: "", type: "despesa", value: "0", status: "pendente", due_date: "", payment_date: "", category: "", notes: "", obra_id: "", supplier_id: "", company_id: "" });
+    setForm(defaultForm);
+    setModalTab("dados");
     setFormOpen(true);
   };
 
@@ -217,7 +269,16 @@ export default function Financial() {
       obra_id: item.obra_id ?? "",
       supplier_id: item.supplier_id ?? "",
       company_id: item.company_id ?? "",
+      client_id: item.client_id ?? "",
+      document_number: item.document_number ?? "",
+      payment_method: item.payment_method ?? "",
+      payment_terms: item.payment_terms ?? "",
+      cost_center: item.cost_center ?? "",
+      installments: String(item.installments ?? 1),
+      current_installment: String(item.current_installment ?? 1),
+      origin: item.origin ?? "manual",
     });
+    setModalTab("dados");
     setFormOpen(true);
   };
 
@@ -495,90 +556,199 @@ export default function Financial() {
         )}
       </div>
 
-      {/* Form modal */}
+      {/* Form modal - tabbed, 85vh */}
       {formOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={closeForm}>
-          <div className="bg-card border border-border rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-5 border-b border-border">
+          <div className="bg-card border border-border rounded-xl w-full max-w-4xl flex flex-col" style={{ height: "85vh" }} onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border bg-muted rounded-t-xl">
               <h3 className="text-lg font-semibold text-card-foreground">{editing ? "Editar" : "Novo"} Lançamento</h3>
               <button onClick={closeForm} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
             </div>
-            <form onSubmit={e => { e.preventDefault(); saveMutation.mutate(); }} className="p-5 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-card-foreground mb-1">Descrição *</label>
-                <input value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} required className={inputClass} />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-card-foreground mb-1">Tipo *</label>
-                  <select value={form.type} onChange={e => setForm(p => ({ ...p, type: e.target.value }))} className={inputClass}>
-                    {TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-card-foreground mb-1">Valor (R$) *</label>
-                  <input type="number" step="0.01" value={form.value} onChange={e => setForm(p => ({ ...p, value: e.target.value }))} required className={inputClass} />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-card-foreground mb-1">Status</label>
-                  <select value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value }))} className={inputClass}>
-                    {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-card-foreground mb-1">Categoria</label>
-                  <select value={form.category} onChange={e => setForm(p => ({ ...p, category: e.target.value }))} className={inputClass}>
-                    <option value="">Selecione...</option>
-                    {CATEGORY_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-card-foreground mb-1">Vencimento</label>
-                  <input type="date" value={form.due_date} onChange={e => setForm(p => ({ ...p, due_date: e.target.value }))} className={inputClass} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-card-foreground mb-1">Pagamento</label>
-                  <input type="date" value={form.payment_date} onChange={e => setForm(p => ({ ...p, payment_date: e.target.value }))} className={inputClass} />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-card-foreground mb-1">Empresa</label>
-                <select value={form.company_id} onChange={e => setForm(p => ({ ...p, company_id: e.target.value }))} className={inputClass}>
-                  <option value="">Nenhuma</option>
-                  {companiesList.map(c => <option key={c.id} value={c.id}>{c.company_type === "filial" ? "↳ " : ""}{c.name}</option>)}
-                </select>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-card-foreground mb-1">Obra</label>
-                  <select value={form.obra_id} onChange={e => setForm(p => ({ ...p, obra_id: e.target.value }))} className={inputClass}>
-                    <option value="">Nenhuma</option>
-                    {obras.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-card-foreground mb-1">Fornecedor</label>
-                  <select value={form.supplier_id} onChange={e => setForm(p => ({ ...p, supplier_id: e.target.value }))} className={inputClass}>
-                    <option value="">Nenhum</option>
-                    {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-card-foreground mb-1">Observações</label>
-                <textarea value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} rows={2} className={inputClass} />
-              </div>
-              <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={closeForm} className="px-4 py-2 rounded-lg border border-border text-foreground hover:bg-muted">Cancelar</button>
-                <button type="submit" disabled={saveMutation.isPending} className="px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 disabled:opacity-50">
-                  {saveMutation.isPending ? "Salvando..." : "Salvar"}
+
+            {/* Tabs */}
+            <div className="flex border-b border-border bg-muted">
+              {[
+                { key: "dados", label: "Dados" },
+                { key: "pagamento", label: "Pagamento" },
+                { key: "vinculacoes", label: "Vinculações" },
+                { key: "observacoes", label: "Observações" },
+              ].map(tab => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setModalTab(tab.key)}
+                  className={`flex-1 py-3 text-sm font-medium transition-colors ${modalTab === tab.key ? "text-primary border-b-2 border-primary bg-card" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  {tab.label}
                 </button>
-              </div>
+              ))}
+            </div>
+
+            {/* Tab content */}
+            <form onSubmit={e => { e.preventDefault(); saveMutation.mutate(); }} className="flex-1 overflow-y-auto p-5">
+              {modalTab === "dados" && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-card-foreground mb-1">Tipo *</label>
+                      <select value={form.type} onChange={e => setForm(p => ({ ...p, type: e.target.value }))} className={inputClass}>
+                        {TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-card-foreground mb-1">Origem</label>
+                      <select value={form.origin} onChange={e => setForm(p => ({ ...p, origin: e.target.value }))} className={inputClass}>
+                        {ORIGIN_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-card-foreground mb-1">Descrição *</label>
+                    <input value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} required className={inputClass} />
+                  </div>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-card-foreground mb-1">Valor (R$) *</label>
+                      <input type="number" step="0.01" value={form.value} onChange={e => setForm(p => ({ ...p, value: e.target.value }))} required className={inputClass} />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-card-foreground mb-1">Status</label>
+                      <select value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value }))} className={inputClass}>
+                        {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-card-foreground mb-1">Categoria</label>
+                      <select value={form.category} onChange={e => setForm(p => ({ ...p, category: e.target.value }))} className={inputClass}>
+                        <option value="">Selecione...</option>
+                        {CATEGORY_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-card-foreground mb-1">Nº Documento / NF</label>
+                      <input value={form.document_number} onChange={e => setForm(p => ({ ...p, document_number: e.target.value }))} className={inputClass} placeholder="Ex: NF-001234" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-card-foreground mb-1">Centro de Custo</label>
+                      <input value={form.cost_center} onChange={e => setForm(p => ({ ...p, cost_center: e.target.value }))} className={inputClass} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-card-foreground mb-1">Vencimento</label>
+                      <input type="date" value={form.due_date} onChange={e => setForm(p => ({ ...p, due_date: e.target.value }))} className={inputClass} />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-card-foreground mb-1">Data de Pagamento</label>
+                      <input type="date" value={form.payment_date} onChange={e => setForm(p => ({ ...p, payment_date: e.target.value }))} className={inputClass} />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {modalTab === "pagamento" && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-card-foreground mb-1">Forma de Pagamento</label>
+                      <select value={form.payment_method} onChange={e => setForm(p => ({ ...p, payment_method: e.target.value }))} className={inputClass}>
+                        <option value="">Selecione...</option>
+                        {PAYMENT_METHOD_OPTIONS.map(m => <option key={m} value={m}>{m}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-card-foreground mb-1">Condição de Pagamento</label>
+                      <input value={form.payment_terms} onChange={e => setForm(p => ({ ...p, payment_terms: e.target.value }))} className={inputClass} placeholder="Ex: 30/60/90 dias" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-card-foreground mb-1">Nº de Parcelas</label>
+                      <input type="number" min="1" value={form.installments} onChange={e => setForm(p => ({ ...p, installments: e.target.value }))} className={inputClass} />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-card-foreground mb-1">Parcela Atual</label>
+                      <input type="number" min="1" value={form.current_installment} onChange={e => setForm(p => ({ ...p, current_installment: e.target.value }))} className={inputClass} />
+                    </div>
+                  </div>
+                  {/* Summary */}
+                  <div className="mt-6 p-4 bg-muted rounded-lg space-y-2">
+                    <h4 className="font-medium text-card-foreground mb-3">Resumo Financeiro</h4>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Valor Total</span>
+                      <span className="font-medium text-card-foreground">{fmt(parseFloat(form.value) || 0)}</span>
+                    </div>
+                    {parseInt(form.installments) > 1 && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Valor por Parcela</span>
+                        <span className="font-medium text-card-foreground">{fmt((parseFloat(form.value) || 0) / (parseInt(form.installments) || 1))}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Status</span>
+                      <span className={`font-medium ${form.status === "pago" ? "text-emerald-600" : form.status === "cancelado" ? "text-destructive" : "text-amber-600"}`}>
+                        {STATUS_OPTIONS.find(s => s.value === form.status)?.label}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {modalTab === "vinculacoes" && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-card-foreground mb-1">Empresa</label>
+                    <select value={form.company_id} onChange={e => setForm(p => ({ ...p, company_id: e.target.value }))} className={inputClass}>
+                      <option value="">Nenhuma</option>
+                      {companiesList.map(c => <option key={c.id} value={c.id}>{c.company_type === "filial" ? "↳ " : ""}{c.name}</option>)}
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-card-foreground mb-1">Obra</label>
+                      <select value={form.obra_id} onChange={e => setForm(p => ({ ...p, obra_id: e.target.value }))} className={inputClass}>
+                        <option value="">Nenhuma</option>
+                        {obras.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-card-foreground mb-1">Fornecedor</label>
+                      <select value={form.supplier_id} onChange={e => setForm(p => ({ ...p, supplier_id: e.target.value }))} className={inputClass}>
+                        <option value="">Nenhum</option>
+                        {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-card-foreground mb-1">Cliente</label>
+                    <select value={form.client_id} onChange={e => setForm(p => ({ ...p, client_id: e.target.value }))} className={inputClass}>
+                      <option value="">Nenhum</option>
+                      {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              {modalTab === "observacoes" && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-card-foreground mb-1">Observações</label>
+                    <textarea value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} rows={6} className={inputClass} placeholder="Informações adicionais sobre o lançamento..." />
+                  </div>
+                </div>
+              )}
             </form>
+
+            {/* Footer */}
+            <div className="flex justify-end gap-3 px-5 py-4 border-t border-border bg-muted rounded-b-xl">
+              <button type="button" onClick={closeForm} className="px-4 py-2 rounded-lg border border-border bg-background text-foreground hover:bg-muted">Cancelar</button>
+              <button type="button" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending || !form.description} className="px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 disabled:opacity-50">
+                {saveMutation.isPending ? "Salvando..." : "Salvar"}
+              </button>
+            </div>
           </div>
         </div>
       )}
