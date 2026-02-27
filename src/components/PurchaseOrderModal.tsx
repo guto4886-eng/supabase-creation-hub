@@ -90,6 +90,7 @@ export default function PurchaseOrderModal({
   const [lancamentoRomaneio, setLancamentoRomaneio] = useState("");
   const [lancamentoNotes, setLancamentoNotes] = useState("");
   const [lancamentoDate, setLancamentoDate] = useState(new Date().toISOString().slice(0, 10));
+  const [lancamentoRecebedor, setLancamentoRecebedor] = useState("");
   const [attachmentItemId, setAttachmentItemId] = useState<string | null>(null);
   const [historyItem, setHistoryItem] = useState<OrderItem | null>(null);
 
@@ -230,6 +231,7 @@ export default function PurchaseOrderModal({
     setLancamentoDate(new Date().toISOString().slice(0, 10));
     setLancamentoRomaneio("");
     setLancamentoNotes("");
+    setLancamentoRecebedor(form.delivery_receiver || "");
     setLancamentoModalOpen(true);
   };
 
@@ -1183,6 +1185,12 @@ export default function PurchaseOrderModal({
                   </span>
                   <label className="text-sm font-medium text-muted-foreground text-right">Obra *</label>
                   <span className="text-sm text-foreground bg-muted/40 px-3 py-2 rounded-lg border border-input truncate">{obraName}</span>
+                </div>
+
+                {/* Row: Recebedor */}
+                <div className="grid grid-cols-[120px_1fr] items-center gap-x-3">
+                  <label className="text-sm font-medium text-muted-foreground text-right">Recebedor</label>
+                  <input value={lancamentoRecebedor} onChange={e => setLancamentoRecebedor(e.target.value)} className={inputClass} placeholder="Nome de quem recebeu a entrega..." />
                 </div>
 
                 {/* Row: Observação */}
