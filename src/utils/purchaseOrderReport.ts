@@ -1,5 +1,6 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { supabase } from "@/integrations/supabase/client";
 import {
   addReportHeader, addPageFooter, drawInfoGrid, loadImage,
   fetchCompanyInfo, type CompanyInfo,
@@ -35,64 +36,268 @@ interface POReportData {
   userId: string;
 }
 
+// ── Section header bar helper ──
+function drawSectionHeader(doc: jsPDF, text: string, y: number, pageW: number): number {
+  const M = 14;
+  doc.setFillColor(220, 220, 220);
+  doc.rect(M, y, pageW - M * 2, 6, "F");
+  doc.setFontSize(8);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(30, 30, 30);
+  doc.text(text, M + 2, y + 4.2);
+  doc.setTextColor(0, 0, 0);
+  return y + 9;
+}
+
+// ── Field pair helper ──
+function drawField(doc: jsPDF, label: string, value: string, x: number, y: number, maxValW: number) {
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(7.5);
+  doc.setTextColor(60, 60, 60);
+  const labelW = doc.getTextWidth(label) + 1;
+  doc.text(label, x, y);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(30, 30, 30);
+  const valLines = doc.splitTextToSize(value || "—", maxValW);
+  doc.text(valLines, x + labelW, y);
+  return Array.isArray(valLines) ? valLines.length : 1;
+}
+
+// ── Check page break ──
+function checkPageBreak(doc: jsPDF, y: number, needed: number): number {
+  const pageH = doc.internal.pageSize.getHeight();
+  if (y + needed > pageH - 20) {
+    doc.addPage();
+    return 15;
+  }
+  return y;
+}
+
 export async function generatePurchaseOrderPDF(data: POReportData) {
   const { order, items, supplierName, obraName, companyName, userId } = data;
   const doc = new jsPDF();
+  const pageW = doc.internal.pageSize.getWidth();
+  const M = 14;
+  const halfW = (pageW - M * 2) / 2;
+
+  // Fetch additional data
   const companyInfo = await fetchCompanyInfo(userId);
 
-  let y = await addReportHeader(doc, companyInfo, "ORDEM DE COMPRA", `Código: ${order.order_code || "—"}`);
-
-  // Info grid
-  const infoRows: [string, string, string?, string?][] = [
-    ["Fornecedor:", supplierName, "Empresa:", companyName],
-    ["Obra:", obraName, "Status:", order.status || "—"],
-    ["Data Emissão:", fmtDate(order.order_date), "Dt. Entrega:", fmtDate(order.delivery_date)],
-    ["Cond. Pagamento:", order.payment_terms || "—"],
-  ];
-  if (order.delivery_receiver) {
-    infoRows.push(["Recebedor:", order.delivery_receiver]);
-  }
-  y = drawInfoGrid(doc, infoRows, y);
-
-  // Delivery address
-  const deliveryParts = [order.delivery_address, order.delivery_number, order.delivery_neighborhood, order.delivery_city, order.delivery_state].filter(Boolean);
-  if (deliveryParts.length > 0) {
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(60, 60, 60);
-    doc.text("End. Entrega:", 14, y);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(30, 30, 30);
-    doc.text(deliveryParts.join(", "), 50, y);
-    y += 5;
+  // Fetch supplier details
+  let supplier: Record<string, any> | null = null;
+  if (order.supplier_id) {
+    const { data: s } = await supabase.from("suppliers" as any).select("*").eq("id", order.supplier_id).maybeSingle();
+    supplier = s as any;
   }
 
+  // Fetch billing company details
+  let billingCompany: Record<string, any> | null = null;
+  if (order.company_id) {
+    const { data: c } = await supabase.from("companies").select("*").eq("id", order.company_id).maybeSingle();
+    billingCompany = c;
+  }
+
+  // Fetch vendor contact
+  let vendorContact: Record<string, any> | null = null;
+  if (order.vendor_contact_id) {
+    const { data: vc } = await supabase.from("supplier_contacts" as any).select("*").eq("id", order.vendor_contact_id).maybeSingle();
+    vendorContact = vc as any;
+  }
+
+  // Fetch user profile
+  let profile: Record<string, any> | null = null;
+  const { data: prof } = await supabase.from("profiles").select("*").eq("user_id", userId).maybeSingle();
+  profile = prof;
+
+  // ── Header ──
+  const titleParts = [`ORDEM DE COMPRA ${order.order_code || ""}`];
+  const subtitleParts: string[] = [];
+  if (obraName && obraName !== "—") subtitleParts.push(obraName);
+  
+  let y = await addReportHeader(doc, companyInfo, titleParts[0], subtitleParts.length > 0 ? subtitleParts.join(" - ") : undefined);
+
+  // ════════════════════════════════════════
+  // DADOS DA ORDEM DE COMPRA
+  // ════════════════════════════════════════
+  y = drawSectionHeader(doc, `DADOS DA ORDEM DE COMPRA     ${order.order_code || ""}`, y, pageW);
+
+  drawField(doc, "Data:", fmtDate(order.order_date), M + 2, y, 30);
+  drawField(doc, "Previsão da entrega:", fmtDate(order.delivery_date), pageW / 2, y, 30);
+  y += 5;
+
+  drawField(doc, "Cond. pgto.:", order.payment_terms || "—", M + 2, y, 40);
+  drawField(doc, "Forma pgto.:", order.payment_method || "—", pageW / 2, y, 40);
+  y += 5;
+
+  // Notes / Observação
   if (order.notes) {
     doc.setFont("helvetica", "bold");
+    doc.setFontSize(7.5);
     doc.setTextColor(60, 60, 60);
-    doc.text("Observações:", 14, y);
+    doc.text("Observação:", M + 2, y);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(30, 30, 30);
-    const noteLines = doc.splitTextToSize(order.notes, 145);
-    doc.text(noteLines, 50, y);
-    y += noteLines.length * 4 + 2;
+    const noteLines = doc.splitTextToSize(order.notes, pageW - M * 2 - 30);
+    doc.text(noteLines, M + 28, y);
+    y += (Array.isArray(noteLines) ? noteLines.length : 1) * 3.5 + 2;
+  }
+  y += 2;
+
+  // ════════════════════════════════════════
+  // RESPONSÁVEL PELA COMPRA
+  // ════════════════════════════════════════
+  y = checkPageBreak(doc, y, 20);
+  y = drawSectionHeader(doc, "RESPONSÁVEL PELA COMPRA", y, pageW);
+  
+  const buyerName = companyInfo?.company_name || companyName || "—";
+  const profileName = profile?.full_name || "—";
+  const profileEmail = companyInfo?.email || "—";
+
+  drawField(doc, "Nome:", buyerName, M + 2, y, halfW - 10);
+  drawField(doc, "Comprador:", profileName, pageW / 2, y, halfW - 10);
+  y += 5;
+  drawField(doc, "", "", M + 2, y, 1);
+  drawField(doc, "Email:", profileEmail, pageW / 2, y, halfW - 10);
+  y += 7;
+
+  // ════════════════════════════════════════
+  // DADOS DO FATURAMENTO
+  // ════════════════════════════════════════
+  y = checkPageBreak(doc, y, 30);
+  y = drawSectionHeader(doc, "DADOS DO FATURAMENTO", y, pageW);
+
+  const fatName = billingCompany?.name || companyInfo?.company_name || "—";
+  const fatCnpj = billingCompany?.document || companyInfo?.document || "—";
+  const fatIe = billingCompany?.ie || "—";
+  const fatAddrParts = [
+    billingCompany?.address || order.billing_address,
+    billingCompany?.address_number || order.billing_number,
+    billingCompany?.neighborhood || order.billing_neighborhood,
+    billingCompany?.city || order.billing_city,
+    billingCompany?.state || order.billing_state,
+    order.billing_cep,
+  ].filter(Boolean);
+  const fatAddr = fatAddrParts.length > 0 ? fatAddrParts.join(", ") : "—";
+
+  drawField(doc, "Nome:", fatName, M + 2, y, halfW - 10);
+  const addrLines1 = drawField(doc, "Endereço:", fatAddr, pageW / 2, y, halfW - 15);
+  y += Math.max(1, addrLines1) * 3.5 + 1.5;
+  
+  drawField(doc, "CNPJ:", fatCnpj, M + 2, y, halfW - 10);
+  y += 5;
+  drawField(doc, "I.E.:", fatIe, M + 2, y, halfW - 10);
+  y += 7;
+
+  // ════════════════════════════════════════
+  // DADOS DO FORNECEDOR
+  // ════════════════════════════════════════
+  y = checkPageBreak(doc, y, 35);
+  y = drawSectionHeader(doc, "DADOS DO FORNECEDOR", y, pageW);
+
+  const supName = supplier?.name || supplierName || "—";
+  const supCnpj = supplier?.document || "—";
+  const supPhone = supplier?.phone || "—";
+  const supCell = supplier?.cellphone || "—";
+  const supEmail = supplier?.email || "—";
+  const supAddrParts = [
+    supplier?.address, supplier?.address_number,
+    supplier?.neighborhood, supplier?.city,
+    supplier?.state, supplier?.cep,
+  ].filter(Boolean);
+  const supAddr = supAddrParts.length > 0 ? supAddrParts.join(", ") : "—";
+  const vendorName = vendorContact?.name || "—";
+
+  drawField(doc, "Nome:", supName, M + 2, y, halfW - 10);
+  const supAddrLines = drawField(doc, "Endereço:", supAddr, pageW / 2, y, halfW - 15);
+  y += Math.max(1, supAddrLines) * 3.5 + 1.5;
+
+  drawField(doc, "CNPJ:", supCnpj, M + 2, y, halfW - 10);
+  y += 5;
+
+  drawField(doc, "Telefone:", supPhone, M + 2, y, 25);
+  drawField(doc, "Celular:", supCell, M + 55, y, 25);
+  y += 5;
+
+  drawField(doc, "Vendedor:", vendorName, M + 2, y, halfW - 10);
+  y += 5;
+
+  drawField(doc, "E-mail:", supEmail, M + 2, y, halfW - 10);
+  y += 7;
+
+  // ════════════════════════════════════════
+  // OBRA / ENDEREÇOS
+  // ════════════════════════════════════════
+  y = checkPageBreak(doc, y, 30);
+
+  // Obra / Centro de custo line
+  doc.setFillColor(220, 220, 220);
+  doc.rect(M, y, pageW - M * 2, 6, "F");
+  doc.setFontSize(7.5);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(30, 30, 30);
+  doc.text("OBRA/CENTRO DE CUSTO:", M + 2, y + 4.2);
+  doc.setFont("helvetica", "normal");
+  const obraText = obraName && obraName !== "—" ? obraName : "—";
+  doc.text(obraText, M + 48, y + 4.2);
+  
+  // CNO
+  if (order.cno) {
+    doc.setFont("helvetica", "bold");
+    doc.text("CNO:", pageW / 2 + 20, y + 4.2);
+    doc.setFont("helvetica", "normal");
+    doc.text(order.cno, pageW / 2 + 32, y + 4.2);
+  }
+  y += 9;
+
+  // Delivery and billing addresses side by side
+  const delAddrParts = [order.delivery_address, order.delivery_number, order.delivery_neighborhood, order.delivery_city, order.delivery_state, order.delivery_cep].filter(Boolean);
+  const bilAddrParts = [order.billing_address, order.billing_number, order.billing_neighborhood, order.billing_city, order.billing_state, order.billing_cep].filter(Boolean);
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(7.5);
+  doc.setTextColor(50, 50, 50);
+  doc.text("ENDEREÇO ENTREGA:", M + 2, y);
+  doc.text("ENDEREÇO COBRANÇA:", pageW / 2, y);
+  y += 4;
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7);
+  doc.setTextColor(30, 30, 30);
+
+  const delAddr = delAddrParts.length > 0 ? delAddrParts.join(", ") : "—";
+  const bilAddr = bilAddrParts.length > 0 ? bilAddrParts.join(", ") : "—";
+  
+  const delLines = doc.splitTextToSize("Endereço: " + delAddr, halfW - 8);
+  const bilLines = doc.splitTextToSize("Endereço: " + bilAddr, halfW - 8);
+  doc.text(delLines, M + 4, y);
+  doc.text(bilLines, pageW / 2 + 2, y);
+  y += Math.max(delLines.length, bilLines.length) * 3 + 4;
+
+  // Recebedor
+  if (order.delivery_receiver) {
+    drawField(doc, "Recebedor:", order.delivery_receiver, M + 2, y, halfW);
+    y += 7;
   }
 
-  y += 4;
-  doc.setTextColor(0, 0, 0);
+  // ════════════════════════════════════════
+  // ITENS
+  // ════════════════════════════════════════
+  y = checkPageBreak(doc, y, 20);
 
-  // Items table
-  const head = [["#", "Descrição", "Marca", "Qtd.", "Un.", "Vlr. Unit.", "Desc.", "Frete", "Total"]];
-  const body = items.map((it, idx) => [
-    String(idx + 1),
-    it.description + (it.complement ? ` (${it.complement})` : ""),
-    it.brand || "",
-    fmtQty(it.quantity),
-    it.unit,
-    fmt(it.unit_price),
-    it.discount_value ? fmt(it.discount_value) : it.discount_percent ? `${it.discount_percent}%` : "—",
-    it.freight ? fmt(it.freight) : "—",
-    fmt(it.total),
-  ]);
+  const head = [["N.", "Item", "Qtd.", "Unit. (R$)", "Subtotal (R$)", "Desc. (R$)", "Total (R$)"]];
+  const body = items.map((it, idx) => {
+    const sub = it.quantity * it.unit_price;
+    const disc = it.discount_value || (it.discount_percent ? sub * (it.discount_percent / 100) : 0);
+    return [
+      String(idx + 1),
+      it.description + (it.brand ? ` - ${it.brand}` : "") + (it.complement ? ` (${it.complement})` : "") + `\n${fmtQty(it.quantity)} ${it.unit}`,
+      fmtQty(it.quantity),
+      fmt(it.unit_price),
+      fmt(sub),
+      fmt(disc || 0),
+      fmt(it.total),
+    ];
+  });
 
   autoTable(doc, {
     startY: y,
@@ -101,66 +306,55 @@ export async function generatePurchaseOrderPDF(data: POReportData) {
     ...TABLE_THEME,
     columnStyles: {
       0: { halign: "center", cellWidth: 10 },
-      3: { halign: "right" },
-      5: { halign: "right" },
-      6: { halign: "right" },
-      7: { halign: "right" },
-      8: { halign: "right" },
+      2: { halign: "right", cellWidth: 18 },
+      3: { halign: "right", cellWidth: 22 },
+      4: { halign: "right", cellWidth: 26 },
+      5: { halign: "right", cellWidth: 22 },
+      6: { halign: "right", cellWidth: 24 },
     },
-    margin: { bottom: 20 },
+    margin: { left: M, right: M, bottom: 20 },
   });
 
-  // Totals box
+  // ── Totals rows ──
   const finalY = (doc as any).lastAutoTable?.finalY || y + 20;
-  let ty = finalY + 6;
-
-  const pageW = doc.internal.pageSize.getWidth();
-  const boxW = 80;
-  const boxX = pageW - 14 - boxW;
+  let ty = finalY;
 
   const subtotal = items.reduce((s, i) => s + i.quantity * i.unit_price, 0);
+  const totalItemDisc = items.reduce((s, i) => {
+    const sub = i.quantity * i.unit_price;
+    return s + (i.discount_value || (i.discount_percent ? sub * (i.discount_percent / 100) : 0));
+  }, 0);
   const totalItems = items.reduce((s, i) => s + i.total, 0);
   const globalDiscount = Number(order.discount_value) || (Number(order.discount_percent) > 0 ? totalItems * (Number(order.discount_percent) / 100) : 0);
   const globalFreight = Number(order.freight) || 0;
   const grandTotal = Number(order.total_value) || Math.max(0, totalItems - globalDiscount + globalFreight);
 
-  doc.setFillColor(245, 248, 252);
-  doc.setDrawColor(200, 210, 220);
-  doc.roundedRect(boxX, ty - 3, boxW, (globalDiscount > 0 ? 26 : 21) + (globalFreight > 0 ? 5 : 0), 2, 2, "FD");
+  // Summary table aligned with items table
+  const summaryBody: string[][] = [
+    ["Subtotal", fmt(subtotal), fmt(totalItemDisc), fmt(totalItems)],
+    ["Frete", "", "", fmt(globalFreight)],
+    ["Total", "", "", fmt(grandTotal)],
+  ];
 
-  doc.setFontSize(8.5);
-  const labelX = boxX + 4;
-  const valX = boxX + boxW - 4;
-
-  doc.setFont("helvetica", "normal");
-  doc.setTextColor(80, 80, 80);
-  doc.text("Subtotal Itens:", labelX, ty);
-  doc.text(fmt(subtotal), valX, ty, { align: "right" });
-  ty += 5;
-
-  if (globalDiscount > 0) {
-    doc.text("Desconto:", labelX, ty);
-    doc.setTextColor(200, 50, 50);
-    doc.text(`- ${fmt(globalDiscount)}`, valX, ty, { align: "right" });
-    doc.setTextColor(80, 80, 80);
-    ty += 5;
-  }
-
-  if (globalFreight > 0) {
-    doc.text("Frete:", labelX, ty);
-    doc.text(fmt(globalFreight), valX, ty, { align: "right" });
-    ty += 5;
-  }
-
-  doc.setDrawColor(41, 128, 185);
-  doc.setLineWidth(0.4);
-  doc.line(labelX, ty - 2, valX, ty - 2);
-
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(10);
-  doc.setTextColor(41, 128, 185);
-  doc.text("TOTAL:", labelX, ty + 2);
-  doc.text(fmt(grandTotal), valX, ty + 2, { align: "right" });
+  autoTable(doc, {
+    startY: ty,
+    body: summaryBody,
+    theme: "plain",
+    styles: { fontSize: 8, cellPadding: 1.5 },
+    columnStyles: {
+      0: { fontStyle: "bold", halign: "right", cellWidth: pageW - M * 2 - 68 },
+      1: { halign: "right", cellWidth: 22 },
+      2: { halign: "right", cellWidth: 22 },
+      3: { halign: "right", cellWidth: 24, fontStyle: "bold" },
+    },
+    margin: { left: M, right: M },
+    didParseCell: (hookData: any) => {
+      if (hookData.section === "body" && hookData.row.index === 2) {
+        hookData.cell.styles.fontStyle = "bold";
+        hookData.cell.styles.fontSize = 9;
+      }
+    },
+  });
 
   addPageFooter(doc);
   doc.save(`OC_${order.order_code || "sem-codigo"}.pdf`);
