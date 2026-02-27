@@ -1356,6 +1356,7 @@ export type Database = {
           purchase_order_item_id: string
           quantity: number
           received_at: string
+          receiver: string | null
           romaneio: string | null
           user_id: string
         }
@@ -1368,6 +1369,7 @@ export type Database = {
           purchase_order_item_id: string
           quantity?: number
           received_at?: string
+          receiver?: string | null
           romaneio?: string | null
           user_id: string
         }
@@ -1380,6 +1382,7 @@ export type Database = {
           purchase_order_item_id?: string
           quantity?: number
           received_at?: string
+          receiver?: string | null
           romaneio?: string | null
           user_id?: string
         }

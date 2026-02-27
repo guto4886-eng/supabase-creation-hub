@@ -248,6 +248,7 @@ export default function PurchaseOrderModal({
         romaneio: lancamentoRomaneio || null,
         notes: lancamentoNotes || null,
         delivery_date: lancamentoDate || null,
+        receiver: lancamentoRecebedor || null,
       }));
     if (rows.length === 0) return;
     const { error } = await (supabase as any).from("purchase_order_receivings").insert(rows);
