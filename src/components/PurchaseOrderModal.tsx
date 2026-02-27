@@ -380,7 +380,7 @@ export default function PurchaseOrderModal({
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Empresa *</label>
-                  <select value={form.company_id || ""} onChange={e => setForm(p => ({ ...p, company_id: e.target.value }))} className={inputClass}>
+                  <select value={form.company_id || ""} onChange={e => setForm(p => ({ ...p, company_id: e.target.value, obra_id: "" }))} className={inputClass}>
                     <option value="">Selecione...</option>
                     {companiesList.map(c => (
                       <option key={c.id} value={c.id}>
