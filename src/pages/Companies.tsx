@@ -11,6 +11,7 @@ import { maskCpfCnpj, validateCpfCnpj } from "@/utils/cpfCnpj";
 import { fetchCep } from "@/utils/cep";
 import { fetchCnpj } from "@/utils/cnpjLookup";
 import Attachments from "@/components/Attachments";
+import ImageCropper from "@/components/ImageCropper";
 
 const ESTADOS = [
   "AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG",
@@ -581,6 +582,53 @@ function CompanyFormModal({
   editing, form, setForm, activeTab, setActiveTab, matrices, cepLoading, cnpjLoading,
   handleSubmit, handleCepBlur, handleCnpjBlur, closeForm, saveMutation, inputClass,
 }: any) {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  const [cropperSrc, setCropperSrc] = useState<string | null>(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+
+  const handleLogoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setCropperSrc(reader.result as string);
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
+
+  const handleCroppedLogo = async (blob: Blob) => {
+    if (!editing?.id) return;
+    setCropperSrc(null);
+    setUploadingLogo(true);
+    try {
+      const path = `companies/${editing.id}/logo.jpg`;
+      const { error: uploadError } = await supabase.storage.from("attachments").upload(path, blob, { upsert: true, contentType: "image/jpeg" });
+      if (uploadError) { toast.error("Erro ao enviar logomarca"); setUploadingLogo(false); return; }
+      const { data: publicUrl } = supabase.storage.from("attachments").getPublicUrl(path);
+      const logoUrl = publicUrl.publicUrl + "?t=" + Date.now();
+      await supabase.from("companies").update({ logo_url: logoUrl } as any).eq("id", editing.id);
+      setForm((p: any) => ({ ...p, logo_url: logoUrl }));
+      qc.invalidateQueries({ queryKey: ["companies"] });
+      toast.success("Logomarca atualizada!");
+    } catch (error) {
+      console.error("Erro ao salvar logomarca:", error);
+      toast.error("Erro inesperado ao salvar logomarca");
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
+
+  const handleRemoveLogo = async () => {
+    if (!editing?.id) return;
+    try {
+      await supabase.from("companies").update({ logo_url: null } as any).eq("id", editing.id);
+      setForm((p: any) => ({ ...p, logo_url: null }));
+      qc.invalidateQueries({ queryKey: ["companies"] });
+      toast.success("Logomarca removida!");
+    } catch (error) {
+      toast.error("Erro inesperado");
+    }
+  };
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={closeForm}>
       <div className="bg-card border border-border rounded-xl w-full max-w-4xl h-[85vh] flex flex-col" onClick={(e: any) => e.stopPropagation()}>
@@ -610,6 +658,37 @@ function CompanyFormModal({
         <div className="flex-1 overflow-y-auto">
           {activeTab === "dados" && (
             <form id="company-form" onSubmit={handleSubmit} className="p-5 space-y-5">
+              {/* Logomarca */}
+              {editing && (
+                <div className="flex items-center gap-3">
+                  <label className="text-sm font-medium text-card-foreground whitespace-nowrap min-w-[120px] text-right">Logomarca</label>
+                  <div className="flex items-center gap-4">
+                    <div className="relative group">
+                      <div className="h-20 w-20 rounded-lg bg-muted flex items-center justify-center overflow-hidden border-2 border-border">
+                        {form.logo_url ? (
+                          <img src={form.logo_url} alt="Logo" className="h-full w-full object-contain" />
+                        ) : (
+                          <Building2 className="h-8 w-8 text-muted-foreground" />
+                        )}
+                      </div>
+                      <label className="absolute bottom-0 right-0 h-7 w-7 bg-primary text-primary-foreground rounded-full flex items-center justify-center cursor-pointer hover:opacity-90 shadow-sm">
+                        <Upload className="h-3.5 w-3.5" />
+                        <input type="file" accept="image/*" onChange={handleLogoSelect} className="hidden" />
+                      </label>
+                    </div>
+                    <div className="space-y-1">
+                      {uploadingLogo && <p className="text-xs text-muted-foreground">Enviando...</p>}
+                      {form.logo_url && (
+                        <button type="button" onClick={handleRemoveLogo} className="text-xs text-destructive hover:underline">Remover logomarca</button>
+                      )}
+                      {!form.logo_url && !uploadingLogo && (
+                        <p className="text-xs text-muted-foreground">Clique no ícone para enviar</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="flex items-center gap-3">
                 <label className="text-sm font-medium text-card-foreground whitespace-nowrap min-w-[120px] text-right">Tipo *</label>
                 <div className="flex gap-4">
@@ -756,6 +835,9 @@ function CompanyFormModal({
           )}
         </div>
       </div>
+      {cropperSrc && (
+        <ImageCropper imageSrc={cropperSrc} aspectRatio={1} onCrop={handleCroppedLogo} onClose={() => setCropperSrc(null)} />
+      )}
     </div>
   );
 }
