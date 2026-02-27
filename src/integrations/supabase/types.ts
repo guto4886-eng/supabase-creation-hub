@@ -1346,6 +1346,54 @@ export type Database = {
           },
         ]
       }
+      purchase_order_receivings: {
+        Row: {
+          created_at: string
+          id: string
+          notes: string | null
+          purchase_order_id: string
+          purchase_order_item_id: string
+          quantity: number
+          received_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          purchase_order_id: string
+          purchase_order_item_id: string
+          quantity?: number
+          received_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          purchase_order_id?: string
+          purchase_order_item_id?: string
+          quantity?: number
+          received_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_order_receivings_purchase_order_id_fkey"
+            columns: ["purchase_order_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_order_receivings_purchase_order_item_id_fkey"
+            columns: ["purchase_order_item_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_order_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       purchase_orders: {
         Row: {
           billing_address: string | null

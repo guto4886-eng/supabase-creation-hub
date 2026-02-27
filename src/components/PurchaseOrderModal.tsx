@@ -22,6 +22,7 @@ const TABS = [
   { key: "dados", label: "Dados" },
   { key: "enderecos", label: "Endereços" },
   { key: "pagamento", label: "Pagamento" },
+  { key: "recebimento", label: "Recebimento" },
   { key: "anexos", label: "Anexos" },
 ] as const;
 type TabKey = typeof TABS[number]["key"];
@@ -75,6 +76,16 @@ export default function PurchaseOrderModal({
   const [form, setForm] = useState<Record<string, any>>({});
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [editingItemIdx, setEditingItemIdx] = useState<number | null>(null);
+
+  // Recebimento state
+  const [receivings, setReceivings] = useState<Record<string, number>>({});
+  const [receivedTotals, setReceivedTotals] = useState<Record<string, number>>({});
+  const [recFilterObra, setRecFilterObra] = useState("");
+  const [recFilterPhase, setRecFilterPhase] = useState("");
+  const [recFilterService, setRecFilterService] = useState("");
+  const [recFilterInsumos, setRecFilterInsumos] = useState("todos");
+  const [recFilterLancamento, setRecFilterLancamento] = useState("total");
+  const [recSelectedItems, setRecSelectedItems] = useState<Set<string>>(new Set());
 
   const emptyItem: OrderItem = {
     item_type: "insumo", description: "", brand: "", complement: "",
@@ -174,9 +185,11 @@ export default function PurchaseOrderModal({
       if (editing) {
         setForm({ ...editing });
         loadItems(editing.id);
+        loadReceivings(editing.id);
       } else {
         setForm({ status: "rascunho", order_date: new Date().toISOString().slice(0, 10) });
         setOrderItems([]);
+        setReceivedTotals({});
       }
       resetNewItem();
     }
@@ -192,6 +205,36 @@ export default function PurchaseOrderModal({
       discount_value: r.discount_value || 0, discount_percent: r.discount_percent || 0,
       freight: r.freight || 0, total: r.total || 0,
     })));
+  };
+
+  const loadReceivings = async (orderId: string) => {
+    const { data } = await (supabase as any).from("purchase_order_receivings").select("purchase_order_item_id, quantity").eq("purchase_order_id", orderId);
+    const totals: Record<string, number> = {};
+    (data || []).forEach((r: any) => {
+      totals[r.purchase_order_item_id] = (totals[r.purchase_order_item_id] || 0) + Number(r.quantity);
+    });
+    setReceivedTotals(totals);
+  };
+
+  const handleLancamento = async () => {
+    if (!editing) return;
+    const selectedItemIds = Array.from(recSelectedItems);
+    if (selectedItemIds.length === 0) { toast.error("Selecione ao menos um item"); return; }
+    const rows = selectedItemIds
+      .filter(itemId => (receivings[itemId] || 0) > 0)
+      .map(itemId => ({
+        purchase_order_id: editing.id,
+        purchase_order_item_id: itemId,
+        quantity: receivings[itemId],
+        user_id: user!.id,
+      }));
+    if (rows.length === 0) { toast.error("Informe a quantidade para lançamento"); return; }
+    const { error } = await (supabase as any).from("purchase_order_receivings").insert(rows);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Lançamento realizado!");
+    setReceivings({});
+    setRecSelectedItems(new Set());
+    loadReceivings(editing.id);
   };
 
   const resetNewItem = () => {
@@ -734,6 +777,199 @@ export default function PurchaseOrderModal({
                 </div>
               </div>
             </div>
+          )}
+
+          {activeTab === "recebimento" && editing && (() => {
+            const recItems = orderItems.filter(it => {
+              if (!it.id) return false;
+              if (recFilterObra && it.obra_id !== recFilterObra) return false;
+              if (recFilterPhase && it.phase !== recFilterPhase) return false;
+              if (recFilterService && it.service !== recFilterService) return false;
+              const received = receivedTotals[it.id!] || 0;
+              if (recFilterInsumos === "lancados" && received === 0) return false;
+              if (recFilterInsumos === "nao_lancados" && received > 0) return false;
+              return true;
+            });
+            const recItemsTotal = recItems.reduce((s, i) => s + calcItemTotal(i), 0);
+            const recItemsFreight = recItems.reduce((s, i) => s + (i.freight || 0), 0);
+            const selectedItems = recItems.filter(it => recSelectedItems.has(it.id!));
+            const selectedTotal = selectedItems.reduce((s, i) => {
+              const qty = receivings[i.id!] || 0;
+              return s + (qty * i.unit_price);
+            }, 0);
+            const selectedFreight = selectedItems.reduce((s, i) => s + (i.freight || 0), 0);
+            const totalReceived = orderItems.reduce((s, i) => s + (receivedTotals[i.id!] || 0), 0);
+            const totalQty = orderItems.reduce((s, i) => s + i.quantity, 0);
+            const overallPct = totalQty > 0 ? (totalReceived / totalQty) * 100 : 0;
+            const itemObras = [...new Set(orderItems.filter(i => i.obra_id).map(i => i.obra_id))];
+            const itemPhases = [...new Set(orderItems.filter(i => i.phase).map(i => i.phase))];
+            const itemServices = [...new Set(orderItems.filter(i => i.service).map(i => i.service))];
+
+            return (
+              <div className="flex flex-col h-full">
+                <div className="px-6 pt-4 pb-2 space-y-3 border-b border-border">
+                  <div className="flex items-end gap-4 flex-wrap">
+                    <div>
+                      <label className="block text-xs font-medium text-muted-foreground mb-1">Obra</label>
+                      <select value={recFilterObra} onChange={e => setRecFilterObra(e.target.value)} className={`${inputClass} w-40`}>
+                        <option value="">Todas</option>
+                        {itemObras.map(id => {
+                          const o = obras.find((ob: any) => ob.id === id);
+                          return <option key={id} value={id}>{o?.name || id}</option>;
+                        })}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-muted-foreground mb-1">Fase</label>
+                      <select value={recFilterPhase} onChange={e => setRecFilterPhase(e.target.value)} className={`${inputClass} w-40`}>
+                        <option value="">Todas</option>
+                        {itemPhases.map(p => <option key={p} value={p}>{p}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-muted-foreground mb-1">Serviço</label>
+                      <select value={recFilterService} onChange={e => setRecFilterService(e.target.value)} className={`${inputClass} w-40`}>
+                        <option value="">Todos</option>
+                        {itemServices.map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs font-medium text-muted-foreground">Insumos</span>
+                      {[{ v: "todos", l: "Todos" }, { v: "nao_lancados", l: "Não Lançados" }, { v: "lancados", l: "Lançados" }].map(o => (
+                        <label key={o.v} className="flex items-center gap-1 text-xs cursor-pointer">
+                          <input type="radio" name="rec_insumos" value={o.v} checked={recFilterInsumos === o.v} onChange={() => setRecFilterInsumos(o.v)} className="accent-primary" />
+                          {o.l}
+                        </label>
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs font-medium text-muted-foreground">Lançamento</span>
+                      {[{ v: "total", l: "Total (todos)" }, { v: "parcial", l: "Parcial" }].map(o => (
+                        <label key={o.v} className="flex items-center gap-1 text-xs cursor-pointer">
+                          <input type="radio" name="rec_lancamento" value={o.v} checked={recFilterLancamento === o.v} onChange={() => {
+                            setRecFilterLancamento(o.v);
+                            if (o.v === "total") {
+                              setRecSelectedItems(new Set(recItems.map(i => i.id!)));
+                              const newRec: Record<string, number> = {};
+                              recItems.forEach(i => { newRec[i.id!] = Math.max(0, i.quantity - (receivedTotals[i.id!] || 0)); });
+                              setReceivings(newRec);
+                            } else {
+                              setRecSelectedItems(new Set());
+                              setReceivings({});
+                            }
+                          }} className="accent-primary" />
+                          {o.l}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Insumos para lançamento/recebimento</p>
+                </div>
+
+                <div className="flex-1 overflow-auto px-6 py-2">
+                  {recItems.length === 0 ? (
+                    <p className="text-sm text-muted-foreground py-4">Nenhum item encontrado.</p>
+                  ) : (
+                    <table className="w-full text-sm">
+                      <thead className="sticky top-0">
+                        <tr className="bg-muted/50">
+                          <th className="text-left px-2 py-2 font-medium text-muted-foreground">Item</th>
+                          <th className="text-left px-2 py-2 font-medium text-muted-foreground">Fase/Serviço</th>
+                          <th className="text-left px-2 py-2 font-medium text-muted-foreground">Obra</th>
+                          <th className="text-right px-2 py-2 font-medium text-muted-foreground">Qtd.</th>
+                          <th className="text-center px-2 py-2 font-medium text-muted-foreground">Unid.</th>
+                          <th className="text-right px-2 py-2 font-medium text-muted-foreground">Total (R$)</th>
+                          <th className="text-center px-2 py-2 font-medium text-muted-foreground">Lançados/Recebidos</th>
+                          <th className="text-center px-2 py-2 font-medium text-muted-foreground">Qtd. Lançamento</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {recItems.map(it => {
+                          const itemId = it.id!;
+                          const received = receivedTotals[itemId] || 0;
+                          const pct = it.quantity > 0 ? (received / it.quantity) * 100 : 0;
+                          const remaining = Math.max(0, it.quantity - received);
+                          const isSelected = recSelectedItems.has(itemId);
+                          const obraName = obras.find((o: any) => o.id === it.obra_id)?.name || "";
+                          const phaseService = [it.phase, it.service].filter(Boolean).join(" | ");
+                          return (
+                            <tr key={itemId} className="border-b border-border hover:bg-muted/20">
+                              <td className="px-2 py-2 text-foreground">{it.description}</td>
+                              <td className="px-2 py-2 text-muted-foreground text-xs">{phaseService || "—"}</td>
+                              <td className="px-2 py-2 text-muted-foreground text-xs">{obraName || "—"}</td>
+                              <td className="px-2 py-2 text-right">{it.quantity.toLocaleString("pt-BR")}</td>
+                              <td className="px-2 py-2 text-center text-muted-foreground">{it.unit}</td>
+                              <td className="px-2 py-2 text-right font-medium">{formatCurrency(calcItemTotal(it))}</td>
+                              <td className="px-2 py-2">
+                                <div className="flex flex-col items-center gap-1">
+                                  <span className="text-xs">{received.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+                                  <div className="w-full bg-muted rounded-full h-4 relative overflow-hidden">
+                                    <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(pct, 100)}%`, background: pct >= 100 ? "hsl(var(--primary))" : "linear-gradient(90deg, hsl(142 71% 45%), hsl(80 60% 50%))" }} />
+                                    <span className="absolute inset-0 flex items-center justify-center text-[10px] font-medium text-foreground">{pct.toFixed(2)}%</span>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-2 py-2">
+                                <div className="flex items-center gap-2 justify-center">
+                                  <input type="checkbox" checked={isSelected} onChange={e => {
+                                    const next = new Set(recSelectedItems);
+                                    if (e.target.checked) { next.add(itemId); setReceivings(p => ({ ...p, [itemId]: remaining })); }
+                                    else { next.delete(itemId); setReceivings(p => { const n = { ...p }; delete n[itemId]; return n; }); }
+                                    setRecSelectedItems(next);
+                                  }} className="accent-primary" />
+                                  <input type="number" step="0.01" min="0" max={remaining} value={receivings[itemId] ?? ""} onChange={e => setReceivings(p => ({ ...p, [itemId]: Number(e.target.value) }))} disabled={!isSelected} className="w-24 px-2 py-1 rounded border border-input bg-background text-sm text-right disabled:opacity-50" />
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+
+                <div className="border-t border-border px-6 py-3 space-y-1 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Itens</span>
+                    <span className="font-medium">{recItems.length} item(ns)</span>
+                    <span className="text-muted-foreground">Subtotal</span>
+                    <span className="font-medium">{formatCurrency(recItemsTotal)}</span>
+                    <span className="text-muted-foreground">Frete</span>
+                    <span className="font-medium">{formatCurrency(recItemsFreight)}</span>
+                    <span className="text-muted-foreground">Total</span>
+                    <span className="font-bold">{formatCurrency(recItemsTotal)}</span>
+                  </div>
+                  {selectedItems.length > 0 && (
+                    <div className="flex items-center justify-between text-primary">
+                      <span>Itens selecionados p/ lançamento</span>
+                      <span>{selectedItems.length} item(ns)</span>
+                      <span>Subtotal</span>
+                      <span className="font-medium">{formatCurrency(selectedTotal)}</span>
+                      <span>Frete</span>
+                      <span>{formatCurrency(selectedFreight)}</span>
+                      <span>Total</span>
+                      <span className="font-bold">{formatCurrency(selectedTotal + selectedFreight)}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-3">
+                    <span className="text-muted-foreground text-xs">Lançados/Recebidos</span>
+                    <div className="flex-1 bg-muted rounded-full h-5 relative overflow-hidden">
+                      <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(overallPct, 100)}%`, background: overallPct >= 100 ? "hsl(var(--primary))" : "linear-gradient(90deg, hsl(142 71% 45%), hsl(80 60% 50%))" }} />
+                      <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-foreground">{overallPct.toFixed(2)}%</span>
+                    </div>
+                  </div>
+                  <div className="flex justify-end pt-2">
+                    <button type="button" onClick={handleLancamento} className="px-5 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 text-sm">
+                      Gerar Lançamento
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {activeTab === "recebimento" && !editing && (
+            <div className="p-6 text-sm text-muted-foreground">Salve a ordem primeiro para gerenciar recebimentos.</div>
           )}
 
           {activeTab === "anexos" && editing && (
