@@ -688,14 +688,24 @@ export type Database = {
       financial_docs: {
         Row: {
           category: string | null
+          client_id: string | null
           company_id: string | null
+          cost_center: string | null
           created_at: string
+          current_installment: number | null
           description: string
+          document_number: string | null
           due_date: string | null
           id: string
+          installments: number | null
           notes: string | null
           obra_id: string | null
+          origin: string | null
+          origin_id: string | null
+          parent_id: string | null
           payment_date: string | null
+          payment_method: string | null
+          payment_terms: string | null
           status: string
           supplier_id: string | null
           type: string
@@ -705,14 +715,24 @@ export type Database = {
         }
         Insert: {
           category?: string | null
+          client_id?: string | null
           company_id?: string | null
+          cost_center?: string | null
           created_at?: string
+          current_installment?: number | null
           description: string
+          document_number?: string | null
           due_date?: string | null
           id?: string
+          installments?: number | null
           notes?: string | null
           obra_id?: string | null
+          origin?: string | null
+          origin_id?: string | null
+          parent_id?: string | null
           payment_date?: string | null
+          payment_method?: string | null
+          payment_terms?: string | null
           status?: string
           supplier_id?: string | null
           type?: string
@@ -722,14 +742,24 @@ export type Database = {
         }
         Update: {
           category?: string | null
+          client_id?: string | null
           company_id?: string | null
+          cost_center?: string | null
           created_at?: string
+          current_installment?: number | null
           description?: string
+          document_number?: string | null
           due_date?: string | null
           id?: string
+          installments?: number | null
           notes?: string | null
           obra_id?: string | null
+          origin?: string | null
+          origin_id?: string | null
+          parent_id?: string | null
           payment_date?: string | null
+          payment_method?: string | null
+          payment_terms?: string | null
           status?: string
           supplier_id?: string | null
           type?: string
@@ -738,6 +768,13 @@ export type Database = {
           value?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "financial_docs_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "financial_docs_company_id_fkey"
             columns: ["company_id"]
@@ -750,6 +787,13 @@ export type Database = {
             columns: ["obra_id"]
             isOneToOne: false
             referencedRelation: "obras"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "financial_docs_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "financial_docs"
             referencedColumns: ["id"]
           },
           {
