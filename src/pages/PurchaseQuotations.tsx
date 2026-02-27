@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { fetchCompanyInfo } from "@/utils/exportWithHeader";
+import { addReportHeader, addPageFooter } from "@/utils/pdfHeader";
 import Attachments from "@/components/Attachments";
 import QuotationDeliveryAddress from "@/components/quotation/QuotationDeliveryAddress";
 import QuotationSuppliers from "@/components/quotation/QuotationSuppliers";
@@ -375,36 +376,9 @@ export default function PurchaseQuotations() {
     const company = user ? await fetchCompanyInfo(user.id) : null;
     const obraName = obras.find((o: any) => o.id === form.obra_id)?.name || "—";
     const doc = new jsPDF();
-    let y = 15;
 
-    if (company) {
-      if (company.logo_url) {
-        try {
-          const img = await new Promise<string>((resolve, reject) => {
-            const image = new Image();
-            image.crossOrigin = "anonymous";
-            image.onload = () => { const c = document.createElement("canvas"); c.width = image.width; c.height = image.height; c.getContext("2d")!.drawImage(image, 0, 0); resolve(c.toDataURL("image/jpeg")); };
-            image.onerror = reject;
-            image.src = company.logo_url!;
-          });
-          doc.addImage(img, "JPEG", 14, 10, 22, 22);
-          y = 12;
-        } catch { /* skip */ }
-      }
-      const tx = company.logo_url ? 40 : 14;
-      doc.setFontSize(13); doc.setFont("helvetica", "bold");
-      if (company.company_name) { doc.text(company.company_name, tx, y); y += 5; }
-      doc.setFontSize(9); doc.setFont("helvetica", "normal");
-      if (company.document) { doc.text(`CNPJ/CPF: ${company.document}`, tx, y); y += 4; }
-      const addr = [company.address, company.city, company.state].filter(Boolean).join(" - ");
-      if (addr) { doc.text(addr, tx, y); y += 4; }
-      if (company.phone) { doc.text(`Tel: ${company.phone}`, tx, y); y += 4; }
-      if (company.email) { doc.text(company.email, tx, y); y += 4; }
-      y += 4;
-    }
+    let y = await addReportHeader(doc, company, "COTAÇÃO DE COMPRA", form.title || undefined);
 
-    doc.setFontSize(14); doc.setFont("helvetica", "bold");
-    doc.text("COTAÇÃO DE COMPRA", 14, y); y += 8;
     doc.setFontSize(9); doc.setFont("helvetica", "normal");
     doc.text(`Obra: ${obraName}`, 14, y); y += 5;
     if (form.description) { doc.text(`Descrição: ${form.description}`, 14, y); y += 5; }
@@ -433,6 +407,7 @@ export default function PurchaseQuotations() {
       doc.setFontSize(9); doc.setFont("helvetica", "normal");
       doc.text([form.delivery_address, form.delivery_number, form.delivery_neighborhood, form.delivery_city, form.delivery_state].filter(Boolean).join(", "), 14, dy);
     }
+    addPageFooter(doc);
     return doc;
   };
 

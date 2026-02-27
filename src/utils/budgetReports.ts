@@ -1,6 +1,13 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { fetchCompanyInfo, type CompanyInfo } from "./exportWithHeader";
+import {
+  addReportHeader, addPageFooter, fetchCompanyInfo, type CompanyInfo,
+  fmtCurrency as fmt, fmtQty as fmtNum, fmtPct,
+  loadImage,
+} from "./pdfHeader";
+
+// Re-export for backward compatibility
+export { fetchCompanyInfo, type CompanyInfo };
 
 // ─── Types ───
 interface BudgetItem {
@@ -28,95 +35,25 @@ interface ReportData {
   userId: string;
 }
 
-// ─── Helpers ───
-const fmt = (v: number | null | undefined) =>
-  (v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-
-const fmtNum = (v: number | null | undefined) =>
-  (v ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-const fmtPct = (v: number) => `${v.toFixed(2)}%`;
-
-function loadImage(url: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => {
-      const canvas = document.createElement("canvas");
-      canvas.width = img.width;
-      canvas.height = img.height;
-      canvas.getContext("2d")!.drawImage(img, 0, 0);
-      resolve(canvas.toDataURL("image/jpeg"));
-    };
-    img.onerror = reject;
-    img.src = url;
-  });
-}
-
-async function addHeader(doc: jsPDF, companyInfo: CompanyInfo | null, title: string, budgetCode?: string, obraName?: string): Promise<number> {
-  let y = 15;
-
-  if (companyInfo) {
-    if (companyInfo.logo_url) {
-      try {
-        const img = await loadImage(companyInfo.logo_url);
-        doc.addImage(img, "JPEG", 14, 10, 22, 22);
-        y = 12;
-      } catch { /* skip */ }
-    }
-    const tx = companyInfo.logo_url ? 40 : 14;
-    doc.setFontSize(13);
-    doc.setFont("helvetica", "bold");
-    if (companyInfo.company_name) { doc.text(companyInfo.company_name, tx, y); y += 5; }
-    doc.setFontSize(8);
-    doc.setFont("helvetica", "normal");
-    if (companyInfo.document) { doc.text(`CNPJ/CPF: ${companyInfo.document}`, tx, y); y += 4; }
-    const parts: string[] = [];
-    if (companyInfo.address) parts.push(companyInfo.address);
-    if (companyInfo.city) parts.push(companyInfo.city);
-    if (companyInfo.state) parts.push(companyInfo.state);
-    if (parts.length) { doc.text(parts.join(" - "), tx, y); y += 4; }
-    if (companyInfo.phone) { doc.text(`Tel: ${companyInfo.phone}`, tx, y); y += 4; }
-    if (companyInfo.email) { doc.text(companyInfo.email, tx, y); y += 4; }
-    y += 3;
-  }
-
-  // Title line
-  doc.setDrawColor(41, 128, 185);
-  doc.setLineWidth(0.5);
-  doc.line(14, y, doc.internal.pageSize.getWidth() - 14, y);
-  y += 6;
-  doc.setFontSize(12);
-  doc.setFont("helvetica", "bold");
-  doc.text(title, 14, y);
-  y += 5;
-
-  if (budgetCode || obraName) {
-    doc.setFontSize(9);
-    doc.setFont("helvetica", "normal");
-    const info: string[] = [];
-    if (budgetCode) info.push(`Cód: ${budgetCode}`);
-    if (obraName) info.push(`Obra: ${obraName}`);
-    doc.text(info.join("  |  "), 14, y);
-    y += 6;
-  }
-
-  return y;
-}
-
 function getPhases(items: BudgetItem[]) {
   const phases = [...new Set(items.map((i) => i.category || "Sem fase"))];
   return phases.sort();
+}
+
+function buildSubtitle(budgetCode?: string, obraName?: string): string | undefined {
+  const parts: string[] = [];
+  if (budgetCode) parts.push(`Cód: ${budgetCode}`);
+  if (obraName) parts.push(`Obra: ${obraName}`);
+  return parts.length > 0 ? parts.join("  |  ") : undefined;
 }
 
 // ─── 1. Orçamento de custo ───
 async function reportOrcamentoCusto(data: ReportData) {
   const doc = new jsPDF({ orientation: "landscape" });
   const ci = await fetchCompanyInfo(data.userId);
-  const y = await addHeader(doc, ci, "Orçamento de Custo", data.budget.budget_code, data.obra?.name);
+  let startY = await addReportHeader(doc, ci, "Orçamento de Custo", buildSubtitle(data.budget.budget_code, data.obra?.name));
 
   const phases = getPhases(data.items);
-  let startY = y;
 
   for (const phase of phases) {
     const phaseItems = data.items.filter((i) => (i.category || "Sem fase") === phase);
@@ -124,19 +61,17 @@ async function reportOrcamentoCusto(data: ReportData) {
 
     doc.setFontSize(10);
     doc.setFont("helvetica", "bold");
+    doc.setTextColor(41, 128, 185);
     doc.text(`${phase}  —  ${fmt(phaseTotal)}`, 14, startY);
+    doc.setTextColor(0, 0, 0);
     startY += 2;
 
     autoTable(doc, {
       startY,
       head: [["#", "Descrição", "Unid.", "Qtd.", "Preço Unit.", "Total"]],
       body: phaseItems.map((i, idx) => [
-        String(idx + 1),
-        i.description,
-        i.unit || "un",
-        fmtNum(i.quantity),
-        fmt(i.unit_price),
-        fmt(i.total_price),
+        String(idx + 1), i.description, i.unit || "un",
+        fmtNum(i.quantity), fmt(i.unit_price), fmt(i.total_price),
       ]),
       styles: { fontSize: 7, cellPadding: 1.5 },
       headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: "bold" },
@@ -152,6 +87,7 @@ async function reportOrcamentoCusto(data: ReportData) {
   doc.setFont("helvetica", "bold");
   doc.text(`TOTAL GERAL: ${fmt(total)}`, 14, startY + 2);
 
+  addPageFooter(doc);
   doc.save(`Orcamento_Custo_${data.budget.budget_code || data.budget.id}.pdf`);
 }
 
@@ -159,7 +95,7 @@ async function reportOrcamentoCusto(data: ReportData) {
 async function reportOrcamentoVenda(data: ReportData) {
   const doc = new jsPDF({ orientation: "landscape" });
   const ci = await fetchCompanyInfo(data.userId);
-  let startY = await addHeader(doc, ci, "Orçamento de Venda", data.budget.budget_code, data.obra?.name);
+  let startY = await addReportHeader(doc, ci, "Orçamento de Venda", buildSubtitle(data.budget.budget_code, data.obra?.name));
 
   const bdiDefault = 0;
   const phases = getPhases(data.items);
@@ -173,7 +109,9 @@ async function reportOrcamentoVenda(data: ReportData) {
 
     doc.setFontSize(10);
     doc.setFont("helvetica", "bold");
+    doc.setTextColor(39, 174, 96);
     doc.text(`${phase}  —  ${fmt(phaseTotal)}`, 14, startY);
+    doc.setTextColor(0, 0, 0);
     startY += 2;
 
     autoTable(doc, {
@@ -206,6 +144,7 @@ async function reportOrcamentoVenda(data: ReportData) {
   doc.setFont("helvetica", "bold");
   doc.text(`TOTAL VENDA: ${fmt(totalVenda)}`, 14, startY + 2);
 
+  addPageFooter(doc);
   doc.save(`Orcamento_Venda_${data.budget.budget_code || data.budget.id}.pdf`);
 }
 
@@ -213,7 +152,7 @@ async function reportOrcamentoVenda(data: ReportData) {
 async function reportPlanejamento(data: ReportData) {
   const doc = new jsPDF({ orientation: "landscape" });
   const ci = await fetchCompanyInfo(data.userId);
-  const y = await addHeader(doc, ci, "Planejamento Físico-Econômico", data.budget.budget_code, data.obra?.name);
+  const y = await addReportHeader(doc, ci, "Planejamento Físico-Econômico", buildSubtitle(data.budget.budget_code, data.obra?.name));
 
   const periods = data.planPeriods || [];
   const pItems = data.planItems || [];
@@ -221,6 +160,7 @@ async function reportPlanejamento(data: ReportData) {
   if (periods.length === 0) {
     doc.setFontSize(10);
     doc.text("Nenhum período de planejamento cadastrado.", 14, y);
+    addPageFooter(doc);
     doc.save(`Planejamento_${data.budget.budget_code || data.budget.id}.pdf`);
     return;
   }
@@ -235,7 +175,6 @@ async function reportPlanejamento(data: ReportData) {
     return row;
   });
 
-  // Totals row
   const totalsRow: string[] = ["TOTAL", fmt(data.items.reduce((s, i) => s + (i.total_price || 0), 0))];
   for (const period of periods) {
     const totalPct = data.items.reduce((s, item) => {
@@ -254,6 +193,7 @@ async function reportPlanejamento(data: ReportData) {
     alternateRowStyles: { fillColor: [248, 245, 250] },
   });
 
+  addPageFooter(doc);
   doc.save(`Planejamento_${data.budget.budget_code || data.budget.id}.pdf`);
 }
 
@@ -261,7 +201,7 @@ async function reportPlanejamento(data: ReportData) {
 async function reportPrevistoRealizadoCusto(data: ReportData) {
   const doc = new jsPDF({ orientation: "landscape" });
   const ci = await fetchCompanyInfo(data.userId);
-  const y = await addHeader(doc, ci, "Previsto x Realizado — Custo", data.budget.budget_code, data.obra?.name);
+  const y = await addReportHeader(doc, ci, "Previsto x Realizado — Custo", buildSubtitle(data.budget.budget_code, data.obra?.name));
 
   const phases = getPhases(data.items);
   const allMI = data.allMeasurementItems || [];
@@ -299,6 +239,7 @@ async function reportPrevistoRealizadoCusto(data: ReportData) {
     alternateRowStyles: { fillColor: [245, 245, 245] },
   });
 
+  addPageFooter(doc);
   doc.save(`Previsto_Realizado_Custo_${data.budget.budget_code || data.budget.id}.pdf`);
 }
 
@@ -306,7 +247,7 @@ async function reportPrevistoRealizadoCusto(data: ReportData) {
 async function reportPrevistoRealizadoInsumos(data: ReportData) {
   const doc = new jsPDF({ orientation: "landscape" });
   const ci = await fetchCompanyInfo(data.userId);
-  let startY = await addHeader(doc, ci, "Previsto x Realizado — Insumos", data.budget.budget_code, data.obra?.name);
+  let startY = await addReportHeader(doc, ci, "Previsto x Realizado — Insumos", buildSubtitle(data.budget.budget_code, data.obra?.name));
 
   const allMI = data.allMeasurementItems || [];
   const phases = getPhases(data.items);
@@ -323,7 +264,9 @@ async function reportPrevistoRealizadoInsumos(data: ReportData) {
 
     doc.setFontSize(10);
     doc.setFont("helvetica", "bold");
+    doc.setTextColor(230, 126, 34);
     doc.text(`${phase}  —  Prev: ${fmtNum(phasePrevisto)}  |  Real: ${fmtNum(phaseRealizado)}  |  Saldo: ${fmtNum(phasePrevisto - phaseRealizado)}`, 14, startY);
+    doc.setTextColor(0, 0, 0);
     startY += 2;
 
     const body = phaseItems.map((item) => {
@@ -349,6 +292,7 @@ async function reportPrevistoRealizadoInsumos(data: ReportData) {
     startY = (doc as any).lastAutoTable.finalY + 6;
   }
 
+  addPageFooter(doc);
   doc.save(`Previsto_Realizado_Insumos_${data.budget.budget_code || data.budget.id}.pdf`);
 }
 
@@ -356,15 +300,16 @@ async function reportPrevistoRealizadoInsumos(data: ReportData) {
 async function reportCurvaABC(data: ReportData) {
   const doc = new jsPDF({ orientation: "landscape" });
   const ci = await fetchCompanyInfo(data.userId);
-  let startY = await addHeader(doc, ci, "Curva ABC", data.budget.budget_code, data.obra?.name);
+  let startY = await addReportHeader(doc, ci, "Curva ABC", buildSubtitle(data.budget.budget_code, data.obra?.name));
 
   const total = data.items.reduce((s, i) => s + (i.total_price || 0), 0);
   const phases = getPhases(data.items);
 
-  // Phase summary first
   doc.setFontSize(10);
   doc.setFont("helvetica", "bold");
+  doc.setTextColor(192, 57, 43);
   doc.text("Resumo por Fase", 14, startY);
+  doc.setTextColor(0, 0, 0);
   startY += 2;
 
   const phaseSummary = phases.map((phase) => {
@@ -384,7 +329,6 @@ async function reportCurvaABC(data: ReportData) {
   });
   startY = (doc as any).lastAutoTable.finalY + 6;
 
-  // Detailed ABC
   const sorted = [...data.items].sort((a, b) => (b.total_price || 0) - (a.total_price || 0));
   let accumulated = 0;
   const body = sorted.map((item, idx) => {
@@ -416,6 +360,7 @@ async function reportCurvaABC(data: ReportData) {
     },
   });
 
+  addPageFooter(doc);
   doc.save(`Curva_ABC_${data.budget.budget_code || data.budget.id}.pdf`);
 }
 
@@ -423,9 +368,8 @@ async function reportCurvaABC(data: ReportData) {
 async function reportFormularioOrcamento(data: ReportData) {
   const doc = new jsPDF();
   const ci = await fetchCompanyInfo(data.userId);
-  let cy = await addHeader(doc, ci, "Formulário de Orçamento", data.budget.budget_code, data.obra?.name);
+  let cy = await addReportHeader(doc, ci, "Formulário de Orçamento", buildSubtitle(data.budget.budget_code, data.obra?.name));
 
-  // Info section
   cy += 2;
   doc.setFontSize(9);
   doc.setFont("helvetica", "normal");
@@ -450,7 +394,9 @@ async function reportFormularioOrcamento(data: ReportData) {
 
     doc.setFontSize(10);
     doc.setFont("helvetica", "bold");
+    doc.setTextColor(41, 128, 185);
     doc.text(`${phase}  —  ${fmt(phaseTotal)}`, 14, cy);
+    doc.setTextColor(0, 0, 0);
     cy += 2;
 
     autoTable(doc, {
@@ -474,7 +420,6 @@ async function reportFormularioOrcamento(data: ReportData) {
   doc.setFont("helvetica", "bold");
   doc.text(`TOTAL GERAL: ${fmt(total)}`, 14, cy + 2);
 
-  // Signature area
   const fy = cy + 22;
   doc.setDrawColor(100);
   doc.line(14, fy, 85, fy);
@@ -484,6 +429,7 @@ async function reportFormularioOrcamento(data: ReportData) {
   doc.text("Responsável técnico", 30, fy + 4);
   doc.text("Cliente / Contratante", 140, fy + 4);
 
+  addPageFooter(doc);
   doc.save(`Formulario_Orcamento_${data.budget.budget_code || data.budget.id}.pdf`);
 }
 
@@ -491,9 +437,9 @@ async function reportFormularioOrcamento(data: ReportData) {
 async function reportPrestacaoServico(data: ReportData) {
   const doc = new jsPDF();
   const ci = await fetchCompanyInfo(data.userId);
-  const y = await addHeader(doc, ci, "Prestação de Serviço", data.budget.budget_code, data.obra?.name);
+  let cy = await addReportHeader(doc, ci, "Prestação de Serviço", buildSubtitle(data.budget.budget_code, data.obra?.name));
 
-  let cy = y + 2;
+  cy += 2;
   doc.setFontSize(9);
   doc.setFont("helvetica", "normal");
   doc.text(`Contratante: ${data.client?.name || "—"}`, 14, cy); cy += 5;
@@ -530,6 +476,7 @@ async function reportPrestacaoServico(data: ReportData) {
   doc.text("Contratada", 40, fy + 4);
   doc.text("Contratante", 150, fy + 4);
 
+  addPageFooter(doc);
   doc.save(`Prestacao_Servico_${data.budget.budget_code || data.budget.id}.pdf`);
 }
 
@@ -537,14 +484,9 @@ async function reportPrestacaoServico(data: ReportData) {
 async function reportPropostaComercial(data: ReportData) {
   const doc = new jsPDF();
   const ci = await fetchCompanyInfo(data.userId);
-  const y = await addHeader(doc, ci, "Proposta Comercial", data.budget.budget_code, data.obra?.name);
+  let cy = await addReportHeader(doc, ci, "Proposta Comercial", buildSubtitle(data.budget.budget_code, data.obra?.name));
 
-  let cy = y + 2;
-  doc.setFontSize(10);
-  doc.setFont("helvetica", "bold");
-  doc.text("PROPOSTA COMERCIAL", doc.internal.pageSize.getWidth() / 2, cy, { align: "center" });
-  cy += 8;
-
+  cy += 2;
   doc.setFontSize(9);
   doc.setFont("helvetica", "normal");
   doc.text(`A/C: ${data.client?.name || "—"}`, 14, cy); cy += 5;
@@ -589,6 +531,7 @@ async function reportPropostaComercial(data: ReportData) {
   doc.setFontSize(8);
   doc.text(ci?.company_name || "Empresa", 30, sy + 4);
 
+  addPageFooter(doc);
   doc.save(`Proposta_Comercial_${data.budget.budget_code || data.budget.id}.pdf`);
 }
 
@@ -596,9 +539,8 @@ async function reportPropostaComercial(data: ReportData) {
 async function reportHistogramaRecursos(data: ReportData) {
   const doc = new jsPDF({ orientation: "landscape" });
   const ci = await fetchCompanyInfo(data.userId);
-  const y = await addHeader(doc, ci, "Histograma de Recursos", data.budget.budget_code, data.obra?.name);
+  const y = await addReportHeader(doc, ci, "Histograma de Recursos", buildSubtitle(data.budget.budget_code, data.obra?.name));
 
-  // Group items by unit (resource type)
   const byUnit: Record<string, { items: BudgetItem[]; totalQty: number; totalValue: number }> = {};
   for (const item of data.items) {
     const unit = item.unit || "un";
@@ -626,11 +568,12 @@ async function reportHistogramaRecursos(data: ReportData) {
     columnStyles: { 4: { cellWidth: 100 } },
   });
 
-  // Phase breakdown
   const fy = (doc as any).lastAutoTable.finalY + 8;
   doc.setFontSize(10);
   doc.setFont("helvetica", "bold");
+  doc.setTextColor(155, 89, 182);
   doc.text("Distribuição por Fase", 14, fy);
+  doc.setTextColor(0, 0, 0);
 
   const phases = getPhases(data.items);
   const phaseBody = phases.map((phase) => {
@@ -652,6 +595,7 @@ async function reportHistogramaRecursos(data: ReportData) {
     alternateRowStyles: { fillColor: [248, 245, 250] },
   });
 
+  addPageFooter(doc);
   doc.save(`Histograma_Recursos_${data.budget.budget_code || data.budget.id}.pdf`);
 }
 

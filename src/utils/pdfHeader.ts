@@ -1,0 +1,193 @@
+import jsPDF from "jspdf";
+import { fetchCompanyInfo, type CompanyInfo } from "./exportWithHeader";
+
+export { fetchCompanyInfo, type CompanyInfo };
+
+// ─── Image loader ───
+export function loadImage(url: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      canvas.getContext("2d")!.drawImage(img, 0, 0);
+      resolve(canvas.toDataURL("image/jpeg"));
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
+// ─── Formatters ───
+export const fmtCurrency = (v: number | null | undefined) =>
+  (v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+export const fmtQty = (v: number | null | undefined) =>
+  (v ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+export const fmtDate = (d: string | null | undefined) =>
+  d ? new Date(d + (d.length === 10 ? "T00:00:00" : "")).toLocaleDateString("pt-BR") : "—";
+
+export const fmtPct = (v: number) => `${v.toFixed(2)}%`;
+
+// ─── Standardized report header ───
+export async function addReportHeader(
+  doc: jsPDF,
+  companyInfo: CompanyInfo | null,
+  title: string,
+  subtitle?: string,
+): Promise<number> {
+  const pageW = doc.internal.pageSize.getWidth();
+  const LOGO_X = 14;
+  const LOGO_Y = 10;
+  const LOGO_W = 24;
+  const LOGO_H = 24;
+  let logoLoaded = false;
+  let textY = 14;
+
+  if (companyInfo) {
+    // Logo
+    if (companyInfo.logo_url) {
+      try {
+        const img = await loadImage(companyInfo.logo_url);
+        doc.addImage(img, "JPEG", LOGO_X, LOGO_Y, LOGO_W, LOGO_H);
+        logoLoaded = true;
+      } catch { /* skip */ }
+    }
+
+    const textX = logoLoaded ? LOGO_X + LOGO_W + 4 : 14;
+
+    // Company name
+    if (companyInfo.company_name) {
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(33, 33, 33);
+      doc.text(companyInfo.company_name, textX, textY);
+      textY += 5;
+    }
+
+    // Info lines
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(80, 80, 80);
+
+    if (companyInfo.document) {
+      doc.text(`CNPJ/CPF: ${companyInfo.document}`, textX, textY);
+      textY += 3.5;
+    }
+
+    const addr = [companyInfo.address, companyInfo.city, companyInfo.state].filter(Boolean).join(" – ");
+    if (addr) {
+      doc.text(addr, textX, textY);
+      textY += 3.5;
+    }
+
+    const contactParts: string[] = [];
+    if (companyInfo.phone) contactParts.push(`Tel: ${companyInfo.phone}`);
+    if (companyInfo.email) contactParts.push(companyInfo.email);
+    if (contactParts.length > 0) {
+      doc.text(contactParts.join("  |  "), textX, textY);
+      textY += 3.5;
+    }
+
+    // Ensure Y is always below logo area to prevent overlap
+    if (logoLoaded) {
+      textY = Math.max(textY, LOGO_Y + LOGO_H + 2);
+    }
+  }
+
+  // Separator line
+  textY += 2;
+  doc.setDrawColor(41, 128, 185);
+  doc.setLineWidth(0.8);
+  doc.line(14, textY, pageW - 14, textY);
+  textY += 6;
+
+  // Title
+  doc.setFontSize(13);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(41, 128, 185);
+  doc.text(title, 14, textY);
+
+  // Subtitle (right-aligned)
+  if (subtitle) {
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(100, 100, 100);
+    doc.text(subtitle, pageW - 14, textY, { align: "right" });
+  }
+
+  textY += 8;
+
+  // Reset text color
+  doc.setTextColor(0, 0, 0);
+  doc.setFont("helvetica", "normal");
+  return textY;
+}
+
+// ─── Standardized page footer ───
+export function addPageFooter(doc: jsPDF) {
+  const pageCount = doc.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+
+    doc.setDrawColor(200, 200, 200);
+    doc.setLineWidth(0.3);
+    doc.line(14, pageH - 14, pageW - 14, pageH - 14);
+
+    doc.setFontSize(7);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(140, 140, 140);
+    doc.text(`Gerado em ${new Date().toLocaleString("pt-BR")}`, 14, pageH - 9);
+    doc.text(`Página ${i} de ${pageCount}`, pageW - 14, pageH - 9, { align: "right" });
+  }
+}
+
+// ─── Info grid helper (label-value pairs) ───
+export function drawInfoGrid(doc: jsPDF, rows: [string, string, string?, string?][], startY: number): number {
+  let y = startY;
+  doc.setFontSize(9);
+  rows.forEach(row => {
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(60, 60, 60);
+    doc.text(row[0], 14, y);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(30, 30, 30);
+    doc.text(row[1], 50, y);
+    if (row[2]) {
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(60, 60, 60);
+      doc.text(row[2], 115, y);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(30, 30, 30);
+      doc.text(row[3] || "—", 152, y);
+    }
+    y += 5;
+  });
+  doc.setTextColor(0, 0, 0);
+  return y;
+}
+
+// ─── Table themes ───
+export const TABLE_THEME = {
+  styles: { fontSize: 7.5, cellPadding: 2.5, textColor: [30, 30, 30] as [number, number, number] },
+  headStyles: {
+    fillColor: [41, 128, 185] as [number, number, number],
+    textColor: [255, 255, 255] as [number, number, number],
+    fontStyle: "bold" as const,
+    fontSize: 7.5,
+  },
+  alternateRowStyles: { fillColor: [245, 248, 252] as [number, number, number] },
+};
+
+export const TABLE_THEME_GREEN = {
+  ...TABLE_THEME,
+  headStyles: {
+    ...TABLE_THEME.headStyles,
+    fillColor: [39, 174, 96] as [number, number, number],
+  },
+};

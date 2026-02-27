@@ -1,33 +1,16 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { supabase } from "@/integrations/supabase/client";
+import { addReportHeader, addPageFooter, fetchCompanyInfo } from "./pdfHeader";
 
-export async function generateVehicleReport(vehicle: any, companyName?: string) {
+export async function generateVehicleReport(vehicle: any, companyName?: string, userId?: string) {
   const doc = new jsPDF();
-  const pageWidth = doc.internal.pageSize.getWidth();
-  let y = 15;
 
-  // Header
-  doc.setFontSize(16);
-  doc.setFont("helvetica", "bold");
-  doc.text("Relatório do Veículo", pageWidth / 2, y, { align: "center" });
-  y += 8;
-  if (companyName) {
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    doc.text(companyName, pageWidth / 2, y, { align: "center" });
-    y += 6;
-  }
-  doc.setFontSize(8);
-  doc.text(`Gerado em: ${new Date().toLocaleDateString("pt-BR")} ${new Date().toLocaleTimeString("pt-BR")}`, pageWidth / 2, y, { align: "center" });
-  y += 10;
+  // Use shared header with company info
+  const companyInfo = userId ? await fetchCompanyInfo(userId) : null;
+  let y = await addReportHeader(doc, companyInfo, "Relatório do Veículo", `Placa: ${vehicle.plate || "—"}`);
 
   // Vehicle Data
-  doc.setFontSize(12);
-  doc.setFont("helvetica", "bold");
-  doc.text("Dados do Veículo", 14, y);
-  y += 2;
-
   const vehicleData = [
     ["Placa", vehicle.plate || "—"],
     ["Marca/Modelo", `${vehicle.brand || ""} ${vehicle.model || ""}`.trim() || "—"],
@@ -61,9 +44,11 @@ export async function generateVehicleReport(vehicle: any, companyName?: string) 
   // Documents
   const { data: docs } = await supabase.from("vehicle_documents" as any).select("*").eq("vehicle_id", vehicle.id).order("due_date", { ascending: false });
   if (docs && docs.length > 0) {
-    doc.setFontSize(12);
+    doc.setFontSize(11);
     doc.setFont("helvetica", "bold");
+    doc.setTextColor(41, 128, 185);
     doc.text("Documentos e Taxas", 14, y);
+    doc.setTextColor(0, 0, 0);
     y += 2;
 
     autoTable(doc, {
@@ -74,9 +59,9 @@ export async function generateVehicleReport(vehicle: any, companyName?: string) 
         d.due_date || "", d.value ? Number(d.value).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "",
         d.status,
       ]),
-      theme: "striped",
       styles: { fontSize: 8, cellPadding: 2 },
-      headStyles: { fillColor: [180, 120, 20] },
+      headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: "bold" },
+      alternateRowStyles: { fillColor: [245, 248, 252] },
     });
     y = (doc as any).lastAutoTable.finalY + 10;
   }
@@ -85,9 +70,11 @@ export async function generateVehicleReport(vehicle: any, companyName?: string) 
   const { data: insurance } = await supabase.from("vehicle_insurance" as any).select("*").eq("vehicle_id", vehicle.id).order("created_at", { ascending: false });
   if (insurance && insurance.length > 0) {
     if (y > 250) { doc.addPage(); y = 15; }
-    doc.setFontSize(12);
+    doc.setFontSize(11);
     doc.setFont("helvetica", "bold");
+    doc.setTextColor(41, 128, 185);
     doc.text("Seguros", 14, y);
+    doc.setTextColor(0, 0, 0);
     y += 2;
 
     autoTable(doc, {
@@ -100,9 +87,9 @@ export async function generateVehicleReport(vehicle: any, companyName?: string) 
         i.deductible_value ? Number(i.deductible_value).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "",
         i.status,
       ]),
-      theme: "striped",
       styles: { fontSize: 8, cellPadding: 2 },
-      headStyles: { fillColor: [180, 120, 20] },
+      headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: "bold" },
+      alternateRowStyles: { fillColor: [245, 248, 252] },
     });
     y = (doc as any).lastAutoTable.finalY + 10;
   }
@@ -111,9 +98,11 @@ export async function generateVehicleReport(vehicle: any, companyName?: string) 
   const { data: maints } = await supabase.from("vehicle_maintenances" as any).select("*").eq("vehicle_id", vehicle.id).order("service_date", { ascending: false });
   if (maints && maints.length > 0) {
     if (y > 250) { doc.addPage(); y = 15; }
-    doc.setFontSize(12);
+    doc.setFontSize(11);
     doc.setFont("helvetica", "bold");
+    doc.setTextColor(41, 128, 185);
     doc.text("Manutenções", 14, y);
+    doc.setTextColor(0, 0, 0);
     y += 2;
 
     autoTable(doc, {
@@ -124,9 +113,9 @@ export async function generateVehicleReport(vehicle: any, companyName?: string) 
         m.service_date || "", m.km_at_service ? Number(m.km_at_service).toLocaleString("pt-BR") : "",
         m.cost ? Number(m.cost).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "",
       ]),
-      theme: "striped",
       styles: { fontSize: 8, cellPadding: 2 },
-      headStyles: { fillColor: [180, 120, 20] },
+      headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: "bold" },
+      alternateRowStyles: { fillColor: [245, 248, 252] },
     });
     y = (doc as any).lastAutoTable.finalY + 10;
   }
@@ -135,9 +124,11 @@ export async function generateVehicleReport(vehicle: any, companyName?: string) 
   const { data: fuels } = await supabase.from("vehicle_fueling" as any).select("*").eq("vehicle_id", vehicle.id).order("fueling_date", { ascending: false });
   if (fuels && fuels.length > 0) {
     if (y > 250) { doc.addPage(); y = 15; }
-    doc.setFontSize(12);
+    doc.setFontSize(11);
     doc.setFont("helvetica", "bold");
+    doc.setTextColor(41, 128, 185);
     doc.text("Abastecimentos", 14, y);
+    doc.setTextColor(0, 0, 0);
     y += 2;
 
     autoTable(doc, {
@@ -150,11 +141,12 @@ export async function generateVehicleReport(vehicle: any, companyName?: string) 
         f.total_cost ? Number(f.total_cost).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "",
         f.km_at_fueling ? Number(f.km_at_fueling).toLocaleString("pt-BR") : "",
       ]),
-      theme: "striped",
       styles: { fontSize: 8, cellPadding: 2 },
-      headStyles: { fillColor: [180, 120, 20] },
+      headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: "bold" },
+      alternateRowStyles: { fillColor: [245, 248, 252] },
     });
   }
 
+  addPageFooter(doc);
   doc.save(`relatorio_veiculo_${vehicle.plate || "sem_placa"}.pdf`);
 }

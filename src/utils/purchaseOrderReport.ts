@@ -1,183 +1,14 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { fetchCompanyInfo, type CompanyInfo } from "./exportWithHeader";
+import {
+  addReportHeader, addPageFooter, drawInfoGrid, loadImage,
+  fetchCompanyInfo, type CompanyInfo,
+  fmtCurrency as fmt, fmtQty, fmtDate,
+  TABLE_THEME, TABLE_THEME_GREEN,
+} from "./pdfHeader";
 
-// ─── Formatters ───
-const fmt = (v: number | null | undefined) =>
-  (v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-
-const fmtQty = (v: number | null | undefined) =>
-  (v ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-const fmtDate = (d: string | null | undefined) =>
-  d ? new Date(d + (d.length === 10 ? "T00:00:00" : "")).toLocaleDateString("pt-BR") : "—";
-
-// ─── Image loader ───
-function loadImage(url: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => {
-      const canvas = document.createElement("canvas");
-      canvas.width = img.width;
-      canvas.height = img.height;
-      canvas.getContext("2d")!.drawImage(img, 0, 0);
-      resolve(canvas.toDataURL("image/jpeg"));
-    };
-    img.onerror = reject;
-    img.src = url;
-  });
-}
-
-// ─── Shared header with company info + separator + title ───
-async function addReportHeader(
-  doc: jsPDF,
-  companyInfo: CompanyInfo | null,
-  title: string,
-  subtitle?: string,
-): Promise<number> {
-  const pageW = doc.internal.pageSize.getWidth();
-  let y = 14;
-  let logoLoaded = false;
-
-  if (companyInfo) {
-    // Logo
-    if (companyInfo.logo_url) {
-      try {
-        const img = await loadImage(companyInfo.logo_url);
-        doc.addImage(img, "JPEG", 14, 10, 24, 24);
-        logoLoaded = true;
-      } catch { /* skip */ }
-    }
-
-    const textX = logoLoaded ? 42 : 14;
-
-    // Company name
-    if (companyInfo.company_name) {
-      doc.setFontSize(14);
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(33, 33, 33);
-      doc.text(companyInfo.company_name, textX, y);
-      y += 5;
-    }
-
-    // Info lines
-    doc.setFontSize(8);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(80, 80, 80);
-
-    if (companyInfo.document) {
-      doc.text(`CNPJ/CPF: ${companyInfo.document}`, textX, y);
-      y += 3.5;
-    }
-
-    const addr = [companyInfo.address, companyInfo.city, companyInfo.state].filter(Boolean).join(" – ");
-    if (addr) {
-      doc.text(addr, textX, y);
-      y += 3.5;
-    }
-
-    const contactParts: string[] = [];
-    if (companyInfo.phone) contactParts.push(`Tel: ${companyInfo.phone}`);
-    if (companyInfo.email) contactParts.push(companyInfo.email);
-    if (contactParts.length > 0) {
-      doc.text(contactParts.join("  |  "), textX, y);
-      y += 3.5;
-    }
-
-    // Ensure y is below logo area
-    if (logoLoaded) y = Math.max(y, 36);
-  }
-
-  // Separator line
-  y += 2;
-  doc.setDrawColor(41, 128, 185);
-  doc.setLineWidth(0.8);
-  doc.line(14, y, pageW - 14, y);
-  y += 6;
-
-  // Title
-  doc.setFontSize(13);
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(41, 128, 185);
-  doc.text(title, 14, y);
-
-  // Subtitle (right-aligned)
-  if (subtitle) {
-    doc.setFontSize(9);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(100, 100, 100);
-    doc.text(subtitle, pageW - 14, y, { align: "right" });
-  }
-
-  y += 8;
-  doc.setTextColor(0, 0, 0);
-  return y;
-}
-
-// ─── Shared footer ───
-function addPageFooter(doc: jsPDF) {
-  const pageCount = doc.getNumberOfPages();
-  for (let i = 1; i <= pageCount; i++) {
-    doc.setPage(i);
-    const pageW = doc.internal.pageSize.getWidth();
-    const pageH = doc.internal.pageSize.getHeight();
-
-    doc.setDrawColor(200, 200, 200);
-    doc.setLineWidth(0.3);
-    doc.line(14, pageH - 14, pageW - 14, pageH - 14);
-
-    doc.setFontSize(7);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(140, 140, 140);
-    doc.text(`Gerado em ${new Date().toLocaleString("pt-BR")}`, 14, pageH - 9);
-    doc.text(`Página ${i} de ${pageCount}`, pageW - 14, pageH - 9, { align: "right" });
-  }
-}
-
-// ─── Info grid helper ───
-function drawInfoGrid(doc: jsPDF, rows: [string, string, string?, string?][], startY: number): number {
-  let y = startY;
-  doc.setFontSize(9);
-  rows.forEach(row => {
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(60, 60, 60);
-    doc.text(row[0], 14, y);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(30, 30, 30);
-    doc.text(row[1], 50, y);
-    if (row[2]) {
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(60, 60, 60);
-      doc.text(row[2], 115, y);
-      doc.setFont("helvetica", "normal");
-      doc.setTextColor(30, 30, 30);
-      doc.text(row[3] || "—", 152, y);
-    }
-    y += 5;
-  });
-  return y;
-}
-
-// ─── Table theme ───
-const TABLE_THEME = {
-  styles: { fontSize: 7.5, cellPadding: 2.5, textColor: [30, 30, 30] as [number, number, number] },
-  headStyles: {
-    fillColor: [41, 128, 185] as [number, number, number],
-    textColor: [255, 255, 255] as [number, number, number],
-    fontStyle: "bold" as const,
-    fontSize: 7.5,
-  },
-  alternateRowStyles: { fillColor: [245, 248, 252] as [number, number, number] },
-};
-
-const TABLE_THEME_GREEN = {
-  ...TABLE_THEME,
-  headStyles: {
-    ...TABLE_THEME.headStyles,
-    fillColor: [39, 174, 96] as [number, number, number],
-  },
-};
+// Re-export for backward compatibility
+export { fetchCompanyInfo, type CompanyInfo };
 
 // ═══════════════════════════════════════════════════════════════
 // ORDEM DE COMPRA PDF
@@ -247,6 +78,7 @@ export async function generatePurchaseOrderPDF(data: POReportData) {
   }
 
   y += 4;
+  doc.setTextColor(0, 0, 0);
 
   // Items table
   const head = [["#", "Descrição", "Marca", "Qtd.", "Un.", "Vlr. Unit.", "Desc.", "Frete", "Total"]];
@@ -292,7 +124,6 @@ export async function generatePurchaseOrderPDF(data: POReportData) {
   const globalFreight = Number(order.freight) || 0;
   const grandTotal = Number(order.total_value) || Math.max(0, totalItems - globalDiscount + globalFreight);
 
-  // Background box
   doc.setFillColor(245, 248, 252);
   doc.setDrawColor(200, 210, 220);
   doc.roundedRect(boxX, ty - 3, boxW, (globalDiscount > 0 ? 26 : 21) + (globalFreight > 0 ? 5 : 0), 2, 2, "FD");
@@ -368,7 +199,6 @@ export async function generateReceivingHistoryPDF(data: ReceivingHistoryData) {
 
   let y = await addReportHeader(doc, companyInfo, "HISTÓRICO DE RECEBIMENTO", `OC: ${order.order_code || "—"}`);
 
-  // Info grid
   y = drawInfoGrid(doc, [
     ["Fornecedor:", supplierName, "Data OC:", fmtDate(order.order_date)],
     ["Obra:", obraName, "Status:", order.status || "—"],
@@ -418,7 +248,6 @@ export async function generateReceivingHistoryPDF(data: ReceivingHistoryData) {
   const finalY = (doc as any).lastAutoTable?.finalY || y + 5;
   let sy = finalY + 8;
 
-  // Section title
   doc.setFontSize(11);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(39, 174, 96);

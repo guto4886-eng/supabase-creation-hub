@@ -672,7 +672,7 @@ export default function Fleet() {
             <div className="flex justify-between gap-3 px-6 py-3 border-t border-border bg-muted rounded-b-xl">
               <div>
                 {editing && (
-                  <button type="button" onClick={() => generateVehicleReport(editing)} className="px-4 py-2 rounded-lg border border-border bg-background text-foreground hover:bg-muted flex items-center gap-2 text-sm">
+                  <button type="button" onClick={() => generateVehicleReport(editing, undefined, user?.id)} className="px-4 py-2 rounded-lg border border-border bg-background text-foreground hover:bg-muted flex items-center gap-2 text-sm">
                     <FileText className="h-4 w-4" /> Gerar Relatório PDF
                   </button>
                 )}
