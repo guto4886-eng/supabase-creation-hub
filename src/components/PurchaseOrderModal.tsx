@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import { X, Search, Plus, Trash2, Pencil, Paperclip } from "lucide-react";
+import { X, Search, Plus, Trash2, Pencil, Paperclip, History } from "lucide-react";
 import { fetchCep } from "@/utils/cep";
 import { useCompanies, CompanyFilterSelect } from "@/hooks/useCompanies";
 import Attachments from "@/components/Attachments";
@@ -91,6 +91,7 @@ export default function PurchaseOrderModal({
   const [lancamentoNotes, setLancamentoNotes] = useState("");
   const [lancamentoDate, setLancamentoDate] = useState(new Date().toISOString().slice(0, 10));
   const [attachmentItemId, setAttachmentItemId] = useState<string | null>(null);
+  const [historyItem, setHistoryItem] = useState<OrderItem | null>(null);
 
   const emptyItem: OrderItem = {
     item_type: "insumo", description: "", brand: "", complement: "",
@@ -939,8 +940,10 @@ export default function PurchaseOrderModal({
                           const obraName = obras.find((o: any) => o.id === it.obra_id)?.name || "";
                           const phaseService = [it.phase, it.service].filter(Boolean).join(" | ");
                           return (
-                            <tr key={itemId} className={`border-b border-border ${idx % 2 === 0 ? "bg-background" : "bg-muted/20"} hover:bg-muted/40 transition-colors`}>
-                              <td className="px-3 py-2.5 text-foreground font-medium max-w-[180px] truncate" title={it.description}>{it.description}</td>
+                            <tr key={itemId} className={`border-b border-border ${idx % 2 === 0 ? "bg-background" : "bg-muted/20"} hover:bg-muted/40 transition-colors cursor-pointer`} onClick={() => setHistoryItem(it)}>
+                              <td className="px-3 py-2.5 text-foreground font-medium max-w-[180px] truncate" title={`${it.description} — Clique para ver histórico`}>
+                                <span className="hover:underline text-primary">{it.description}</span>
+                              </td>
                               <td className="px-3 py-2.5 text-muted-foreground max-w-[160px] truncate" title={phaseService}>{phaseService || "—"}</td>
                               <td className="px-3 py-2.5 text-muted-foreground max-w-[140px] truncate" title={obraName}>{obraName || "—"}</td>
                               <td className="px-3 py-2.5 text-right tabular-nums">{it.quantity.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td>
@@ -991,7 +994,7 @@ export default function PurchaseOrderModal({
                               <td className="px-3 py-2.5 text-center">
                                 <button
                                   type="button"
-                                  onClick={() => setAttachmentItemId(itemId)}
+                                  onClick={(e) => { e.stopPropagation(); setAttachmentItemId(itemId); }}
                                   className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-primary transition-colors"
                                   title="Anexos"
                                 >
@@ -1117,6 +1120,14 @@ export default function PurchaseOrderModal({
           </div>
         </div>
       )}
+
+      {/* History modal for item receivings */}
+      {historyItem && editing && <ItemReceivingHistory
+        item={historyItem}
+        orderId={editing.id}
+        deliveryReceiver={form.delivery_receiver || ""}
+        onClose={() => setHistoryItem(null)}
+      />}
 
       {/* Lancamento Modal */}
       {lancamentoModalOpen && (() => {
@@ -1283,6 +1294,168 @@ export default function PurchaseOrderModal({
           </div>
         );
       })()}
+    </div>
+  );
+}
+
+function ItemReceivingHistory({
+  item, orderId, deliveryReceiver, onClose,
+}: {
+  item: OrderItem;
+  orderId: string;
+  deliveryReceiver: string;
+  onClose: () => void;
+}) {
+  const { data: receivingRows = [], isLoading } = useQuery({
+    queryKey: ["item_receiving_history", orderId, item.id],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("purchase_order_receivings")
+        .select("*")
+        .eq("purchase_order_id", orderId)
+        .eq("purchase_order_item_id", item.id)
+        .order("received_at", { ascending: true });
+      if (error) throw error;
+      return data as any[];
+    },
+    enabled: !!item.id,
+  });
+
+  // Calculate running remaining
+  let runningReceived = 0;
+  const rows = receivingRows.map((r: any) => {
+    runningReceived += Number(r.quantity);
+    return {
+      ...r,
+      accumulatedReceived: runningReceived,
+      remainingAfter: Math.max(0, item.quantity - runningReceived),
+    };
+  });
+
+  const totalReceived = runningReceived;
+  const totalRemaining = Math.max(0, item.quantity - totalReceived);
+  const pct = item.quantity > 0 ? (totalReceived / item.quantity) * 100 : 0;
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div className="bg-card border border-border rounded-xl w-full max-w-4xl flex flex-col" style={{ maxHeight: "80vh" }} onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-muted rounded-t-xl">
+          <div>
+            <h3 className="text-lg font-semibold text-primary flex items-center gap-2">
+              <History className="h-5 w-5" /> Histórico de Recebimento
+            </h3>
+            <p className="text-sm text-muted-foreground mt-0.5">{item.description}</p>
+          </div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
+        </div>
+
+        {/* Summary bar */}
+        <div className="px-6 py-3 border-b border-border bg-muted/20">
+          <div className="grid grid-cols-5 gap-4 text-sm">
+            <div>
+              <span className="text-muted-foreground text-xs block">Qtd. Total</span>
+              <span className="font-semibold text-foreground">{item.quantity.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} {item.unit}</span>
+            </div>
+            <div>
+              <span className="text-muted-foreground text-xs block">Recebido</span>
+              <span className="font-semibold text-foreground">{totalReceived.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} {item.unit}</span>
+            </div>
+            <div>
+              <span className="text-muted-foreground text-xs block">Restante</span>
+              <span className="font-semibold text-foreground">{totalRemaining.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} {item.unit}</span>
+            </div>
+            <div>
+              <span className="text-muted-foreground text-xs block">Vlr. Unitário</span>
+              <span className="font-semibold text-foreground">{formatCurrency(item.unit_price)}</span>
+            </div>
+            <div>
+              <span className="text-muted-foreground text-xs block">Vlr. Recebido</span>
+              <span className="font-semibold text-primary">{formatCurrency(totalReceived * item.unit_price)}</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 mt-3">
+            <span className="text-xs text-muted-foreground font-medium whitespace-nowrap">Progresso</span>
+            <div className="flex-1 bg-muted rounded-full h-5 relative overflow-hidden border border-border">
+              <div
+                className="h-full rounded-full transition-all duration-300"
+                style={{
+                  width: `${Math.min(pct, 100)}%`,
+                  background: pct >= 100
+                    ? "hsl(var(--primary))"
+                    : "linear-gradient(90deg, hsl(142 71% 45%), hsl(80 60% 50%))",
+                }}
+              />
+              <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold">{pct.toFixed(2)}%</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Table */}
+        <div className="flex-1 overflow-auto">
+          {isLoading ? (
+            <div className="flex justify-center py-12"><div className="animate-spin h-6 w-6 border-2 border-primary border-t-transparent rounded-full" /></div>
+          ) : rows.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground text-sm">Nenhum lançamento registrado para este item.</div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="sticky top-0">
+                <tr className="bg-primary/90 text-primary-foreground">
+                  <th className="text-center px-3 py-2.5 font-semibold w-10">#</th>
+                  <th className="text-left px-3 py-2.5 font-semibold">Data Entrega</th>
+                  <th className="text-left px-3 py-2.5 font-semibold">Data Registro</th>
+                  <th className="text-left px-3 py-2.5 font-semibold">Nº Romaneio/Doc</th>
+                  <th className="text-left px-3 py-2.5 font-semibold">Recebedor</th>
+                  <th className="text-right px-3 py-2.5 font-semibold">Qtd. Baixada</th>
+                  <th className="text-right px-3 py-2.5 font-semibold">Acumulado</th>
+                  <th className="text-right px-3 py-2.5 font-semibold">Qtd. Restante</th>
+                  <th className="text-right px-3 py-2.5 font-semibold">Valor</th>
+                  <th className="text-left px-3 py-2.5 font-semibold">Observação</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r: any, idx: number) => (
+                  <tr key={r.id} className={`border-b border-border ${idx % 2 === 0 ? "bg-background" : "bg-muted/20"}`}>
+                    <td className="px-3 py-2.5 text-center text-muted-foreground font-medium">{idx + 1}</td>
+                    <td className="px-3 py-2.5 text-foreground">
+                      {r.delivery_date ? new Date(r.delivery_date + "T00:00:00").toLocaleDateString("pt-BR") : "—"}
+                    </td>
+                    <td className="px-3 py-2.5 text-muted-foreground">
+                      {new Date(r.received_at).toLocaleDateString("pt-BR")}
+                    </td>
+                    <td className="px-3 py-2.5 text-foreground font-medium">{r.romaneio || "—"}</td>
+                    <td className="px-3 py-2.5 text-foreground">{deliveryReceiver || "—"}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums font-semibold text-primary">
+                      {Number(r.quantity).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                    </td>
+                    <td className="px-3 py-2.5 text-right tabular-nums text-foreground">
+                      {r.accumulatedReceived.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                    </td>
+                    <td className="px-3 py-2.5 text-right tabular-nums">
+                      <span className={r.remainingAfter === 0 ? "text-green-600 font-semibold" : "text-foreground"}>
+                        {r.remainingAfter.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5 text-right tabular-nums text-foreground">
+                      {formatCurrency(Number(r.quantity) * item.unit_price)}
+                    </td>
+                    <td className="px-3 py-2.5 text-muted-foreground text-xs max-w-[150px] truncate" title={r.notes || ""}>
+                      {r.notes || "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="border-t border-border px-6 py-3 bg-muted/30 rounded-b-xl flex justify-end">
+          <button type="button" onClick={onClose} className="px-5 py-2 rounded-lg border border-border bg-background text-foreground hover:bg-muted text-sm font-medium">
+            Fechar
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
