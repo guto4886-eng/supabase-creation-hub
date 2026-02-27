@@ -1348,9 +1348,26 @@ export type Database = {
       }
       purchase_orders: {
         Row: {
+          billing_address: string | null
+          billing_address_source: string | null
+          billing_cep: string | null
+          billing_city: string | null
+          billing_complement: string | null
+          billing_neighborhood: string | null
+          billing_number: string | null
+          billing_state: string | null
           company_id: string | null
           created_at: string
+          delivery_address: string | null
+          delivery_address_source: string | null
+          delivery_cep: string | null
+          delivery_city: string | null
+          delivery_complement: string | null
           delivery_date: string | null
+          delivery_neighborhood: string | null
+          delivery_number: string | null
+          delivery_receiver: string | null
+          delivery_state: string | null
           description: string | null
           discount_percent: number | null
           discount_value: number | null
@@ -1369,9 +1386,26 @@ export type Database = {
           vendor_contact_id: string | null
         }
         Insert: {
+          billing_address?: string | null
+          billing_address_source?: string | null
+          billing_cep?: string | null
+          billing_city?: string | null
+          billing_complement?: string | null
+          billing_neighborhood?: string | null
+          billing_number?: string | null
+          billing_state?: string | null
           company_id?: string | null
           created_at?: string
+          delivery_address?: string | null
+          delivery_address_source?: string | null
+          delivery_cep?: string | null
+          delivery_city?: string | null
+          delivery_complement?: string | null
           delivery_date?: string | null
+          delivery_neighborhood?: string | null
+          delivery_number?: string | null
+          delivery_receiver?: string | null
+          delivery_state?: string | null
           description?: string | null
           discount_percent?: number | null
           discount_value?: number | null
@@ -1390,9 +1424,26 @@ export type Database = {
           vendor_contact_id?: string | null
         }
         Update: {
+          billing_address?: string | null
+          billing_address_source?: string | null
+          billing_cep?: string | null
+          billing_city?: string | null
+          billing_complement?: string | null
+          billing_neighborhood?: string | null
+          billing_number?: string | null
+          billing_state?: string | null
           company_id?: string | null
           created_at?: string
+          delivery_address?: string | null
+          delivery_address_source?: string | null
+          delivery_cep?: string | null
+          delivery_city?: string | null
+          delivery_complement?: string | null
           delivery_date?: string | null
+          delivery_neighborhood?: string | null
+          delivery_number?: string | null
+          delivery_receiver?: string | null
+          delivery_state?: string | null
           description?: string | null
           discount_percent?: number | null
           discount_value?: number | null

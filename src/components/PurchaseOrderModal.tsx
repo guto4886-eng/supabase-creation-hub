@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { X, Search, Plus, Trash2, Pencil } from "lucide-react";
+import { fetchCep } from "@/utils/cep";
 import { useCompanies, CompanyFilterSelect } from "@/hooks/useCompanies";
 import Attachments from "@/components/Attachments";
 
@@ -19,6 +20,7 @@ const STATUS_OPTIONS = [
 
 const TABS = [
   { key: "dados", label: "Dados" },
+  { key: "enderecos", label: "Endereços" },
   { key: "pagamento", label: "Pagamento" },
   { key: "anexos", label: "Anexos" },
 ] as const;
@@ -195,6 +197,23 @@ export default function PurchaseOrderModal({
         freight: globalFreight,
         subtotal: itemsSubtotal,
         total_value: grandTotal,
+        delivery_address_source: form.delivery_address_source || "obra",
+        delivery_cep: form.delivery_cep || null,
+        delivery_address: form.delivery_address || null,
+        delivery_number: form.delivery_number || null,
+        delivery_complement: form.delivery_complement || null,
+        delivery_neighborhood: form.delivery_neighborhood || null,
+        delivery_state: form.delivery_state || null,
+        delivery_city: form.delivery_city || null,
+        delivery_receiver: form.delivery_receiver || null,
+        billing_address_source: form.billing_address_source || "obra",
+        billing_cep: form.billing_cep || null,
+        billing_address: form.billing_address || null,
+        billing_number: form.billing_number || null,
+        billing_complement: form.billing_complement || null,
+        billing_neighborhood: form.billing_neighborhood || null,
+        billing_state: form.billing_state || null,
+        billing_city: form.billing_city || null,
       };
 
       let orderId: string;
@@ -540,6 +559,34 @@ export default function PurchaseOrderModal({
             </div>
           )}
 
+          {activeTab === "enderecos" && (
+            <div className="p-6 space-y-6">
+              {/* Endereço de entrega */}
+              <AddressSection
+                title="Endereço entrega"
+                prefix="delivery"
+                form={form}
+                setForm={setForm}
+                obras={obras}
+                extraField={
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1">Recebedor</label>
+                    <input value={form.delivery_receiver || ""} onChange={e => setForm(p => ({ ...p, delivery_receiver: e.target.value }))} className={inputClass} />
+                  </div>
+                }
+              />
+
+              {/* Endereço de cobrança */}
+              <AddressSection
+                title="Endereço cobrança"
+                prefix="billing"
+                form={form}
+                setForm={setForm}
+                obras={obras}
+              />
+            </div>
+          )}
+
           {activeTab === "pagamento" && (
             <div className="p-6 space-y-4">
               <div>
@@ -586,5 +633,131 @@ export default function PurchaseOrderModal({
         </div>
       </div>
     </div>
+  );
+}
+
+const STATES = ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"];
+
+function AddressSection({
+  title, prefix, form, setForm, obras, extraField,
+}: {
+  title: string;
+  prefix: "delivery" | "billing";
+  form: Record<string, any>;
+  setForm: React.Dispatch<React.SetStateAction<Record<string, any>>>;
+  obras: any[];
+  extraField?: React.ReactNode;
+}) {
+  const sourceKey = `${prefix}_address_source`;
+  const source = form[sourceKey] || "obra";
+
+  const handleSourceChange = (val: string) => {
+    setForm(p => ({ ...p, [sourceKey]: val }));
+    if (val === "obra" && form.obra_id) {
+      loadObraAddress(form.obra_id);
+    }
+  };
+
+  const handleObraChange = (obraId: string) => {
+    setForm(p => ({ ...p, [`${prefix}_obra_ref`]: obraId }));
+    if (obraId) loadObraAddress(obraId);
+  };
+
+  const loadObraAddress = async (obraId: string) => {
+    const { data } = await (supabase as any).from("obras").select("cep, address, address_number, complement, neighborhood, state, city").eq("id", obraId).single();
+    if (data) {
+      setForm(p => ({
+        ...p,
+        [`${prefix}_cep`]: data.cep || "",
+        [`${prefix}_address`]: data.address || "",
+        [`${prefix}_number`]: data.address_number || "",
+        [`${prefix}_complement`]: data.complement || "",
+        [`${prefix}_neighborhood`]: data.neighborhood || "",
+        [`${prefix}_state`]: data.state || "",
+        [`${prefix}_city`]: data.city || "",
+      }));
+    }
+  };
+
+  const handleCepBlur = async () => {
+    const cep = form[`${prefix}_cep`];
+    if (!cep || cep.replace(/\D/g, "").length !== 8) return;
+    const result = await fetchCep(cep);
+    if (result) {
+      setForm(p => ({
+        ...p,
+        [`${prefix}_address`]: result.address,
+        [`${prefix}_neighborhood`]: result.neighborhood,
+        [`${prefix}_state`]: result.state,
+        [`${prefix}_city`]: result.city,
+      }));
+    }
+  };
+
+  const f = (key: string) => form[`${prefix}_${key}`] || "";
+  const set = (key: string, val: string) => setForm(p => ({ ...p, [`${prefix}_${key}`]: val }));
+
+  const ic = "w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm";
+
+  return (
+    <fieldset className="border border-border rounded-lg p-4 space-y-3">
+      <legend className="text-sm font-semibold text-muted-foreground px-2">{title}</legend>
+
+      <div className="grid grid-cols-3 gap-4">
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-medium text-foreground whitespace-nowrap">Local *</label>
+          <select value={source} onChange={e => handleSourceChange(e.target.value)} className={`${ic} w-28`}>
+            <option value="obra">Obra</option>
+            <option value="manual">Manual</option>
+          </select>
+          {source === "obra" && (
+            <select value={form[`${prefix}_obra_ref`] || form.obra_id || ""} onChange={e => handleObraChange(e.target.value)} className={ic}>
+              <option value="">Selecione...</option>
+              {obras.map((o: any) => <option key={o.id} value={o.id}>{o.name}</option>)}
+            </select>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-medium text-foreground whitespace-nowrap">CEP *</label>
+          <input value={f("cep")} onChange={e => set("cep", e.target.value)} onBlur={handleCepBlur} className={ic} placeholder="00000-000" />
+        </div>
+        <div />
+      </div>
+
+      <div className="grid grid-cols-3 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-foreground mb-1">Logradouro *</label>
+          <input value={f("address")} onChange={e => set("address", e.target.value)} className={ic} />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-foreground mb-1">Número *</label>
+          <input value={f("number")} onChange={e => set("number", e.target.value)} className={ic} />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-foreground mb-1">Complemento</label>
+          <input value={f("complement")} onChange={e => set("complement", e.target.value)} className={ic} />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-foreground mb-1">Bairro *</label>
+          <input value={f("neighborhood")} onChange={e => set("neighborhood", e.target.value)} className={ic} />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-foreground mb-1">UF *</label>
+          <select value={f("state")} onChange={e => set("state", e.target.value)} className={ic}>
+            <option value="">Selecione...</option>
+            {STATES.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-foreground mb-1">Cidade *</label>
+          <input value={f("city")} onChange={e => set("city", e.target.value)} className={ic} />
+        </div>
+      </div>
+
+      {extraField}
+    </fieldset>
   );
 }
