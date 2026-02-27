@@ -86,6 +86,10 @@ export default function PurchaseOrderModal({
   const [recFilterInsumos, setRecFilterInsumos] = useState("todos");
   const [recFilterLancamento, setRecFilterLancamento] = useState("total");
   const [recSelectedItems, setRecSelectedItems] = useState<Set<string>>(new Set());
+  const [lancamentoModalOpen, setLancamentoModalOpen] = useState(false);
+  const [lancamentoRomaneio, setLancamentoRomaneio] = useState("");
+  const [lancamentoNotes, setLancamentoNotes] = useState("");
+  const [lancamentoDate, setLancamentoDate] = useState(new Date().toISOString().slice(0, 10));
 
   const emptyItem: OrderItem = {
     item_type: "insumo", description: "", brand: "", complement: "",
@@ -216,10 +220,20 @@ export default function PurchaseOrderModal({
     setReceivedTotals(totals);
   };
 
+  const openLancamentoModal = () => {
+    const selectedItemIds = Array.from(recSelectedItems);
+    if (selectedItemIds.length === 0) { toast.error("Selecione ao menos um item"); return; }
+    const hasQty = selectedItemIds.some(id => (receivings[id] || 0) > 0);
+    if (!hasQty) { toast.error("Informe a quantidade para lançamento"); return; }
+    setLancamentoDate(new Date().toISOString().slice(0, 10));
+    setLancamentoRomaneio("");
+    setLancamentoNotes("");
+    setLancamentoModalOpen(true);
+  };
+
   const handleLancamento = async () => {
     if (!editing) return;
     const selectedItemIds = Array.from(recSelectedItems);
-    if (selectedItemIds.length === 0) { toast.error("Selecione ao menos um item"); return; }
     const rows = selectedItemIds
       .filter(itemId => (receivings[itemId] || 0) > 0)
       .map(itemId => ({
@@ -227,13 +241,17 @@ export default function PurchaseOrderModal({
         purchase_order_item_id: itemId,
         quantity: receivings[itemId],
         user_id: user!.id,
+        romaneio: lancamentoRomaneio || null,
+        notes: lancamentoNotes || null,
+        delivery_date: lancamentoDate || null,
       }));
-    if (rows.length === 0) { toast.error("Informe a quantidade para lançamento"); return; }
+    if (rows.length === 0) return;
     const { error } = await (supabase as any).from("purchase_order_receivings").insert(rows);
     if (error) { toast.error(error.message); return; }
-    toast.success("Lançamento realizado!");
+    toast.success("Lançamento de entrega realizado!");
     setReceivings({});
     setRecSelectedItems(new Set());
+    setLancamentoModalOpen(false);
     loadReceivings(editing.id);
   };
 
@@ -311,6 +329,23 @@ export default function PurchaseOrderModal({
         const { data, error } = await (supabase as any).from("purchase_orders").insert({ ...orderData, user_id: user!.id }).select("id").single();
         if (error) throw error;
         orderId = data.id;
+
+        // Auto-generate financial doc (despesa) for new orders
+        const supplierName = suppliers.find((s: any) => s.id === form.supplier_id)?.name || "";
+        const financialPayload = {
+          user_id: user!.id,
+          description: `OC ${form.order_code || orderId.slice(0, 8)} - ${supplierName}`.trim(),
+          type: "despesa",
+          value: grandTotal,
+          status: "pendente",
+          due_date: form.delivery_date || null,
+          category: "Ordem de Compra",
+          obra_id: form.obra_id || null,
+          supplier_id: form.supplier_id || null,
+          company_id: form.company_id || null,
+          notes: `Gerado automaticamente pela Ordem de Compra ${form.order_code || ""}`.trim(),
+        };
+        await supabase.from("financial_docs").insert(financialPayload);
       }
 
       // Insert items
@@ -340,7 +375,8 @@ export default function PurchaseOrderModal({
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["purchase_orders"] });
-      toast.success(editing ? "Ordem atualizada!" : "Ordem criada!");
+      qc.invalidateQueries({ queryKey: ["financial_docs"] });
+      toast.success(editing ? "Ordem atualizada!" : "Ordem criada! Cobrança gerada no financeiro.");
       onSaved();
       onClose();
     },
@@ -1007,7 +1043,7 @@ export default function PurchaseOrderModal({
                   <div className="flex justify-end pt-1">
                     <button
                       type="button"
-                      onClick={handleLancamento}
+                      onClick={openLancamentoModal}
                       className="px-6 py-2 bg-primary text-primary-foreground rounded-lg font-semibold hover:opacity-90 text-sm shadow-sm transition-all"
                     >
                       Gerar Lançamento
@@ -1054,6 +1090,41 @@ export default function PurchaseOrderModal({
           </div>
         </div>
       </div>
+
+      {/* Lancamento Modal */}
+      {lancamentoModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onClick={() => setLancamentoModalOpen(false)}>
+          <div className="bg-card border border-border rounded-xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-muted rounded-t-xl">
+              <h3 className="text-base font-semibold text-primary">Dados da Entrega</h3>
+              <button onClick={() => setLancamentoModalOpen(false)} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="bg-muted/30 rounded-lg p-3 text-sm">
+                <p className="text-muted-foreground">Itens selecionados: <strong className="text-foreground">{Array.from(recSelectedItems).filter(id => (receivings[id] || 0) > 0).length}</strong></p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Data da entrega *</label>
+                <input type="date" value={lancamentoDate} onChange={e => setLancamentoDate(e.target.value)} className={inputClass} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Romaneio / Nº documento</label>
+                <input value={lancamentoRomaneio} onChange={e => setLancamentoRomaneio(e.target.value)} className={inputClass} placeholder="Ex: ROM-001, NF 12345..." />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Observações</label>
+                <textarea value={lancamentoNotes} onChange={e => setLancamentoNotes(e.target.value)} rows={3} className={inputClass} placeholder="Observações sobre a entrega..." />
+              </div>
+            </div>
+            <div className="border-t border-border px-6 py-4 flex justify-end gap-3 bg-muted/30 rounded-b-xl">
+              <button type="button" onClick={() => setLancamentoModalOpen(false)} className="px-4 py-2 rounded-lg border border-border bg-background text-foreground hover:bg-muted text-sm">Cancelar</button>
+              <button type="button" onClick={handleLancamento} className="px-5 py-2 bg-primary text-primary-foreground rounded-lg font-semibold hover:opacity-90 text-sm">
+                Confirmar Lançamento
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
