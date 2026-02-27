@@ -222,43 +222,36 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
     },
   });
 
-  // Fetch distinct phases from obra_daily_entries for this obra
-  const { data: obraPhases = [] } = useQuery({
-    queryKey: ["obra_phases", budget?.obra_id],
-    enabled: !!budget?.obra_id,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("obra_daily_entries")
-        .select("phase")
-        .eq("obra_id", budget!.obra_id!)
-        .not("phase", "is", null)
-        .order("phase");
-      if (error) throw error;
-      const unique = [...new Set((data || []).map((d: any) => d.phase).filter((p: string) => p && p.trim() !== ""))];
-      return unique as string[];
-    },
-  });
-
-  // Fetch distinct services from obra_daily_entries filtered by selected phase
+  // Derive phases and services from budget items (valores custo)
   const [selectedItemPhase, setSelectedItemPhase] = useState<string>("");
-  const { data: obraServices = [] } = useQuery({
-    queryKey: ["obra_services", budget?.obra_id, selectedItemPhase],
-    enabled: !!budget?.obra_id,
-    queryFn: async () => {
-      let query = supabase
-        .from("obra_daily_entries")
-        .select("service")
-        .eq("obra_id", budget!.obra_id!)
-        .not("service", "is", null);
-      if (selectedItemPhase) {
-        query = query.eq("phase", selectedItemPhase);
-      }
-      const { data, error } = await query.order("service");
-      if (error) throw error;
-      const unique = [...new Set((data || []).map((d: any) => d.service).filter((s: string) => s && s.trim() !== ""))];
-      return unique as string[];
-    },
-  });
+
+  const getDescPrefix = (desc: string) => {
+    const match = desc.trim().match(/^(\d+(?:\.\d+)*)/);
+    return match ? match[1] : null;
+  };
+
+  // Phase items (category = "Fase" or "fase") with root-level index only
+  const budgetPhaseItems = items
+    .filter((i) => (i.category || "").toLowerCase() === "fase")
+    .filter((i) => {
+      const prefix = getDescPrefix(i.description);
+      return prefix && !prefix.includes(".");
+    });
+
+  // Service items (category = "Serviço" or "servico")
+  const budgetServiceItems = items.filter(
+    (i) => (i.category || "").toLowerCase() === "serviço" || (i.category || "").toLowerCase() === "servico"
+  );
+
+  // Services filtered by selected phase root index
+  const filteredServices = selectedItemPhase
+    ? budgetServiceItems.filter((s) => {
+        const sPrefix = getDescPrefix(s.description);
+        const selectedPhaseItem = budgetPhaseItems.find((p) => p.description === selectedItemPhase);
+        const phaseRoot = selectedPhaseItem ? getDescPrefix(selectedPhaseItem.description) : null;
+        return sPrefix && phaseRoot ? sPrefix.split(".")[0] === phaseRoot : false;
+      })
+    : budgetServiceItems;
 
   // Fetch client
   const { data: client } = useQuery({
@@ -2324,24 +2317,21 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                     onChange={(e) => {
                       const val = e.target.value;
                       setSelectedItemPhase(val);
-                      setItemForm((p) => ({ ...p, category: val }));
+                      setItemForm((p) => ({ ...p, category: val, description: "" }));
                     }}
                     className={inputClass}
                   >
                     <option value="">Selecione a fase...</option>
-                    {obraPhases.map((phase) => (
-                      <option key={phase} value={phase}>{phase}</option>
+                    {budgetPhaseItems.map((p) => (
+                      <option key={p.id} value={p.description}>{p.description}</option>
                     ))}
                   </select>
-                  {obraPhases.length === 0 && (
-                    <p className="text-xs text-muted-foreground mt-1">Nenhuma fase cadastrada no Dia a dia desta obra. Você pode digitar manualmente abaixo.</p>
-                  )}
-                  {obraPhases.length === 0 && (
+                  {budgetPhaseItems.length === 0 && (
                     <input
                       value={itemForm.category}
                       onChange={(e) => setItemForm((p) => ({ ...p, category: e.target.value }))}
                       className={inputClass + " mt-1"}
-                      placeholder="Digite a fase manualmente..."
+                      placeholder="Nenhuma fase no orçamento. Digite manualmente..."
                     />
                   )}
                 </div>
@@ -2353,12 +2343,12 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                     className={inputClass}
                   >
                     <option value="">Selecione o serviço...</option>
-                    {obraServices.map((svc) => (
-                      <option key={svc} value={svc}>{svc}</option>
+                    {filteredServices.map((s) => (
+                      <option key={s.id} value={s.description}>{s.description}</option>
                     ))}
                   </select>
-                  {obraServices.length === 0 && (
-                    <p className="text-xs text-muted-foreground mt-1">Nenhum serviço cadastrado para esta fase.</p>
+                  {filteredServices.length === 0 && (
+                    <p className="text-xs text-muted-foreground mt-1">Nenhum serviço encontrado para esta fase.</p>
                   )}
                 </div>
                 <div>
