@@ -97,9 +97,11 @@ export default function PurchaseOrderModal({
     },
   });
   const { data: obras = [] } = useQuery({
-    queryKey: ["obras_list_po_modal"],
+    queryKey: ["obras_list_po_modal", form.company_id],
     queryFn: async () => {
-      const { data } = await supabase.from("obras").select("id, name").eq("active", true).order("name");
+      let q = supabase.from("obras").select("id, name, company_id").eq("active", true).order("name");
+      if (form.company_id) q = q.eq("company_id", form.company_id);
+      const { data } = await q;
       return data || [];
     },
   });
