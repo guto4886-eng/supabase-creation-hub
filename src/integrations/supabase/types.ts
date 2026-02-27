@@ -1258,12 +1258,103 @@ export type Database = {
         }
         Relationships: []
       }
+      purchase_order_items: {
+        Row: {
+          brand: string | null
+          complement: string | null
+          created_at: string
+          description: string
+          discount_percent: number | null
+          discount_value: number | null
+          freight: number | null
+          id: string
+          insumo_id: string | null
+          item_type: string
+          obra_id: string | null
+          phase: string | null
+          purchase_order_id: string
+          quantity: number
+          service: string | null
+          sort_order: number | null
+          total: number | null
+          unit: string
+          unit_price: number
+        }
+        Insert: {
+          brand?: string | null
+          complement?: string | null
+          created_at?: string
+          description: string
+          discount_percent?: number | null
+          discount_value?: number | null
+          freight?: number | null
+          id?: string
+          insumo_id?: string | null
+          item_type?: string
+          obra_id?: string | null
+          phase?: string | null
+          purchase_order_id: string
+          quantity?: number
+          service?: string | null
+          sort_order?: number | null
+          total?: number | null
+          unit?: string
+          unit_price?: number
+        }
+        Update: {
+          brand?: string | null
+          complement?: string | null
+          created_at?: string
+          description?: string
+          discount_percent?: number | null
+          discount_value?: number | null
+          freight?: number | null
+          id?: string
+          insumo_id?: string | null
+          item_type?: string
+          obra_id?: string | null
+          phase?: string | null
+          purchase_order_id?: string
+          quantity?: number
+          service?: string | null
+          sort_order?: number | null
+          total?: number | null
+          unit?: string
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_order_items_insumo_id_fkey"
+            columns: ["insumo_id"]
+            isOneToOne: false
+            referencedRelation: "insumos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_order_items_obra_id_fkey"
+            columns: ["obra_id"]
+            isOneToOne: false
+            referencedRelation: "obras"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_order_items_purchase_order_id_fkey"
+            columns: ["purchase_order_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       purchase_orders: {
         Row: {
           company_id: string | null
           created_at: string
           delivery_date: string | null
           description: string | null
+          discount_percent: number | null
+          discount_value: number | null
+          freight: number | null
           id: string
           notes: string | null
           obra_id: string | null
@@ -1271,15 +1362,20 @@ export type Database = {
           order_date: string | null
           payment_terms: string | null
           status: string | null
+          subtotal: number | null
           supplier_id: string
           total_value: number | null
           user_id: string
+          vendor_contact_id: string | null
         }
         Insert: {
           company_id?: string | null
           created_at?: string
           delivery_date?: string | null
           description?: string | null
+          discount_percent?: number | null
+          discount_value?: number | null
+          freight?: number | null
           id?: string
           notes?: string | null
           obra_id?: string | null
@@ -1287,15 +1383,20 @@ export type Database = {
           order_date?: string | null
           payment_terms?: string | null
           status?: string | null
+          subtotal?: number | null
           supplier_id: string
           total_value?: number | null
           user_id: string
+          vendor_contact_id?: string | null
         }
         Update: {
           company_id?: string | null
           created_at?: string
           delivery_date?: string | null
           description?: string | null
+          discount_percent?: number | null
+          discount_value?: number | null
+          freight?: number | null
           id?: string
           notes?: string | null
           obra_id?: string | null
@@ -1303,9 +1404,11 @@ export type Database = {
           order_date?: string | null
           payment_terms?: string | null
           status?: string | null
+          subtotal?: number | null
           supplier_id?: string
           total_value?: number | null
           user_id?: string
+          vendor_contact_id?: string | null
         }
         Relationships: [
           {
@@ -1327,6 +1430,13 @@ export type Database = {
             columns: ["supplier_id"]
             isOneToOne: false
             referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_orders_vendor_contact_id_fkey"
+            columns: ["vendor_contact_id"]
+            isOneToOne: false
+            referencedRelation: "supplier_contacts"
             referencedColumns: ["id"]
           },
         ]

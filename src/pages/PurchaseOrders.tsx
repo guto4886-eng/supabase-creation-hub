@@ -4,9 +4,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import {
-  Search, Plus, ChevronLeft, ChevronRight, Pencil, Trash2, X, Eraser
+  Search, Plus, Pencil, Trash2, Eraser
 } from "lucide-react";
 import { useCompanies, CompanyFilterSelect } from "@/hooks/useCompanies";
+import PurchaseOrderModal from "@/components/PurchaseOrderModal";
 
 const PAGE_SIZE = 15;
 
@@ -36,7 +37,6 @@ export default function PurchaseOrders() {
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
-  const [form, setForm] = useState<Record<string, any>>({});
 
   const { data: companiesList = [] } = useCompanies();
 
@@ -87,23 +87,9 @@ export default function PurchaseOrders() {
   const paginatedItems = filtered.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
   const totalGeral = filtered.reduce((s, i) => s + (Number(i.total_value) || 0), 0);
 
-  const saveMutation = useMutation({
-    mutationFn: async (values: Record<string, any>) => {
-      if (editing) {
-        const { error } = await (supabase as any).from("purchase_orders").update(values).eq("id", editing.id);
-        if (error) throw error;
-      } else {
-        const { error } = await (supabase as any).from("purchase_orders").insert({ ...values, user_id: user!.id });
-        if (error) throw error;
-      }
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["purchase_orders"] });
-      toast.success(editing ? "Ordem atualizada!" : "Ordem criada!", { duration: 3000 });
-      closeForm();
-    },
-    onError: (e: any) => toast.error(e.message),
-  });
+  const openNew = () => { setEditing(null); setFormOpen(true); };
+  const openEdit = (item: any) => { setEditing(item); setFormOpen(true); };
+  const closeForm = () => { setFormOpen(false); setEditing(null); };
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -116,27 +102,6 @@ export default function PurchaseOrders() {
     },
     onError: (e: any) => toast.error(e.message),
   });
-
-  const openNew = () => { setEditing(null); setForm({ status: "rascunho", order_date: new Date().toISOString().slice(0, 10) }); setFormOpen(true); };
-  const openEdit = (item: any) => { setEditing(item); setForm({ ...item }); setFormOpen(true); };
-  const closeForm = () => { setFormOpen(false); setEditing(null); setForm({}); };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!form.supplier_id) { toast.error("Selecione um fornecedor"); return; }
-    saveMutation.mutate({
-      supplier_id: form.supplier_id,
-      obra_id: form.obra_id || null,
-      order_code: form.order_code || null,
-      description: form.description || null,
-      status: form.status || "rascunho",
-      order_date: form.order_date || null,
-      delivery_date: form.delivery_date || null,
-      total_value: Number(form.total_value) || 0,
-      payment_terms: form.payment_terms || null,
-      notes: form.notes || null,
-    });
-  };
 
   const handleSearch = () => { setSearched(true); setPage(0); };
   const handleClearFilters = () => { setFilterCode(""); setFilterSupplier(""); setFilterStatus(""); setFilterCompany(""); setFilterDateFrom(""); setFilterDateTo(""); setSearched(false); setPage(0); };
@@ -191,14 +156,14 @@ export default function PurchaseOrders() {
             </div>
             <div className="p-4 border-t border-border flex gap-2">
               <button onClick={handleClearFilters} className="flex-1 flex items-center justify-center px-3 py-2.5 rounded-lg bg-background border border-border text-muted-foreground hover:bg-muted transition-colors"><Eraser className="h-5 w-5" /></button>
-              <button onClick={handleSearch} className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 bg-amber-700 text-white rounded-lg text-sm font-medium hover:bg-amber-800 transition-colors"><Search className="h-4 w-4" /> Pesquisar</button>
+              <button onClick={handleSearch} className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-colors"><Search className="h-4 w-4" /> Pesquisar</button>
             </div>
           </div>
         </div>
         <div className="flex-shrink-0 relative z-10" style={{ width: "28px" }}>
-          <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${filtersOpen ? "bg-primary" : "bg-amber-700"}`} />
-          <button onClick={() => setFiltersOpen(!filtersOpen)} className={`absolute left-0 top-1/2 -translate-y-1/2 w-7 py-4 flex items-center justify-center cursor-pointer hover:opacity-90 transition-all rounded-r-md ${filtersOpen ? "bg-primary" : "bg-amber-700"}`}>
-            <span className="text-white text-[10px] font-bold uppercase tracking-wider whitespace-nowrap" style={{ writingMode: "vertical-lr" }}>FILTROS DE PESQUISA {filtersOpen ? "‹" : "›"}</span>
+          <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${filtersOpen ? "bg-primary" : "bg-primary/70"}`} />
+          <button onClick={() => setFiltersOpen(!filtersOpen)} className={`absolute left-0 top-1/2 -translate-y-1/2 w-7 py-4 flex items-center justify-center cursor-pointer hover:opacity-90 transition-all rounded-r-md ${filtersOpen ? "bg-primary" : "bg-primary/70"}`}>
+            <span className="text-primary-foreground text-[10px] font-bold uppercase tracking-wider whitespace-nowrap" style={{ writingMode: "vertical-lr" }}>FILTROS DE PESQUISA {filtersOpen ? "‹" : "›"}</span>
           </button>
         </div>
       </div>
@@ -273,78 +238,12 @@ export default function PurchaseOrders() {
         )}
       </div>
 
-      {formOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={closeForm}>
-          <div className="bg-card border border-border rounded-xl w-full max-w-3xl flex flex-col" style={{ maxHeight: "85vh" }} onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-muted rounded-t-xl">
-              <h3 className="text-lg font-semibold text-primary">{editing ? "Editar" : "Nova"} ordem de compra</h3>
-              <button onClick={closeForm} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
-            </div>
-            <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Fornecedor *</label>
-                  <select value={form.supplier_id || ""} onChange={e => setForm(p => ({ ...p, supplier_id: e.target.value }))} required className={inputClass}>
-                    <option value="">Selecione...</option>
-                    {suppliers.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Código da OC</label>
-                  <input value={form.order_code || ""} onChange={e => setForm(p => ({ ...p, order_code: e.target.value }))} className={inputClass} />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Obra</label>
-                  <select value={form.obra_id || ""} onChange={e => setForm(p => ({ ...p, obra_id: e.target.value }))} className={inputClass}>
-                    <option value="">Nenhuma</option>
-                    {obras.map((o: any) => <option key={o.id} value={o.id}>{o.name}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Status</label>
-                  <select value={form.status || "rascunho"} onChange={e => setForm(p => ({ ...p, status: e.target.value }))} className={inputClass}>
-                    {STATUS_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Data da OC</label>
-                  <input type="date" value={form.order_date || ""} onChange={e => setForm(p => ({ ...p, order_date: e.target.value }))} className={inputClass} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Previsão entrega</label>
-                  <input type="date" value={form.delivery_date || ""} onChange={e => setForm(p => ({ ...p, delivery_date: e.target.value }))} className={inputClass} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Valor total</label>
-                  <input type="number" step="0.01" value={form.total_value ?? 0} onChange={e => setForm(p => ({ ...p, total_value: e.target.value }))} className={inputClass} />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Condições de pagamento</label>
-                <input value={form.payment_terms || ""} onChange={e => setForm(p => ({ ...p, payment_terms: e.target.value }))} className={inputClass} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Descrição</label>
-                <textarea value={form.description || ""} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} rows={2} className={inputClass} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Observações</label>
-                <textarea value={form.notes || ""} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} rows={2} className={inputClass} />
-              </div>
-            </form>
-            <div className="flex justify-end gap-3 px-6 py-3 border-t border-border bg-muted rounded-b-xl">
-              <button type="button" onClick={closeForm} className="px-4 py-2 rounded-lg border border-border bg-background text-foreground hover:bg-muted">Cancelar</button>
-              <button type="submit" onClick={handleSubmit as any} disabled={saveMutation.isPending} className="px-5 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 disabled:opacity-50">
-                {saveMutation.isPending ? "Salvando..." : "💾 Salvar"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <PurchaseOrderModal
+        open={formOpen}
+        onClose={closeForm}
+        editing={editing}
+        onSaved={() => qc.invalidateQueries({ queryKey: ["purchase_orders"] })}
+      />
     </div>
   );
 }
