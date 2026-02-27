@@ -109,6 +109,13 @@ export async function generatePurchaseOrderPDF(data: POReportData) {
   const { data: prof } = await supabase.from("profiles").select("*").eq("user_id", userId).maybeSingle();
   profile = prof;
 
+  // Fetch obra details
+  let obraDetail: Record<string, any> | null = null;
+  if (order.obra_id) {
+    const { data: ob } = await supabase.from("obras").select("*").eq("id", order.obra_id).maybeSingle();
+    obraDetail = ob;
+  }
+
   // ── Header ── Use billing company data if available, fallback to company_settings
   let headerInfo: CompanyInfo | null = companyInfo;
   if (billingCompany) {
@@ -241,27 +248,53 @@ export async function generatePurchaseOrderPDF(data: POReportData) {
   // ════════════════════════════════════════
   // OBRA / ENDEREÇOS
   // ════════════════════════════════════════
-  y = checkPageBreak(doc, y, 30);
+  y = checkPageBreak(doc, y, 50);
 
-  // Obra / Centro de custo line
+  // Obra / Centro de custo header
   doc.setFillColor(220, 220, 220);
   doc.rect(M, y, pageW - M * 2, 6, "F");
   doc.setFontSize(7.5);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(30, 30, 30);
-  doc.text("OBRA/CENTRO DE CUSTO:", M + 2, y + 4.2);
-  doc.setFont("helvetica", "normal");
-  const obraText = obraName && obraName !== "—" ? obraName : "—";
-  doc.text(obraText, M + 48, y + 4.2);
-  
-  // CNO
-  if (order.cno) {
-    doc.setFont("helvetica", "bold");
-    doc.text("CNO:", pageW / 2 + 20, y + 4.2);
-    doc.setFont("helvetica", "normal");
-    doc.text(order.cno, pageW / 2 + 32, y + 4.2);
-  }
+  doc.text("DADOS DA OBRA", M + 2, y + 4.2);
   y += 9;
+
+  // Obra name
+  const obraText = obraName && obraName !== "—" ? obraName : "—";
+  drawField(doc, "Obra:", obraText, M + 2, y, halfW);
+  if (obraDetail?.cno) {
+    drawField(doc, "CNO:", obraDetail.cno, pageW / 2, y, 40);
+  }
+  y += 5;
+
+  if (obraDetail) {
+    // Address
+    const obraAddr = [obraDetail.address, obraDetail.address_number, obraDetail.complement, obraDetail.neighborhood].filter(Boolean).join(", ");
+    const obraCityState = [obraDetail.city, obraDetail.state].filter(Boolean).join("/");
+    if (obraAddr || obraCityState) {
+      drawField(doc, "Endereço:", [obraAddr, obraCityState, obraDetail.cep].filter(Boolean).join(" - "), M + 2, y, pageW - M * 2 - 30);
+      y += 5;
+    }
+
+    // Responsáveis
+    const resp1 = obraDetail.resp_tecnico ? `Resp. Técnico: ${obraDetail.resp_tecnico}` : "";
+    const resp2 = obraDetail.resp_obra ? `Resp. Obra: ${obraDetail.resp_obra}` : "";
+    if (resp1 || resp2) {
+      if (resp1) drawField(doc, "Resp. Técnico:", obraDetail.resp_tecnico, M + 2, y, 50);
+      if (resp2) drawField(doc, "Resp. Obra:", obraDetail.resp_obra, pageW / 2, y, 50);
+      y += 5;
+    }
+
+    // ART + Área
+    const hasArt = obraDetail.art_number;
+    const hasArea = obraDetail.area_m2;
+    if (hasArt || hasArea) {
+      if (hasArt) drawField(doc, "ART:", obraDetail.art_number, M + 2, y, 40);
+      if (hasArea) drawField(doc, "Área:", `${obraDetail.area_m2} m²`, pageW / 2, y, 40);
+      y += 5;
+    }
+  }
+  y += 2;
 
   // Delivery and billing addresses side by side
   const delAddrParts = [order.delivery_address, order.delivery_number, order.delivery_neighborhood, order.delivery_city, order.delivery_state, order.delivery_cep].filter(Boolean);
