@@ -2,6 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
+import { addReportHeader as sharedAddReportHeader, addPageFooter } from "./pdfHeader";
 
 export interface CompanyInfo {
   company_name?: string | null;
@@ -119,48 +120,8 @@ export async function exportPDF(
   company: CompanyInfo | null
 ) {
   const doc = new jsPDF({ orientation: "landscape" });
-  let startY = 15;
 
-  if (company) {
-    // Try to load logo
-    if (company.logo_url) {
-      try {
-        const img = await loadImage(company.logo_url);
-        doc.addImage(img, "JPEG", 14, 10, 25, 25);
-        startY = 12;
-      } catch {
-        // skip logo
-      }
-    }
-
-    const textX = company.logo_url ? 44 : 14;
-    doc.setFontSize(14);
-    doc.setFont("helvetica", "bold");
-    if (company.company_name) {
-      doc.text(company.company_name, textX, startY);
-      startY += 6;
-    }
-    doc.setFontSize(9);
-    doc.setFont("helvetica", "normal");
-    if (company.document) {
-      doc.text(`CNPJ/CPF: ${company.document}`, textX, startY);
-      startY += 4;
-    }
-    const addr = buildAddressLine(company);
-    if (addr) {
-      doc.text(addr, textX, startY);
-      startY += 4;
-    }
-    if (company.phone) {
-      doc.text(`Tel: ${company.phone}`, textX, startY);
-      startY += 4;
-    }
-    if (company.email) {
-      doc.text(company.email, textX, startY);
-      startY += 4;
-    }
-    startY += 4;
-  }
+  const startY = await sharedAddReportHeader(doc, company, filename.replace(/_/g, " ").toUpperCase());
 
   const head = [fields.map((f) => f.label)];
   const body = data.map((item) => fields.map((f) => getDisplayValue(item, f.name)));
@@ -174,6 +135,7 @@ export async function exportPDF(
     alternateRowStyles: { fillColor: [245, 245, 245] },
   });
 
+  addPageFooter(doc);
   doc.save(`${filename}.pdf`);
 }
 

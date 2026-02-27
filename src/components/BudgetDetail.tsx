@@ -7,6 +7,7 @@ import { X, Plus, Pencil, Trash2, FileText, ChevronDown, Settings, Upload, Clipb
 import BudgetImportModal from "./BudgetImportModal";
 import { fetchCompanyInfo, type CompanyInfo } from "@/utils/exportWithHeader";
 import { generateBudgetReport } from "@/utils/budgetReports";
+import { addReportHeader, addPageFooter } from "@/utils/pdfHeader";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from "recharts";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -1476,48 +1477,8 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
               try {
                 const companyInfo = user?.id ? await fetchCompanyInfo(user.id) : null;
                 const doc = new jsPDF({ orientation: "landscape" });
-                let y = 15;
 
-                // Company header
-                if (companyInfo) {
-                  if (companyInfo.logo_url) {
-                    try {
-                      const img = new Image();
-                      img.crossOrigin = "anonymous";
-                      const imgData = await new Promise<string>((resolve, reject) => {
-                        img.onload = () => {
-                          const canvas = document.createElement("canvas");
-                          canvas.width = img.width;
-                          canvas.height = img.height;
-                          canvas.getContext("2d")!.drawImage(img, 0, 0);
-                          resolve(canvas.toDataURL("image/jpeg"));
-                        };
-                        img.onerror = reject;
-                        img.src = companyInfo.logo_url!;
-                      });
-                      doc.addImage(imgData, "JPEG", 14, 10, 25, 25);
-                      y = 12;
-                    } catch { /* skip logo */ }
-                  }
-                  const textX = companyInfo.logo_url ? 44 : 14;
-                  doc.setFontSize(14);
-                  doc.setFont("helvetica", "bold");
-                  if (companyInfo.company_name) { doc.text(companyInfo.company_name, textX, y); y += 6; }
-                  doc.setFontSize(9);
-                  doc.setFont("helvetica", "normal");
-                  if (companyInfo.document) { doc.text(`CNPJ/CPF: ${companyInfo.document}`, textX, y); y += 4; }
-                  const addrParts = [companyInfo.address, companyInfo.city, companyInfo.state].filter(Boolean).join(" - ");
-                  if (addrParts) { doc.text(addrParts, textX, y); y += 4; }
-                  if (companyInfo.phone) { doc.text(`Tel: ${companyInfo.phone}`, textX, y); y += 4; }
-                  if (companyInfo.email) { doc.text(companyInfo.email, textX, y); y += 4; }
-                  y += 4;
-                }
-
-                // Report title
-                doc.setFontSize(13);
-                doc.setFont("helvetica", "bold");
-                doc.text(`Relatório de Medições — ${budget.budget_code || ""} — ${obra?.name || ""}`, 14, y);
-                y += 8;
+                let y = await addReportHeader(doc, companyInfo, "Relatório de Medições", `${budget.budget_code || ""} — ${obra?.name || ""}`);
 
                 // Overall summary
                 const totalOrcado = serviceItemsMed.reduce((s, svc) => s + (svc.total_price || 0), 0);
@@ -1599,6 +1560,7 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                   },
                 });
 
+                addPageFooter(doc);
                 doc.save(`Relatorio_Medicoes_${budget.budget_code || budgetId}.pdf`);
                 toast.success("Relatório gerado com sucesso!");
               } catch (err: any) {
