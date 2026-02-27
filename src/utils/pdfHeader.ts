@@ -170,25 +170,46 @@ export function addPageFooter(doc: jsPDF) {
 
 // ─── Info grid helper (label-value pairs) ───
 export function drawInfoGrid(doc: jsPDF, rows: [string, string, string?, string?][], startY: number): number {
+  const pageW = doc.internal.pageSize.getWidth();
+  const MARGIN = 14;
+  const labelW = 34;
+  const col1ValX = MARGIN + labelW;
+  const col2X = pageW / 2 + 5;
+  const col2ValX = col2X + labelW;
+  const maxCol1ValW = col2X - col1ValX - 4;
+  const maxCol2ValW = pageW - MARGIN - col2ValX;
+
   let y = startY;
-  doc.setFontSize(9);
+  doc.setFontSize(8.5);
+
   rows.forEach(row => {
     doc.setFont("helvetica", "bold");
     doc.setTextColor(60, 60, 60);
-    doc.text(row[0], 14, y);
+    doc.text(row[0], MARGIN, y);
+
     doc.setFont("helvetica", "normal");
     doc.setTextColor(30, 30, 30);
-    doc.text(row[1], 50, y);
+    const val1Lines = doc.splitTextToSize(row[1] || "—", maxCol1ValW);
+    doc.text(val1Lines, col1ValX, y);
+
+    let rowLines = Array.isArray(val1Lines) ? val1Lines.length : 1;
+
     if (row[2]) {
       doc.setFont("helvetica", "bold");
       doc.setTextColor(60, 60, 60);
-      doc.text(row[2], 115, y);
+      doc.text(row[2], col2X, y);
+
       doc.setFont("helvetica", "normal");
       doc.setTextColor(30, 30, 30);
-      doc.text(row[3] || "—", 152, y);
+      const val2Lines = doc.splitTextToSize(row[3] || "—", maxCol2ValW);
+      doc.text(val2Lines, col2ValX, y);
+      const lines2 = Array.isArray(val2Lines) ? val2Lines.length : 1;
+      rowLines = Math.max(rowLines, lines2);
     }
-    y += 5;
+
+    y += rowLines * 3.5 + 1.5;
   });
+
   doc.setTextColor(0, 0, 0);
   return y;
 }
