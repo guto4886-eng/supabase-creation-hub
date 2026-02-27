@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import { X, Search, Plus, Trash2, Pencil, Paperclip, History, FileText } from "lucide-react";
+import { X, Search, Plus, Trash2, Pencil, Paperclip, History, FileText, Building2 } from "lucide-react";
 import { fetchCep } from "@/utils/cep";
 import { useCompanies, CompanyFilterSelect } from "@/hooks/useCompanies";
 import Attachments from "@/components/Attachments";
@@ -108,6 +108,16 @@ export default function PurchaseOrderModal({
   const insumoRef = useRef<HTMLDivElement>(null);
 
   const { data: companiesList = [] } = useCompanies();
+
+  // Fetch full company details for header
+  const { data: selectedCompany } = useQuery({
+    queryKey: ["company_detail_po", form.company_id],
+    enabled: !!form.company_id,
+    queryFn: async () => {
+      const { data } = await supabase.from("companies").select("*").eq("id", form.company_id).maybeSingle();
+      return data;
+    },
+  });
   const { data: suppliers = [] } = useQuery({
     queryKey: ["suppliers_list_po_modal"],
     queryFn: async () => {
@@ -469,6 +479,27 @@ export default function PurchaseOrderModal({
         <div className="flex-1 overflow-y-auto">
           {activeTab === "dados" && (
             <div className="p-6 space-y-4">
+              {/* Company header banner */}
+              {selectedCompany && (
+                <div className="flex items-center gap-4 border border-border rounded-lg p-3 bg-muted/20">
+                  <div className="h-14 w-14 rounded-lg bg-background border border-border flex items-center justify-center overflow-hidden flex-shrink-0">
+                    {selectedCompany.logo_url ? (
+                      <img src={selectedCompany.logo_url} alt="Logo" className="h-full w-full object-contain" />
+                    ) : (
+                      <Building2 className="h-6 w-6 text-muted-foreground" />
+                    )}
+                  </div>
+                  <div className="text-sm leading-relaxed text-foreground min-w-0">
+                    <p className="font-semibold truncate">{selectedCompany.name}</p>
+                    <p className="text-muted-foreground text-xs">
+                      {[selectedCompany.address, selectedCompany.address_number, selectedCompany.complement, selectedCompany.neighborhood, selectedCompany.city, selectedCompany.state].filter(Boolean).join(", ")}
+                    </p>
+                    <p className="text-muted-foreground text-xs">
+                      {[selectedCompany.email, selectedCompany.document ? `CNPJ: ${selectedCompany.document}` : null, selectedCompany.phone || selectedCompany.cellphone].filter(Boolean).join(" - ")}
+                    </p>
+                  </div>
+                </div>
+              )}
               {/* Info header */}
               {editing && (
                 <div className="flex items-center gap-8 text-sm text-muted-foreground bg-muted/30 rounded-lg px-4 py-2">
