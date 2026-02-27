@@ -969,7 +969,7 @@ export default function PurchaseOrderModal({
                                   </div>
                                 </div>
                               </td>
-                              <td className="px-3 py-2.5">
+                              <td className="px-3 py-2.5" onClick={e => e.stopPropagation()}>
                                 <div className="flex items-center gap-2 justify-center">
                                   <input
                                     type="checkbox"
