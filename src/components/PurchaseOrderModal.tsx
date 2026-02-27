@@ -7,7 +7,7 @@ import { X, Search, Plus, Trash2, Pencil, Paperclip, History, FileText } from "l
 import { fetchCep } from "@/utils/cep";
 import { useCompanies, CompanyFilterSelect } from "@/hooks/useCompanies";
 import Attachments from "@/components/Attachments";
-import { generatePurchaseOrderPDF } from "@/utils/purchaseOrderReport";
+import { generatePurchaseOrderPDF, generateReceivingHistoryPDF } from "@/utils/purchaseOrderReport";
 
 const inputClass = "w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm";
 
@@ -1075,8 +1075,32 @@ export default function PurchaseOrderModal({
                     </div>
                   </div>
 
-                  {/* Action button */}
-                  <div className="flex justify-end pt-1">
+                  {/* Action buttons */}
+                  <div className="flex justify-end gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          const { data: allReceivings } = await (supabase as any)
+                            .from("purchase_order_receivings")
+                            .select("*")
+                            .eq("purchase_order_id", editing.id)
+                            .order("received_at", { ascending: true });
+                          await generateReceivingHistoryPDF({
+                            order: form,
+                            items: orderItems.map(it => ({ id: it.id!, description: it.description, quantity: it.quantity, unit: it.unit, unit_price: it.unit_price })),
+                            receivings: allReceivings || [],
+                            supplierName: suppliers.find((s: any) => s.id === form.supplier_id)?.name || "—",
+                            obraName: obras.find((o: any) => o.id === form.obra_id)?.name || "—",
+                            userId: user!.id,
+                          });
+                          toast.success("PDF do histórico gerado!");
+                        } catch (e: any) { toast.error(e.message); }
+                      }}
+                      className="flex items-center gap-2 px-4 py-2 rounded-lg border border-border bg-background text-foreground hover:bg-muted text-sm font-medium"
+                    >
+                      <FileText className="h-4 w-4" /> Histórico PDF
+                    </button>
                     <button
                       type="button"
                       onClick={openLancamentoModal}

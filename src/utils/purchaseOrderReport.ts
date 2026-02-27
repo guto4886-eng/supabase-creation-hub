@@ -211,3 +211,169 @@ export async function generatePurchaseOrderPDF(data: POReportData) {
 
   doc.save(`OC_${order.order_code || "sem-codigo"}.pdf`);
 }
+
+interface ReceivingHistoryData {
+  order: Record<string, any>;
+  items: Array<{
+    id: string;
+    description: string;
+    quantity: number;
+    unit: string;
+    unit_price: number;
+  }>;
+  receivings: Array<{
+    purchase_order_item_id: string;
+    quantity: number;
+    delivery_date: string | null;
+    received_at: string;
+    romaneio: string | null;
+    receiver: string | null;
+    notes: string | null;
+  }>;
+  supplierName: string;
+  obraName: string;
+  userId: string;
+}
+
+export async function generateReceivingHistoryPDF(data: ReceivingHistoryData) {
+  const { order, items, receivings, supplierName, obraName, userId } = data;
+  const doc = new jsPDF();
+  const companyInfo = await fetchCompanyInfo(userId);
+
+  let y = 15;
+
+  // Company header
+  if (companyInfo) {
+    if (companyInfo.logo_url) {
+      try {
+        const img = await loadImage(companyInfo.logo_url);
+        doc.addImage(img, "JPEG", 14, 10, 22, 22);
+        y = 12;
+      } catch { /* skip */ }
+    }
+    const textX = companyInfo.logo_url ? 40 : 14;
+    doc.setFontSize(13);
+    doc.setFont("helvetica", "bold");
+    if (companyInfo.company_name) { doc.text(companyInfo.company_name, textX, y); y += 5; }
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "normal");
+    if (companyInfo.document) { doc.text(`CNPJ/CPF: ${companyInfo.document}`, textX, y); y += 4; }
+    const addr = [companyInfo.address, companyInfo.city, companyInfo.state].filter(Boolean).join(" - ");
+    if (addr) { doc.text(addr, textX, y); y += 4; }
+    if (companyInfo.phone) { doc.text(`Tel: ${companyInfo.phone}`, textX, y); y += 4; }
+    y += 3;
+  }
+
+  // Title
+  doc.setFontSize(14);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(41, 128, 185);
+  doc.text("HISTÓRICO DE RECEBIMENTO", 14, y);
+  y += 8;
+  doc.setTextColor(0, 0, 0);
+
+  // Order info
+  doc.setFontSize(9);
+  const info = [
+    ["OC:", order.order_code || "—", "Fornecedor:", supplierName],
+    ["Obra:", obraName, "Data OC:", order.order_date ? new Date(order.order_date + "T00:00:00").toLocaleDateString("pt-BR") : "—"],
+  ];
+  info.forEach(row => {
+    doc.setFont("helvetica", "bold");
+    doc.text(row[0], 14, y);
+    doc.setFont("helvetica", "normal");
+    doc.text(row[1], 35, y);
+    doc.setFont("helvetica", "bold");
+    doc.text(row[2], 110, y);
+    doc.setFont("helvetica", "normal");
+    doc.text(row[3], 140, y);
+    y += 5;
+  });
+  y += 4;
+
+  // Build grouped data: per item, list receivings
+  const itemMap = new Map(items.map(i => [i.id, i]));
+
+  // Table with all receivings
+  const head = [["Item", "Qtd. Total", "Data Entrega", "Data Registro", "Romaneio", "Recebedor", "Qtd. Recebida", "Observações"]];
+  const body: string[][] = [];
+
+  // Sort receivings by received_at
+  const sorted = [...receivings].sort((a, b) => a.received_at.localeCompare(b.received_at));
+
+  sorted.forEach(r => {
+    const item = itemMap.get(r.purchase_order_item_id);
+    body.push([
+      item?.description || "—",
+      item ? fmtQty(item.quantity) : "—",
+      r.delivery_date ? new Date(r.delivery_date + "T00:00:00").toLocaleDateString("pt-BR") : "—",
+      new Date(r.received_at).toLocaleDateString("pt-BR"),
+      r.romaneio || "—",
+      r.receiver || "—",
+      fmtQty(r.quantity),
+      r.notes || "",
+    ]);
+  });
+
+  autoTable(doc, {
+    startY: y,
+    head,
+    body,
+    styles: { fontSize: 7, cellPadding: 2 },
+    headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: "bold" },
+    alternateRowStyles: { fillColor: [245, 245, 245] },
+    columnStyles: {
+      1: { halign: "right" },
+      6: { halign: "right" },
+    },
+  });
+
+  // Summary per item
+  const finalY = (doc as any).lastAutoTable?.finalY || y + 20;
+  let sy = finalY + 8;
+
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "bold");
+  doc.text("Resumo por Item", 14, sy);
+  sy += 5;
+
+  const summaryHead = [["Item", "Qtd. Total", "Qtd. Recebida", "Saldo", "% Recebido"]];
+  const summaryBody: string[][] = [];
+
+  items.forEach(item => {
+    const totalReceived = receivings.filter(r => r.purchase_order_item_id === item.id).reduce((s, r) => s + Number(r.quantity), 0);
+    const remaining = Math.max(0, item.quantity - totalReceived);
+    const pct = item.quantity > 0 ? (totalReceived / item.quantity) * 100 : 0;
+    summaryBody.push([
+      item.description,
+      fmtQty(item.quantity),
+      fmtQty(totalReceived),
+      fmtQty(remaining),
+      `${pct.toFixed(1)}%`,
+    ]);
+  });
+
+  autoTable(doc, {
+    startY: sy,
+    head: summaryHead,
+    body: summaryBody,
+    styles: { fontSize: 7.5, cellPadding: 2 },
+    headStyles: { fillColor: [39, 174, 96], textColor: 255, fontStyle: "bold" },
+    alternateRowStyles: { fillColor: [245, 245, 245] },
+    columnStyles: {
+      1: { halign: "right" },
+      2: { halign: "right" },
+      3: { halign: "right" },
+      4: { halign: "right" },
+    },
+  });
+
+  // Footer
+  const pageH = doc.internal.pageSize.getHeight();
+  doc.setFontSize(7);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(128, 128, 128);
+  doc.text(`Gerado em ${new Date().toLocaleString("pt-BR")}`, 14, pageH - 10);
+
+  doc.save(`Recebimento_OC_${order.order_code || "sem-codigo"}.pdf`);
+}
