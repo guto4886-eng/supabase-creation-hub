@@ -203,7 +203,7 @@ export default function Obras() {
   });
 
   const formFields = [
-    "name", "client_id", "category", "status", "notes",
+    "name", "company_id", "client_id", "category", "status", "notes",
     "start_date", "duration", "duration_unit", "expected_end_date",
     "cno", "area_m2", "empreiteiro", "resp_tecnico", "art_number", "resp_obra",
     "cep", "address", "address_number", "neighborhood", "complement", "state", "city",
@@ -617,8 +617,19 @@ export default function Obras() {
               {/* ─── DADOS ─── */}
               {activeTab === "dados" && (
                 <form id="obra-form" onSubmit={handleSubmit} className="p-5 space-y-5">
-                  {/* Cliente + Nome */}
+                  {/* Empresa + Cliente */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-1">Empresa *</label>
+                      <select value={form.company_id || ""} onChange={e => setForm(p => ({ ...p, company_id: e.target.value }))} required className={inputClass}>
+                        <option value="">Selecione...</option>
+                        {companiesList.map(c => (
+                          <option key={c.id} value={c.id}>
+                            {c.company_type === "filial" ? "↳ " : ""}{c.name}{c.company_type === "matriz" ? " (Matriz)" : " (Filial)"}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                     <div>
                       <label className="block text-sm font-medium text-foreground mb-1">Cliente *</label>
                       <select value={form.client_id || ""} onChange={e => setForm(p => ({ ...p, client_id: e.target.value }))} required className={inputClass}>
