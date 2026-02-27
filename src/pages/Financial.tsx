@@ -6,9 +6,11 @@ import { toast } from "sonner";
 import {
   Search, Plus, Pencil, Trash2, Eraser, DollarSign, X,
   TrendingUp, TrendingDown, AlertCircle, ChevronLeft, ChevronRight, Download,
+  BarChart3, List,
 } from "lucide-react";
 import { useCompanies, CompanyFilterSelect } from "@/hooks/useCompanies";
 import { exportToCSV } from "@/utils/exportCsv";
+import FinancialDashboard from "@/components/FinancialDashboard";
 
 const PAGE_SIZE = 15;
 
@@ -73,6 +75,7 @@ interface FinancialDoc {
 }
 
 export default function Financial() {
+  const [mainTab, setMainTab] = useState<"lancamentos" | "dashboard">("lancamentos");
   const { user } = useAuth();
   const qc = useQueryClient();
 
@@ -317,8 +320,27 @@ export default function Financial() {
   };
 
   return (
-    <div className="flex h-[calc(100vh-49px)] overflow-hidden relative">
-      {/* Sidebar */}
+    <div className="flex flex-col h-[calc(100vh-49px)] overflow-hidden relative">
+      {/* Top tab switcher */}
+      <div className="flex items-center border-b border-border bg-card px-4">
+        <button
+          onClick={() => setMainTab("lancamentos")}
+          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors border-b-2 ${mainTab === "lancamentos" ? "text-primary border-primary" : "text-muted-foreground border-transparent hover:text-foreground"}`}
+        >
+          <List className="h-4 w-4" /> Lançamentos
+        </button>
+        <button
+          onClick={() => setMainTab("dashboard")}
+          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors border-b-2 ${mainTab === "dashboard" ? "text-primary border-primary" : "text-muted-foreground border-transparent hover:text-foreground"}`}
+        >
+          <BarChart3 className="h-4 w-4" /> Dashboard
+        </button>
+      </div>
+
+      {mainTab === "dashboard" ? (
+        <FinancialDashboard />
+      ) : (
+      <div className="flex flex-1 overflow-hidden relative">
       <div className="flex flex-shrink-0">
         <div className={`bg-muted transition-all duration-300 overflow-hidden ${filtersOpen ? "w-80" : "w-0"}`}>
           <div className="flex flex-col h-full w-80">
@@ -752,6 +774,8 @@ export default function Financial() {
           </div>
         </div>
       )}
+    </div>
+    )}
     </div>
   );
 }
