@@ -1349,32 +1349,38 @@ export type Database = {
       purchase_order_receivings: {
         Row: {
           created_at: string
+          delivery_date: string | null
           id: string
           notes: string | null
           purchase_order_id: string
           purchase_order_item_id: string
           quantity: number
           received_at: string
+          romaneio: string | null
           user_id: string
         }
         Insert: {
           created_at?: string
+          delivery_date?: string | null
           id?: string
           notes?: string | null
           purchase_order_id: string
           purchase_order_item_id: string
           quantity?: number
           received_at?: string
+          romaneio?: string | null
           user_id: string
         }
         Update: {
           created_at?: string
+          delivery_date?: string | null
           id?: string
           notes?: string | null
           purchase_order_id?: string
           purchase_order_item_id?: string
           quantity?: number
           received_at?: string
+          romaneio?: string | null
           user_id?: string
         }
         Relationships: [
