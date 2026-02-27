@@ -42,96 +42,118 @@ export async function addReportHeader(
   const pageW = doc.internal.pageSize.getWidth();
   const MARGIN = 14;
   const LOGO_X = MARGIN;
-  const LOGO_Y = 10;
-  const LOGO_W = 22;
-  const LOGO_H = 22;
+  const LOGO_Y = 8;
+  const LOGO_W = 20;
+  const LOGO_H = 20;
   let logoLoaded = false;
 
-  // ── Company header block ──
   if (companyInfo) {
-    // Try loading logo
+    // ── Logo ──
     if (companyInfo.logo_url) {
       try {
         const img = await loadImage(companyInfo.logo_url);
         doc.addImage(img, "JPEG", LOGO_X, LOGO_Y, LOGO_W, LOGO_H);
         logoLoaded = true;
-      } catch { /* skip logo */ }
+      } catch { /* skip */ }
     }
 
-    const textX = logoLoaded ? LOGO_X + LOGO_W + 6 : MARGIN;
-    let lineY = LOGO_Y + 4; // start text aligned with top of logo area
-
-    // Company name
-    if (companyInfo.company_name) {
-      doc.setFontSize(13);
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(33, 33, 33);
-      doc.text(companyInfo.company_name, textX, lineY);
-      lineY += 5;
-    }
-
-    // Secondary info in smaller font
+    // ── Right side: date and page ──
+    const now = new Date();
+    const dateStr = now.toLocaleDateString("pt-BR");
     doc.setFontSize(8);
     doc.setFont("helvetica", "normal");
-    doc.setTextColor(90, 90, 90);
+    doc.setTextColor(80, 80, 80);
+    doc.text(dateStr, pageW - MARGIN, LOGO_Y + 4, { align: "right" });
+    // Page number is handled by addPageFooter, but we add placeholder position marker
+    doc.text("Página  {p}", pageW - MARGIN, LOGO_Y + 8, { align: "right" });
 
-    if (companyInfo.document) {
-      doc.text(`CNPJ/CPF: ${companyInfo.document}`, textX, lineY);
-      lineY += 3.5;
+    // ── Center: company info ──
+    const textX = logoLoaded ? LOGO_X + LOGO_W + 5 : MARGIN;
+    const maxTextW = pageW - MARGIN - textX - 40; // leave room for date on right
+    let lineY = LOGO_Y + 4;
+
+    // Company name (bold, larger)
+    if (companyInfo.company_name) {
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(33, 33, 33);
+      const nameLines = doc.splitTextToSize(companyInfo.company_name, maxTextW);
+      doc.text(nameLines, textX, lineY);
+      lineY += nameLines.length * 4 + 1;
     }
+
+    // Address line (smaller)
+    doc.setFontSize(7.5);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(80, 80, 80);
 
     const addrParts = [companyInfo.address, companyInfo.city, companyInfo.state].filter(Boolean);
     if (addrParts.length > 0) {
-      doc.text(addrParts.join(" – "), textX, lineY);
-      lineY += 3.5;
+      const addrText = addrParts.join(" - ");
+      const addrLines = doc.splitTextToSize(addrText, maxTextW);
+      doc.text(addrLines, textX, lineY);
+      lineY += addrLines.length * 3 + 0.5;
     }
 
-    const contactParts: string[] = [];
-    if (companyInfo.phone) contactParts.push(`Tel: ${companyInfo.phone}`);
-    if (companyInfo.email) contactParts.push(companyInfo.email);
-    if (contactParts.length > 0) {
-      doc.text(contactParts.join("  |  "), textX, lineY);
-      lineY += 3.5;
+    // Email + CNPJ on same line
+    const infoParts: string[] = [];
+    if (companyInfo.email) infoParts.push(companyInfo.email);
+    if (companyInfo.phone) infoParts.push(`Tel: ${companyInfo.phone}`);
+    if (companyInfo.document) infoParts.push(`CNPJ: ${companyInfo.document}`);
+    if (infoParts.length > 0) {
+      const infoText = infoParts.join(" - ");
+      const infoLines = doc.splitTextToSize(infoText, maxTextW);
+      doc.text(infoLines, textX, lineY);
+      lineY += infoLines.length * 3 + 0.5;
     }
 
-    // Ensure we're past the logo area before drawing separator
+    // Ensure we clear the logo area
     const headerBottom = logoLoaded
-      ? Math.max(lineY, LOGO_Y + LOGO_H + 4)
+      ? Math.max(lineY + 2, LOGO_Y + LOGO_H + 2)
       : lineY + 2;
 
-    // Separator line
+    // ── Blue separator line ──
     doc.setDrawColor(41, 128, 185);
-    doc.setLineWidth(0.7);
+    doc.setLineWidth(0.8);
     doc.line(MARGIN, headerBottom, pageW - MARGIN, headerBottom);
 
-    // Title row
-    const titleY = headerBottom + 7;
-    doc.setFontSize(12);
+    // ── Title + subtitle ──
+    const titleY = headerBottom + 6;
+    doc.setFontSize(11);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(41, 128, 185);
-    doc.text(title, MARGIN, titleY);
+
+    // Title may be long, so wrap it
+    const titleMaxW = subtitle ? pageW - MARGIN * 2 - 60 : pageW - MARGIN * 2;
+    const titleLines = doc.splitTextToSize(title, titleMaxW);
+    doc.text(titleLines, MARGIN, titleY);
 
     if (subtitle) {
       doc.setFontSize(9);
       doc.setFont("helvetica", "normal");
-      doc.setTextColor(110, 110, 110);
-      doc.text(subtitle, pageW - MARGIN, titleY, { align: "right" });
+      doc.setTextColor(100, 100, 100);
+      const subtitleLines = doc.splitTextToSize(subtitle, pageW - MARGIN * 2);
+      const subtitleY = titleY + titleLines.length * 4.5;
+      doc.text(subtitleLines, MARGIN, subtitleY);
+      
+      doc.setTextColor(0, 0, 0);
+      doc.setFont("helvetica", "normal");
+      return subtitleY + subtitleLines.length * 3.5 + 4;
     }
 
-    // Reset and return content start Y
     doc.setTextColor(0, 0, 0);
     doc.setFont("helvetica", "normal");
-    return titleY + 8;
+    return titleY + titleLines.length * 4.5 + 4;
   }
 
-  // No company info — just title
-  let y = 16;
+  // ── No company info — just title ──
+  let y = 14;
   doc.setDrawColor(41, 128, 185);
-  doc.setLineWidth(0.7);
+  doc.setLineWidth(0.8);
   doc.line(MARGIN, y, pageW - MARGIN, y);
-  y += 7;
+  y += 6;
 
-  doc.setFontSize(12);
+  doc.setFontSize(11);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(41, 128, 185);
   doc.text(title, MARGIN, y);
@@ -139,8 +161,11 @@ export async function addReportHeader(
   if (subtitle) {
     doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
-    doc.setTextColor(110, 110, 110);
-    doc.text(subtitle, pageW - MARGIN, y, { align: "right" });
+    doc.setTextColor(100, 100, 100);
+    doc.text(subtitle, MARGIN, y + 5);
+    doc.setTextColor(0, 0, 0);
+    doc.setFont("helvetica", "normal");
+    return y + 12;
   }
 
   doc.setTextColor(0, 0, 0);
@@ -151,20 +176,30 @@ export async function addReportHeader(
 // ─── Standardized page footer ───
 export function addPageFooter(doc: jsPDF) {
   const pageCount = doc.getNumberOfPages();
+  const MARGIN = 14;
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
     const pageW = doc.internal.pageSize.getWidth();
     const pageH = doc.internal.pageSize.getHeight();
 
+    // Bottom separator
     doc.setDrawColor(200, 200, 200);
     doc.setLineWidth(0.3);
-    doc.line(14, pageH - 14, pageW - 14, pageH - 14);
+    doc.line(MARGIN, pageH - 14, pageW - MARGIN, pageH - 14);
 
     doc.setFontSize(7);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(140, 140, 140);
-    doc.text(`Gerado em ${new Date().toLocaleString("pt-BR")}`, 14, pageH - 9);
-    doc.text(`Página ${i} de ${pageCount}`, pageW - 14, pageH - 9, { align: "right" });
+    doc.text(`Gerado em ${new Date().toLocaleString("pt-BR")}`, MARGIN, pageH - 9);
+    doc.text(`Página ${i} de ${pageCount}`, pageW - MARGIN, pageH - 9, { align: "right" });
+
+    // Also stamp page info in header area (top-right)
+    doc.setFontSize(8);
+    doc.setTextColor(80, 80, 80);
+    // Overwrite the placeholder with white rect then write actual page
+    doc.setFillColor(255, 255, 255);
+    doc.rect(pageW - MARGIN - 30, 13, 30, 5, "F");
+    doc.text(`Página  ${i}/${pageCount}`, pageW - MARGIN, 16, { align: "right" });
   }
 }
 
