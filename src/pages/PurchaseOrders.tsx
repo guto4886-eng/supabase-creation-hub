@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import {
-  Search, Plus, Pencil, Trash2, Eraser
+  Search, Plus, Pencil, Trash2, Eraser, Package
 } from "lucide-react";
 import { useCompanies, CompanyFilterSelect } from "@/hooks/useCompanies";
 import PurchaseOrderModal from "@/components/PurchaseOrderModal";
@@ -12,10 +12,13 @@ import PurchaseOrderModal from "@/components/PurchaseOrderModal";
 const PAGE_SIZE = 15;
 
 const STATUS_OPTIONS = [
-  { value: "rascunho", label: "Rascunho" },
-  { value: "aprovada", label: "Aprovada" },
+  { value: "gerada", label: "Gerada" },
   { value: "enviada", label: "Enviada ao fornecedor" },
+  { value: "pendente_reenvio", label: "Pendente de reenvio" },
+  { value: "processada", label: "Processada pelo fornecedor" },
+  { value: "parcialmente_recebida", label: "Parcialmente recebida" },
   { value: "recebida", label: "Recebida" },
+  { value: "recusada", label: "Recusada pelo fornecedor" },
   { value: "cancelada", label: "Cancelada" },
 ];
 
@@ -27,10 +30,16 @@ export default function PurchaseOrders() {
 
   const [filtersOpen, setFiltersOpen] = useState(true);
   const [filterCode, setFilterCode] = useState("");
-  const [filterSupplier, setFilterSupplier] = useState("");
-  const [filterStatus, setFilterStatus] = useState("");
+  const [filterStatuses, setFilterStatuses] = useState<string[]>([]);
+  const [filterDateType, setFilterDateType] = useState<"criacao" | "entrega" | "">("");
   const [filterDateFrom, setFilterDateFrom] = useState("");
   const [filterDateTo, setFilterDateTo] = useState("");
+  const [filterValueFrom, setFilterValueFrom] = useState("");
+  const [filterValueTo, setFilterValueTo] = useState("");
+  const [filterClient, setFilterClient] = useState("");
+  const [filterObra, setFilterObra] = useState("");
+  const [filterSupplier, setFilterSupplier] = useState("");
+  const [filterDescription, setFilterDescription] = useState("");
   const [filterCompany, setFilterCompany] = useState("");
   const [searched, setSearched] = useState(false);
   const [page, setPage] = useState(0);
@@ -58,26 +67,48 @@ export default function PurchaseOrders() {
     },
   });
 
+  const { data: clients = [] } = useQuery({
+    queryKey: ["clients_list_po"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("clients").select("id, name").eq("active", true).order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const { data: items = [], isLoading } = useQuery({
     queryKey: ["purchase_orders"],
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("purchase_orders")
-        .select("*, suppliers(name), obras(name)")
+        .select("*, suppliers(name), obras(name, client_id)")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data as any[];
     },
   });
 
+  const toggleStatus = (val: string) => {
+    setFilterStatuses(prev => prev.includes(val) ? prev.filter(v => v !== val) : [...prev, val]);
+  };
+
   const filtered = searched
     ? items.filter((item) => {
         if (filterCode && !item.order_code?.toLowerCase().includes(filterCode.toLowerCase())) return false;
         if (filterSupplier && item.supplier_id !== filterSupplier) return false;
-        if (filterStatus && item.status !== filterStatus) return false;
-        if (filterDateFrom && item.order_date < filterDateFrom) return false;
-        if (filterDateTo && item.order_date > filterDateTo) return false;
+        if (filterStatuses.length > 0 && !filterStatuses.includes(item.status)) return false;
         if (filterCompany && item.company_id !== filterCompany) return false;
+        if (filterClient && item.obras?.client_id !== filterClient) return false;
+        if (filterObra && item.obra_id !== filterObra) return false;
+        if (filterDescription && !item.description?.toLowerCase().includes(filterDescription.toLowerCase())) return false;
+        // Date filtering
+        const dateField = filterDateType === "entrega" ? item.delivery_date : item.created_at?.substring(0, 10);
+        if (filterDateFrom && dateField && dateField < filterDateFrom) return false;
+        if (filterDateTo && dateField && dateField > filterDateTo) return false;
+        // Value filtering
+        const val = Number(item.total_value) || 0;
+        if (filterValueFrom && val < Number(filterValueFrom)) return false;
+        if (filterValueTo && val > Number(filterValueTo)) return false;
         return true;
       })
     : [];
@@ -104,14 +135,18 @@ export default function PurchaseOrders() {
   });
 
   const handleSearch = () => { setSearched(true); setPage(0); };
-  const handleClearFilters = () => { setFilterCode(""); setFilterSupplier(""); setFilterStatus(""); setFilterCompany(""); setFilterDateFrom(""); setFilterDateTo(""); setSearched(false); setPage(0); };
+  const handleClearFilters = () => { setFilterCode(""); setFilterSupplier(""); setFilterStatuses([]); setFilterCompany(""); setFilterDateFrom(""); setFilterDateTo(""); setFilterDateType(""); setFilterValueFrom(""); setFilterValueTo(""); setFilterClient(""); setFilterObra(""); setFilterDescription(""); setSearched(false); setPage(0); };
 
   const formatCurrency = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
   const statusColor = (s: string) => {
-    if (s === "aprovada") return "text-green-600 bg-green-100";
+    if (s === "gerada") return "text-muted-foreground bg-muted";
     if (s === "enviada") return "text-blue-600 bg-blue-100";
+    if (s === "pendente_reenvio") return "text-amber-600 bg-amber-100";
+    if (s === "processada") return "text-blue-700 bg-blue-200";
+    if (s === "parcialmente_recebida") return "text-cyan-700 bg-cyan-100";
     if (s === "recebida") return "text-green-700 bg-green-200";
+    if (s === "recusada") return "text-red-600 bg-red-100";
     if (s === "cancelada") return "text-destructive bg-destructive/10";
     return "text-muted-foreground bg-muted";
   };
@@ -121,37 +156,80 @@ export default function PurchaseOrders() {
       <div className="flex flex-shrink-0">
         <div className={`bg-muted transition-all duration-300 overflow-hidden ${filtersOpen ? "w-80" : "w-0"}`}>
           <div className="flex flex-col h-full w-80">
-            <div className="p-4 border-b border-border">
-              <h2 className="text-lg font-bold text-primary uppercase flex items-center gap-2"><Search className="h-5 w-5" /> Ordens de Compra</h2>
-              <p className="text-xs text-muted-foreground mt-1">Faça sua pesquisa aqui</p>
+            <div className="p-4 border-b border-border flex items-center gap-3">
+              <Package className="h-6 w-6 text-primary" />
+              <div>
+                <h2 className="text-lg font-bold text-primary uppercase">Ordens de Compra</h2>
+                <p className="text-xs text-muted-foreground flex items-center gap-1">ⓘ Faça sua pesquisa aqui</p>
+              </div>
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
               <CompanyFilterSelect value={filterCompany} onChange={setFilterCompany} companies={companiesList} className={inputClass} />
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Código</label>
+                <label className="block text-sm font-medium text-foreground mb-1">Número</label>
                 <input type="text" value={filterCode} onChange={e => setFilterCode(e.target.value)} className={inputClass} />
               </div>
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Fornecedor</label>
-                <select value={filterSupplier} onChange={e => setFilterSupplier(e.target.value)} className={inputClass}>
-                  <option value="">Todos</option>
-                  {suppliers.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
+                <label className="block text-sm font-medium text-foreground mb-1">Situação</label>
+                <div className="space-y-1.5">
+                  {STATUS_OPTIONS.map(s => (
+                    <label key={s.value} className="flex items-center gap-2 text-sm cursor-pointer">
+                      <input type="checkbox" checked={filterStatuses.includes(s.value)} onChange={() => toggleStatus(s.value)} className="rounded border-input accent-primary" />
+                      <span className="text-foreground">{s.label}</span>
+                    </label>
+                  ))}
+                </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Status</label>
-                <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className={inputClass}>
-                  <option value="">Todos</option>
-                  {STATUS_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Período</label>
+                <label className="block text-sm font-medium text-foreground mb-1">Data</label>
+                <div className="flex items-center gap-4 mb-2">
+                  <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+                    <input type="checkbox" checked={filterDateType === "criacao"} onChange={() => setFilterDateType(filterDateType === "criacao" ? "" : "criacao")} className="rounded border-input accent-primary" />
+                    <span>Criação</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+                    <input type="checkbox" checked={filterDateType === "entrega"} onChange={() => setFilterDateType(filterDateType === "entrega" ? "" : "entrega")} className="rounded border-input accent-primary" />
+                    <span>Entrega</span>
+                  </label>
+                </div>
                 <div className="flex items-center gap-2">
                   <input type="date" value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)} className={inputClass} />
                   <span className="text-sm text-muted-foreground">até</span>
                   <input type="date" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} className={inputClass} />
                 </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Valor</label>
+                <div className="flex items-center gap-2">
+                  <input type="text" placeholder="R$" value={filterValueFrom} onChange={e => setFilterValueFrom(e.target.value)} className={inputClass} />
+                  <span className="text-sm text-muted-foreground">até</span>
+                  <input type="text" placeholder="R$" value={filterValueTo} onChange={e => setFilterValueTo(e.target.value)} className={inputClass} />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Cliente</label>
+                <select value={filterClient} onChange={e => setFilterClient(e.target.value)} className={inputClass}>
+                  <option value="">Selecione...</option>
+                  {clients.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Obra</label>
+                <select value={filterObra} onChange={e => setFilterObra(e.target.value)} className={inputClass}>
+                  <option value="">Selecione...</option>
+                  {obras.map((o: any) => <option key={o.id} value={o.id}>{o.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Fornecedor</label>
+                <select value={filterSupplier} onChange={e => setFilterSupplier(e.target.value)} className={inputClass}>
+                  <option value="">Selecione...</option>
+                  {suppliers.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Descrição</label>
+                <input type="text" value={filterDescription} onChange={e => setFilterDescription(e.target.value)} className={inputClass} />
               </div>
             </div>
             <div className="p-4 border-t border-border flex gap-2">
