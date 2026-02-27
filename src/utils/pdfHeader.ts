@@ -40,91 +40,112 @@ export async function addReportHeader(
   subtitle?: string,
 ): Promise<number> {
   const pageW = doc.internal.pageSize.getWidth();
-  const LOGO_X = 14;
+  const MARGIN = 14;
+  const LOGO_X = MARGIN;
   const LOGO_Y = 10;
-  const LOGO_W = 24;
-  const LOGO_H = 24;
+  const LOGO_W = 22;
+  const LOGO_H = 22;
   let logoLoaded = false;
-  let textY = 14;
 
+  // ── Company header block ──
   if (companyInfo) {
-    // Logo
+    // Try loading logo
     if (companyInfo.logo_url) {
       try {
         const img = await loadImage(companyInfo.logo_url);
         doc.addImage(img, "JPEG", LOGO_X, LOGO_Y, LOGO_W, LOGO_H);
         logoLoaded = true;
-      } catch { /* skip */ }
+      } catch { /* skip logo */ }
     }
 
-    const textX = logoLoaded ? LOGO_X + LOGO_W + 4 : 14;
+    const textX = logoLoaded ? LOGO_X + LOGO_W + 6 : MARGIN;
+    let lineY = LOGO_Y + 4; // start text aligned with top of logo area
 
     // Company name
     if (companyInfo.company_name) {
-      doc.setFontSize(14);
+      doc.setFontSize(13);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(33, 33, 33);
-      doc.text(companyInfo.company_name, textX, textY);
-      textY += 5;
+      doc.text(companyInfo.company_name, textX, lineY);
+      lineY += 5;
     }
 
-    // Info lines
+    // Secondary info in smaller font
     doc.setFontSize(8);
     doc.setFont("helvetica", "normal");
-    doc.setTextColor(80, 80, 80);
+    doc.setTextColor(90, 90, 90);
 
     if (companyInfo.document) {
-      doc.text(`CNPJ/CPF: ${companyInfo.document}`, textX, textY);
-      textY += 3.5;
+      doc.text(`CNPJ/CPF: ${companyInfo.document}`, textX, lineY);
+      lineY += 3.5;
     }
 
-    const addr = [companyInfo.address, companyInfo.city, companyInfo.state].filter(Boolean).join(" – ");
-    if (addr) {
-      doc.text(addr, textX, textY);
-      textY += 3.5;
+    const addrParts = [companyInfo.address, companyInfo.city, companyInfo.state].filter(Boolean);
+    if (addrParts.length > 0) {
+      doc.text(addrParts.join(" – "), textX, lineY);
+      lineY += 3.5;
     }
 
     const contactParts: string[] = [];
     if (companyInfo.phone) contactParts.push(`Tel: ${companyInfo.phone}`);
     if (companyInfo.email) contactParts.push(companyInfo.email);
     if (contactParts.length > 0) {
-      doc.text(contactParts.join("  |  "), textX, textY);
-      textY += 3.5;
+      doc.text(contactParts.join("  |  "), textX, lineY);
+      lineY += 3.5;
     }
 
-    // Ensure Y is always below logo area to prevent overlap
-    if (logoLoaded) {
-      textY = Math.max(textY, LOGO_Y + LOGO_H + 2);
+    // Ensure we're past the logo area before drawing separator
+    const headerBottom = logoLoaded
+      ? Math.max(lineY, LOGO_Y + LOGO_H + 4)
+      : lineY + 2;
+
+    // Separator line
+    doc.setDrawColor(41, 128, 185);
+    doc.setLineWidth(0.7);
+    doc.line(MARGIN, headerBottom, pageW - MARGIN, headerBottom);
+
+    // Title row
+    const titleY = headerBottom + 7;
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(41, 128, 185);
+    doc.text(title, MARGIN, titleY);
+
+    if (subtitle) {
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(110, 110, 110);
+      doc.text(subtitle, pageW - MARGIN, titleY, { align: "right" });
     }
+
+    // Reset and return content start Y
+    doc.setTextColor(0, 0, 0);
+    doc.setFont("helvetica", "normal");
+    return titleY + 8;
   }
 
-  // Separator line
-  textY += 2;
+  // No company info — just title
+  let y = 16;
   doc.setDrawColor(41, 128, 185);
-  doc.setLineWidth(0.8);
-  doc.line(14, textY, pageW - 14, textY);
-  textY += 6;
+  doc.setLineWidth(0.7);
+  doc.line(MARGIN, y, pageW - MARGIN, y);
+  y += 7;
 
-  // Title
-  doc.setFontSize(13);
+  doc.setFontSize(12);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(41, 128, 185);
-  doc.text(title, 14, textY);
+  doc.text(title, MARGIN, y);
 
-  // Subtitle (right-aligned)
   if (subtitle) {
     doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
-    doc.setTextColor(100, 100, 100);
-    doc.text(subtitle, pageW - 14, textY, { align: "right" });
+    doc.setTextColor(110, 110, 110);
+    doc.text(subtitle, pageW - MARGIN, y, { align: "right" });
   }
 
-  textY += 8;
-
-  // Reset text color
   doc.setTextColor(0, 0, 0);
   doc.setFont("helvetica", "normal");
-  return textY;
+  return y + 8;
 }
 
 // ─── Standardized page footer ───
