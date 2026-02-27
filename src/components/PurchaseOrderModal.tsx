@@ -111,6 +111,45 @@ export default function PurchaseOrderModal({
     },
   });
 
+  // Fetch budget items for selected obra (item-level)
+  const selectedItemObraId = newItem.obra_id;
+  const { data: obraBudgetItems = [] } = useQuery({
+    queryKey: ["obra_budget_items_po", selectedItemObraId],
+    enabled: !!selectedItemObraId,
+    queryFn: async () => {
+      // Find budgets for this obra
+      const { data: budgets } = await supabase.from("budgets").select("id").eq("obra_id", selectedItemObraId!);
+      if (!budgets || budgets.length === 0) return [];
+      const budgetIds = budgets.map(b => b.id);
+      const { data: items } = await supabase.from("budget_items").select("description, category").in("budget_id", budgetIds).order("sort_order");
+      return items || [];
+    },
+  });
+
+  // Extract phases (category contains "Fase" or similar root items like "1 Fundação")
+  const budgetPhases = obraBudgetItems
+    .filter(i => {
+      const cat = (i.category || "").toLowerCase();
+      const desc = i.description || "";
+      // Root phases: items whose description starts with a single number (no dot)
+      const prefix = desc.match(/^(\d+)/)?.[1];
+      return cat === "fase" || (prefix && !desc.match(/^\d+\.\d+/));
+    })
+    .map(i => i.description)
+    .filter((v, idx, arr) => v && arr.indexOf(v) === idx);
+
+  // Extract services filtered by selected phase
+  const budgetServices = obraBudgetItems
+    .filter(i => {
+      if (!newItem.phase) return false;
+      const desc = i.description || "";
+      const phasePrefix = newItem.phase.match(/^(\d+)/)?.[1];
+      // Services are sub-items like "1.1 Something"
+      return phasePrefix && desc.match(new RegExp(`^${phasePrefix}\\.\\d+`));
+    })
+    .map(i => i.description)
+    .filter((v, idx, arr) => v && arr.indexOf(v) === idx);
+
   // Vendor contacts for selected supplier
   const { data: vendorContacts = [] } = useQuery({
     queryKey: ["vendor_contacts_po", form.supplier_id],
@@ -421,11 +460,25 @@ export default function PurchaseOrderModal({
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-1">Fase</label>
-                    <input value={newItem.phase} onChange={e => setNewItem(p => ({ ...p, phase: e.target.value }))} className={inputClass} />
+                    {budgetPhases.length > 0 ? (
+                      <select value={newItem.phase} onChange={e => setNewItem(p => ({ ...p, phase: e.target.value, service: "" }))} className={inputClass}>
+                        <option value="">Selecione...</option>
+                        {budgetPhases.map(ph => <option key={ph} value={ph}>{ph}</option>)}
+                      </select>
+                    ) : (
+                      <input value={newItem.phase} onChange={e => setNewItem(p => ({ ...p, phase: e.target.value }))} className={inputClass} placeholder={newItem.obra_id ? "Nenhuma fase no orçamento" : "Selecione uma obra"} />
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-1">Serviço</label>
-                    <input value={newItem.service} onChange={e => setNewItem(p => ({ ...p, service: e.target.value }))} className={inputClass} />
+                    {budgetServices.length > 0 ? (
+                      <select value={newItem.service} onChange={e => setNewItem(p => ({ ...p, service: e.target.value }))} className={inputClass}>
+                        <option value="">Selecione...</option>
+                        {budgetServices.map(sv => <option key={sv} value={sv}>{sv}</option>)}
+                      </select>
+                    ) : (
+                      <input value={newItem.service} onChange={e => setNewItem(p => ({ ...p, service: e.target.value }))} className={inputClass} placeholder={newItem.phase ? "Nenhum serviço nesta fase" : "Selecione uma fase"} />
+                    )}
                   </div>
                 </div>
 
