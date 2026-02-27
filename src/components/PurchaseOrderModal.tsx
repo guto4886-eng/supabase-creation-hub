@@ -643,14 +643,95 @@ export default function PurchaseOrderModal({
           )}
 
           {activeTab === "pagamento" && (
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Condições de pagamento</label>
-                <input value={form.payment_terms || ""} onChange={e => setForm(p => ({ ...p, payment_terms: e.target.value }))} className={inputClass} />
+            <div className="p-6 flex gap-6">
+              {/* Resumo sidebar */}
+              <div className="w-64 flex-shrink-0 border border-border rounded-lg overflow-hidden">
+                <div className="bg-muted px-4 py-2 text-sm font-semibold text-foreground text-center border-b border-border">Resumo</div>
+                <div className="divide-y divide-border text-sm">
+                  {[
+                    ["Qtd. itens", String(orderItems.length)],
+                    ["Total itens", formatCurrency(itemsTotal)],
+                    ["Desconto", formatCurrency(finalDiscount)],
+                    ["Frete", formatCurrency(globalFreight)],
+                  ].map(([label, val]) => (
+                    <div key={label} className="flex justify-between px-4 py-2">
+                      <span className="text-muted-foreground">{label}</span>
+                      <span className="text-foreground font-medium">{val}</span>
+                    </div>
+                  ))}
+                  <div className="flex justify-between px-4 py-2 bg-muted/50">
+                    <span className="font-semibold text-foreground">TOTAL</span>
+                    <span className="font-bold text-foreground">{formatCurrency(grandTotal)}</span>
+                  </div>
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Observações</label>
-                <textarea value={form.notes || ""} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} rows={4} className={inputClass} />
+
+              {/* Payment form */}
+              <div className="flex-1 space-y-4">
+                <div className="flex items-center gap-3">
+                  <label className="text-sm font-medium text-foreground w-44 text-right">Faturamento para *</label>
+                  <div className="flex gap-4">
+                    {[{ value: "empresa", label: "Empresa" }, { value: "cliente", label: "Cliente" }].map(o => (
+                      <label key={o.value} className="flex items-center gap-1.5 text-sm cursor-pointer">
+                        <input type="radio" name="billing_target" value={o.value} checked={(form.billing_target || "empresa") === o.value} onChange={e => setForm(p => ({ ...p, billing_target: e.target.value }))} className="accent-primary" />
+                        {o.label}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <label className="text-sm font-medium text-foreground w-44 text-right">Lançamento financeiro</label>
+                  <div className="flex gap-4">
+                    {[{ value: "no_recebimento", label: "No recebimento" }, { value: "antes_recebimento", label: "Antes do recebimento" }].map(o => (
+                      <label key={o.value} className="flex items-center gap-1.5 text-sm cursor-pointer">
+                        <input type="radio" name="financial_posting" value={o.value} checked={(form.financial_posting || "no_recebimento") === o.value} onChange={e => setForm(p => ({ ...p, financial_posting: e.target.value }))} className="accent-primary" />
+                        {o.label}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <label className="text-sm font-medium text-foreground w-44 text-right">Condição pagamento *</label>
+                  <select value={form.payment_terms || ""} onChange={e => setForm(p => ({ ...p, payment_terms: e.target.value }))} className={`${inputClass} max-w-xs`}>
+                    <option value="">Selecione...</option>
+                    <option value="a_vista">À vista</option>
+                    <option value="7_dias">7 dias [1 parcela]</option>
+                    <option value="14_dias">14 dias [1 parcela]</option>
+                    <option value="21_dias">21 dias [1 parcela]</option>
+                    <option value="28_dias">28 dias [1 parcela]</option>
+                    <option value="30_dias">30 dias [1 parcela]</option>
+                    <option value="30_60_dias">30/60 dias [2 parcelas]</option>
+                    <option value="30_60_90_dias">30/60/90 dias [3 parcelas]</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <label className="text-sm font-medium text-foreground w-44 text-right">Forma de pagamento</label>
+                  <select value={form.payment_method || ""} onChange={e => setForm(p => ({ ...p, payment_method: e.target.value }))} className={`${inputClass} max-w-xs`}>
+                    <option value="">Selecione...</option>
+                    <option value="boleto">Boleto</option>
+                    <option value="pix">PIX</option>
+                    <option value="transferencia">Transferência</option>
+                    <option value="cartao">Cartão</option>
+                    <option value="dinheiro">Dinheiro</option>
+                    <option value="cheque">Cheque</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <label className="text-sm font-medium text-foreground w-44 text-right">Previsão entrega *</label>
+                  <input type="date" value={form.delivery_date || ""} onChange={e => setForm(p => ({ ...p, delivery_date: e.target.value }))} className={`${inputClass} max-w-[180px]`} />
+                </div>
+
+                <div className="flex items-start gap-3">
+                  <label className="text-sm font-medium text-foreground w-44 text-right pt-2">Observação</label>
+                  <div className="flex-1">
+                    <textarea value={form.notes || ""} onChange={e => { if (e.target.value.length <= 4000) setForm(p => ({ ...p, notes: e.target.value })); }} rows={6} className={inputClass} />
+                    <p className="text-xs text-muted-foreground text-right mt-1">{4000 - (form.notes?.length || 0)} caracteres restantes</p>
+                  </div>
+                </div>
               </div>
             </div>
           )}
