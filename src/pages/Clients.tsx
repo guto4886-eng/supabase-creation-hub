@@ -10,6 +10,7 @@ import {
 import { exportCSV, exportExcel, exportPDF, fetchCompanyInfo } from "@/utils/exportWithHeader";
 import ExportDialog from "@/components/ExportDialog";
 import { maskCpfCnpj, validateCpfCnpj } from "@/utils/cpfCnpj";
+import { fetchCnpj } from "@/utils/cnpjLookup";
 import { fetchCep } from "@/utils/cep";
 import Attachments from "@/components/Attachments";
 import CsvImport from "@/components/CsvImport";
@@ -72,6 +73,7 @@ export default function Clients() {
   const [form, setForm] = useState<Record<string, any>>({});
   const [activeTab, setActiveTab] = useState("dados");
   const [cepLoading, setCepLoading] = useState(false);
+  const [cnpjLoading, setCnpjLoading] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
 
@@ -224,6 +226,35 @@ export default function Clients() {
       toast.success("Endereço preenchido!");
     } else if (value.replace(/\D/g, "").length === 8) {
       toast.error("CEP não encontrado");
+    }
+  };
+
+  const handleDocumentBlur = async (value: string) => {
+    const digits = value.replace(/\D/g, "");
+    if (digits.length === 14) {
+      // CNPJ - lookup via BrasilAPI
+      setCnpjLoading(true);
+      const result = await fetchCnpj(digits);
+      setCnpjLoading(false);
+      if (result) {
+        setForm((p) => ({
+          ...p,
+          person_type: "j",
+          name: result.razao_social || p.name,
+          cep: result.cep || p.cep,
+          address: result.logradouro || p.address,
+          address_number: result.numero || p.address_number,
+          complement: result.complemento || p.complement,
+          neighborhood: result.bairro || p.neighborhood,
+          city: result.municipio || p.city,
+          state: result.uf || p.state,
+          phone: result.telefone || p.phone,
+          email: result.email || p.email,
+        }));
+        toast.success("Dados do CNPJ preenchidos!");
+      } else {
+        toast.error("CNPJ não encontrado");
+      }
     }
   };
 
@@ -533,7 +564,8 @@ export default function Clients() {
                   <div className="grid grid-cols-3 gap-4">
                     <div className="flex items-center gap-2">
                       <label className="text-sm font-medium text-card-foreground whitespace-nowrap">{form.person_type === "j" ? "CNPJ" : "CPF"}</label>
-                      <input type="text" value={form.document ?? ""} onChange={(e) => setForm((p) => ({ ...p, document: maskCpfCnpj(e.target.value) }))} placeholder={form.person_type === "j" ? "00.000.000/0000-00" : "000.000.000-00"} className={inputClass} />
+                      <input type="text" value={form.document ?? ""} onChange={(e) => setForm((p) => ({ ...p, document: maskCpfCnpj(e.target.value) }))} onBlur={(e) => handleDocumentBlur(e.target.value)} placeholder={form.person_type === "j" ? "00.000.000/0000-00" : "000.000.000-00"} className={inputClass} />
+                      {cnpjLoading && <span className="text-xs text-muted-foreground animate-pulse">Consultando...</span>}
                     </div>
                     <div className="flex items-center gap-2">
                       <label className="text-sm font-medium text-card-foreground whitespace-nowrap">RG</label>
