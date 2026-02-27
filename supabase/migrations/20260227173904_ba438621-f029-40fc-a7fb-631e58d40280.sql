@@ -1,0 +1,1 @@
+ALTER TABLE public.purchase_order_receivings ADD COLUMN receiver text DEFAULT NULL;
