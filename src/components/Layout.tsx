@@ -8,7 +8,7 @@ import HelpButton from "@/components/HelpButton";
 import {
   LayoutDashboard, Users, Truck, Building2, FileText,
   DollarSign, ShoppingCart, LogOut, Menu, X, Crown, UserCircle,
-  PackageCheck, ChevronDown, ClipboardList, FileSearch, FileBox, Settings, User, Car
+  PackageCheck, ChevronDown, ClipboardList, FileSearch, FileBox, Settings, User, Car, HardHat
 } from "lucide-react";
 
 type NavItem = {
@@ -31,6 +31,7 @@ const navItems: NavItem[] = [
     ],
   },
   { to: "/obras", label: "Obras", icon: Building2 },
+  { to: "/labor", label: "Mão de Obra", icon: HardHat },
   { to: "/budgets", label: "Orçamentos", icon: FileText },
   { to: "/quotations", label: "Cotações", icon: ShoppingCart },
   { to: "/fleet", label: "Frota", icon: Car },
