@@ -18,9 +18,19 @@ import LaborEpis from "@/components/labor/LaborEpis";
 import LaborAllocations from "@/components/labor/LaborAllocations";
 
 const ROLES = [
+  // Operacional
   "Pedreiro", "Servente", "Mestre de obras", "Encanador", "Eletricista",
   "Pintor", "Carpinteiro", "Armador", "Azulejista", "Gesseiro",
-  "Serralheiro", "Engenheiro", "Arquiteto", "Técnico de segurança", "Outro",
+  "Serralheiro", "Operador de máquinas", "Soldador", "Vidraceiro", "Marmorista",
+  // Técnico
+  "Engenheiro", "Arquiteto", "Técnico de segurança", "Técnico em edificações", "Topógrafo",
+  // Administrativo
+  "Assistente administrativo", "Auxiliar financeiro", "Comprador", "Almoxarife",
+  "Recepcionista", "Secretária", "Recursos Humanos", "Departamento Pessoal",
+  // Gestão
+  "Gerente de obras", "Gerente de projetos", "Coordenador", "Supervisor",
+  "Diretor", "Sócio/Proprietário",
+  "Outro",
 ];
 
 const CARGOS = [
