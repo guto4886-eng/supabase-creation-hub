@@ -6,15 +6,29 @@ import { toast } from "sonner";
 import { Plus, Pencil, Trash2, X, Save } from "lucide-react";
 
 const CHARGE_TYPES = [
-  { value: "inss", label: "INSS" },
-  { value: "fgts", label: "FGTS" },
-  { value: "irrf", label: "IRRF" },
-  { value: "vale_transporte", label: "Vale Transporte" },
-  { value: "desconto_faltas", label: "Desconto Faltas" },
-  { value: "contribuicao_sindical", label: "Contribuição Sindical" },
-  { value: "pensao_alimenticia", label: "Pensão Alimentícia" },
-  { value: "adiantamento", label: "Adiantamento" },
-  { value: "outros", label: "Outros" },
+  // Encargos sobre a folha (empregador)
+  { value: "inss_patronal", label: "INSS Patronal", percentage: 20, description: "Contribuição previdenciária patronal" },
+  { value: "rat", label: "RAT (Risco Ambiental do Trabalho)", percentage: 2, description: "Seguro acidente de trabalho (1% a 3%)" },
+  { value: "fgts", label: "FGTS", percentage: 8, description: "Fundo de Garantia por Tempo de Serviço" },
+  { value: "fgts_multa", label: "FGTS – Provisão multa rescisória", percentage: 3.2, description: "Provisão de 40% sobre 8% do FGTS" },
+  { value: "salario_educacao", label: "Salário Educação", percentage: 2.5, description: "Contribuição social sobre folha" },
+  { value: "incra", label: "INCRA", percentage: 0.2, description: "Instituto Nacional de Colonização e Reforma Agrária" },
+  { value: "senai", label: "SENAI", percentage: 1, description: "Serviço Nacional de Aprendizagem Industrial" },
+  { value: "sesi", label: "SESI", percentage: 1.5, description: "Serviço Social da Indústria" },
+  { value: "sebrae", label: "SEBRAE", percentage: 0.6, description: "Serviço Brasileiro de Apoio às Micro e Pequenas Empresas" },
+  // Provisões trabalhistas
+  { value: "ferias", label: "Férias + 1/3 constitucional", percentage: 11.11, description: "Provisão de férias (1/12 + 1/3)" },
+  { value: "decimo_terceiro", label: "13º Salário", percentage: 8.33, description: "Provisão do décimo terceiro salário (1/12)" },
+  { value: "descanso_remunerado", label: "Descanso Semanal Remunerado (DSR)", percentage: 16.67, description: "Incidência sobre variáveis (horas extras, etc.)" },
+  // Descontos do empregado
+  { value: "inss_empregado", label: "INSS (desconto empregado)", percentage: 0, description: "Faixa progressiva: 7,5% a 14%" },
+  { value: "irrf", label: "IRRF", percentage: 0, description: "Imposto de Renda Retido na Fonte – faixa progressiva" },
+  { value: "vale_transporte", label: "Vale Transporte (desconto)", percentage: 6, description: "Desconto de até 6% do salário base" },
+  // Outros
+  { value: "contribuicao_sindical", label: "Contribuição Sindical", percentage: 0, description: "Opcional desde a Reforma Trabalhista" },
+  { value: "pensao_alimenticia", label: "Pensão Alimentícia", percentage: 0, description: "Conforme determinação judicial" },
+  { value: "adiantamento", label: "Adiantamento", percentage: 0, description: "" },
+  { value: "outros", label: "Outros", percentage: 0, description: "" },
 ];
 
 const inputClass = "w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm";
@@ -60,6 +74,16 @@ export default function LaborCharges({ laborId }: { laborId: string }) {
   const closeForm = () => { setFormOpen(false); setEditing(null); setForm({}); };
   const openNew = () => { setEditing(null); setForm({ charge_type: "", description: "", percentage: "", fixed_value: "", reference_month: "", notes: "" }); setFormOpen(true); };
   const openEdit = (item: any) => { setEditing(item); setForm({ charge_type: item.charge_type, description: item.description || "", percentage: item.percentage || "", fixed_value: item.fixed_value || "", reference_month: item.reference_month || "", notes: item.notes || "" }); setFormOpen(true); };
+
+  const handleChargeTypeChange = (value: string) => {
+    const found = CHARGE_TYPES.find(c => c.value === value);
+    setForm(p => ({
+      ...p,
+      charge_type: value,
+      percentage: found?.percentage || "",
+      description: found?.description || p.description || "",
+    }));
+  };
 
   const handleSubmit = () => {
     if (!form.charge_type) { toast.error("Tipo é obrigatório"); return; }
@@ -130,7 +154,7 @@ export default function LaborCharges({ laborId }: { laborId: string }) {
           <div className="grid grid-cols-3 gap-3">
             <div>
               <label className="block text-xs font-medium text-foreground mb-1">Tipo *</label>
-              <select value={form.charge_type || ""} onChange={e => setForm(p => ({ ...p, charge_type: e.target.value }))} className={inputClass}>
+              <select value={form.charge_type || ""} onChange={e => handleChargeTypeChange(e.target.value)} className={inputClass}>
                 <option value="">Selecione...</option>
                 {CHARGE_TYPES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
               </select>
