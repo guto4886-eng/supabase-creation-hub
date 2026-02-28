@@ -19,6 +19,54 @@ const ROLES = [
   "Serralheiro", "Engenheiro", "Arquiteto", "Técnico de segurança", "Outro",
 ];
 
+const CARGOS = [
+  "Ajudante", "Auxiliar", "Operador", "Encarregado", "Supervisor",
+  "Coordenador", "Gerente", "Diretor", "Estagiário", "Aprendiz", "Outro",
+];
+
+const SHIFT_TYPES = [
+  { value: "comercial", label: "Comercial (08h-18h)" },
+  { value: "integral", label: "Integral (12x36)" },
+  { value: "noturno", label: "Noturno" },
+  { value: "meio_periodo", label: "Meio período" },
+  { value: "escala", label: "Escala" },
+  { value: "outro", label: "Outro" },
+];
+
+const REMUNERATION_TYPES = [
+  { value: "mensal", label: "Mensal" },
+  { value: "quinzenal", label: "Quinzenal" },
+  { value: "semanal", label: "Semanal" },
+  { value: "diaria", label: "Diária" },
+  { value: "hora", label: "Por hora" },
+  { value: "empreitada", label: "Empreitada" },
+];
+
+/** Calcula previsão de férias baseado no período aquisitivo (12 meses após admissão) */
+function calcVacation(admissionDate: string | null): { acquisitiveEnd: string; vacationDeadline: string } | null {
+  if (!admissionDate) return null;
+  const admission = new Date(admissionDate + "T00:00:00");
+  if (isNaN(admission.getTime())) return null;
+  const today = new Date();
+  // Encontrar o período aquisitivo atual
+  let periodStart = new Date(admission);
+  while (true) {
+    const periodEnd = new Date(periodStart);
+    periodEnd.setFullYear(periodEnd.getFullYear() + 1);
+    periodEnd.setDate(periodEnd.getDate() - 1);
+    if (periodEnd >= today || periodStart > today) break;
+    periodStart.setFullYear(periodStart.getFullYear() + 1);
+  }
+  const acquisitiveEnd = new Date(periodStart);
+  acquisitiveEnd.setFullYear(acquisitiveEnd.getFullYear() + 1);
+  acquisitiveEnd.setDate(acquisitiveEnd.getDate() - 1);
+  // Período concessivo: 12 meses após fim do aquisitivo
+  const vacationDeadline = new Date(acquisitiveEnd);
+  vacationDeadline.setFullYear(vacationDeadline.getFullYear() + 1);
+  const fmt = (d: Date) => d.toISOString().split("T")[0];
+  return { acquisitiveEnd: fmt(acquisitiveEnd), vacationDeadline: fmt(vacationDeadline) };
+}
+
 const PAGE_SIZE = 15;
 
 const IMPORT_FIELDS = [
@@ -157,6 +205,7 @@ export default function Labor() {
     email: "", cep: "", address: "", address_number: "", neighborhood: "", complement: "",
     state: "", city: "", contract_type: "", work_schedule: "", monthly_salary: "",
     admission_date: "", dismissal_date: "", pis: "", ctps: "", ctps_serie: "",
+    cargo: "", shift_type: "", remuneration_type: "", remuneration_value: "", bonus_value: "",
   };
 
   const openNew = () => {
@@ -209,6 +258,10 @@ export default function Labor() {
       monthly_salary: form.monthly_salary ? Number(form.monthly_salary) : 0,
       admission_date: form.admission_date || null, dismissal_date: form.dismissal_date || null,
       pis: form.pis || null, ctps: form.ctps || null, ctps_serie: form.ctps_serie || null,
+      cargo: form.cargo || null, shift_type: form.shift_type || null,
+      remuneration_type: form.remuneration_type || null,
+      remuneration_value: form.remuneration_value ? Number(form.remuneration_value) : 0,
+      bonus_value: form.bonus_value ? Number(form.bonus_value) : 0,
     };
     saveMutation.mutate(cleaned);
   };
@@ -571,7 +624,7 @@ export default function Labor() {
 
               {formTab === "contratacao" && (
                 <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-3 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-foreground mb-1">Tipo de contrato</label>
                       <select value={form.contract_type || ""} onChange={e => setForm(p => ({ ...p, contract_type: e.target.value }))} className={inputClass}>
@@ -584,15 +637,54 @@ export default function Labor() {
                       </select>
                     </div>
                     <div>
+                      <label className="block text-sm font-medium text-foreground mb-1">Cargo</label>
+                      <select value={form.cargo || ""} onChange={e => setForm(p => ({ ...p, cargo: e.target.value }))} className={inputClass}>
+                        <option value="">Selecione...</option>
+                        {CARGOS.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-1">Tipo de turno</label>
+                      <select value={form.shift_type || ""} onChange={e => setForm(p => ({ ...p, shift_type: e.target.value }))} className={inputClass}>
+                        <option value="">Selecione...</option>
+                        {SHIFT_TYPES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
                       <label className="block text-sm font-medium text-foreground mb-1">Jornada de trabalho</label>
                       <input value={form.work_schedule || ""} onChange={e => setForm(p => ({ ...p, work_schedule: e.target.value }))} className={inputClass} placeholder="Ex: 08h às 17h" />
                     </div>
-                  </div>
-                  <div className="grid grid-cols-3 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-foreground mb-1">Salário mensal (R$)</label>
                       <input type="number" step="0.01" value={form.monthly_salary || ""} onChange={e => setForm(p => ({ ...p, monthly_salary: e.target.value }))} className={inputClass} />
                     </div>
+                  </div>
+
+                  {/* Remuneração */}
+                  <fieldset className="border border-border rounded-lg p-4 space-y-3">
+                    <legend className="text-sm font-medium text-muted-foreground px-2">Remuneração</legend>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-foreground mb-1">Tipo de remuneração</label>
+                        <select value={form.remuneration_type || ""} onChange={e => setForm(p => ({ ...p, remuneration_type: e.target.value }))} className={inputClass}>
+                          <option value="">Selecione...</option>
+                          {REMUNERATION_TYPES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-foreground mb-1">Valor (R$)</label>
+                        <input type="number" step="0.01" value={form.remuneration_value || ""} onChange={e => setForm(p => ({ ...p, remuneration_value: e.target.value }))} className={inputClass} />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-foreground mb-1">Bonificação (R$)</label>
+                        <input type="number" step="0.01" value={form.bonus_value || ""} onChange={e => setForm(p => ({ ...p, bonus_value: e.target.value }))} className={inputClass} />
+                      </div>
+                    </div>
+                  </fieldset>
+
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-foreground mb-1">Data admissão</label>
                       <input type="date" value={form.admission_date || ""} onChange={e => setForm(p => ({ ...p, admission_date: e.target.value }))} className={inputClass} />
@@ -602,6 +694,31 @@ export default function Labor() {
                       <input type="date" value={form.dismissal_date || ""} onChange={e => setForm(p => ({ ...p, dismissal_date: e.target.value }))} className={inputClass} />
                     </div>
                   </div>
+
+                  {/* Previsão de Férias */}
+                  {form.admission_date && (() => {
+                    const vac = calcVacation(form.admission_date);
+                    if (!vac) return null;
+                    return (
+                      <fieldset className="border border-primary/30 rounded-lg p-4 space-y-2 bg-primary/5">
+                        <legend className="text-sm font-semibold text-primary px-2">📅 Previsão de Férias</legend>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs font-medium text-muted-foreground mb-1">Fim do período aquisitivo</label>
+                            <p className="text-sm font-medium text-foreground">{formatDate(vac.acquisitiveEnd)}</p>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-muted-foreground mb-1">Data limite para férias</label>
+                            <p className="text-sm font-medium text-foreground">{formatDate(vac.vacationDeadline)}</p>
+                          </div>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          O colaborador deve gozar férias até a data limite, caso contrário a empresa deverá pagar em dobro.
+                        </p>
+                      </fieldset>
+                    );
+                  })()}
+
                   <div className="grid grid-cols-3 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-foreground mb-1">PIS</label>
