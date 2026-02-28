@@ -16,6 +16,7 @@ import LaborCharges from "@/components/labor/LaborCharges";
 import LaborBenefits from "@/components/labor/LaborBenefits";
 import LaborEpis from "@/components/labor/LaborEpis";
 import LaborAllocations from "@/components/labor/LaborAllocations";
+import LaborAttendance from "@/components/labor/LaborAttendance";
 
 const ROLES = [
   // Operacional
@@ -490,6 +491,7 @@ export default function Labor() {
                 { key: "beneficios", label: "Benefícios" },
                 { key: "epi", label: "EPI" },
                 { key: "historico", label: "Histórico de alocação" },
+                { key: "frequencia", label: "Frequência" },
                 { key: "anexos", label: "Anexos" },
               ].map(tab => (
                 <button
@@ -793,6 +795,15 @@ export default function Labor() {
               {formTab === "historico" && !editing && (
                 <div className="flex flex-col items-center justify-center h-48 text-muted-foreground gap-2">
                   <p className="text-sm">Salve o colaborador primeiro para gerenciar histórico.</p>
+                </div>
+              )}
+
+              {formTab === "frequencia" && editing && (
+                <LaborAttendance laborId={editing.id} laborName={editing.name} companyId={editing.company_id} />
+              )}
+              {formTab === "frequencia" && !editing && (
+                <div className="flex flex-col items-center justify-center h-48 text-muted-foreground gap-2">
+                  <p className="text-sm">Salve o colaborador primeiro para gerenciar frequência.</p>
                 </div>
               )}
 
