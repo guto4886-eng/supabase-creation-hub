@@ -919,6 +919,56 @@ export type Database = {
           },
         ]
       }
+      labor_attendance: {
+        Row: {
+          absence_type: string | null
+          attendance_date: string
+          created_at: string
+          entry_time: string | null
+          exit_time: string | null
+          extra_hours: number | null
+          id: string
+          labor_id: string
+          notes: string | null
+          user_id: string
+          worked: boolean
+        }
+        Insert: {
+          absence_type?: string | null
+          attendance_date: string
+          created_at?: string
+          entry_time?: string | null
+          exit_time?: string | null
+          extra_hours?: number | null
+          id?: string
+          labor_id: string
+          notes?: string | null
+          user_id: string
+          worked?: boolean
+        }
+        Update: {
+          absence_type?: string | null
+          attendance_date?: string
+          created_at?: string
+          entry_time?: string | null
+          exit_time?: string | null
+          extra_hours?: number | null
+          id?: string
+          labor_id?: string
+          notes?: string | null
+          user_id?: string
+          worked?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "labor_attendance_labor_id_fkey"
+            columns: ["labor_id"]
+            isOneToOne: false
+            referencedRelation: "obra_labor"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       labor_benefits: {
         Row: {
           active: boolean
