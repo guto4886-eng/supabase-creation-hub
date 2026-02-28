@@ -1104,50 +1104,117 @@ export type Database = {
       obra_labor: {
         Row: {
           active: boolean
+          address: string | null
+          address_number: string | null
+          admission_date: string | null
+          birth_date: string | null
+          cellphone: string | null
+          cep: string | null
+          city: string | null
+          company_id: string | null
+          complement: string | null
+          contract_type: string | null
           created_at: string
+          ctps: string | null
+          ctps_serie: string | null
           daily_rate: number | null
+          dismissal_date: string | null
           document: string | null
+          email: string | null
           end_date: string | null
           id: string
+          monthly_salary: number | null
           name: string
+          neighborhood: string | null
           notes: string | null
           obra_id: string
           phone: string | null
+          pis: string | null
+          rg: string | null
           role: string | null
           start_date: string | null
+          state: string | null
           user_id: string
+          work_schedule: string | null
         }
         Insert: {
           active?: boolean
+          address?: string | null
+          address_number?: string | null
+          admission_date?: string | null
+          birth_date?: string | null
+          cellphone?: string | null
+          cep?: string | null
+          city?: string | null
+          company_id?: string | null
+          complement?: string | null
+          contract_type?: string | null
           created_at?: string
+          ctps?: string | null
+          ctps_serie?: string | null
           daily_rate?: number | null
+          dismissal_date?: string | null
           document?: string | null
+          email?: string | null
           end_date?: string | null
           id?: string
+          monthly_salary?: number | null
           name: string
+          neighborhood?: string | null
           notes?: string | null
           obra_id: string
           phone?: string | null
+          pis?: string | null
+          rg?: string | null
           role?: string | null
           start_date?: string | null
+          state?: string | null
           user_id: string
+          work_schedule?: string | null
         }
         Update: {
           active?: boolean
+          address?: string | null
+          address_number?: string | null
+          admission_date?: string | null
+          birth_date?: string | null
+          cellphone?: string | null
+          cep?: string | null
+          city?: string | null
+          company_id?: string | null
+          complement?: string | null
+          contract_type?: string | null
           created_at?: string
+          ctps?: string | null
+          ctps_serie?: string | null
           daily_rate?: number | null
+          dismissal_date?: string | null
           document?: string | null
+          email?: string | null
           end_date?: string | null
           id?: string
+          monthly_salary?: number | null
           name?: string
+          neighborhood?: string | null
           notes?: string | null
           obra_id?: string
           phone?: string | null
+          pis?: string | null
+          rg?: string | null
           role?: string | null
           start_date?: string | null
+          state?: string | null
           user_id?: string
+          work_schedule?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "obra_labor_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "obra_labor_obra_id_fkey"
             columns: ["obra_id"]

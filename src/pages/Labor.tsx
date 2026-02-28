@@ -5,11 +5,13 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import {
   Search, Plus, ChevronLeft, ChevronRight, Pencil, Trash2, X, Download, Eraser,
-  Power, Users, Upload, RefreshCw, FileSpreadsheet, CheckCircle, AlertTriangle
+  Power, Users, Upload, RefreshCw, FileSpreadsheet, CheckCircle, AlertTriangle, Save
 } from "lucide-react";
 import { exportCSV, exportExcel, exportPDF, fetchCompanyInfo } from "@/utils/exportWithHeader";
 import ExportDialog from "@/components/ExportDialog";
 import { useCompanies, CompanyFilterSelect } from "@/hooks/useCompanies";
+import { fetchCep } from "@/utils/cep";
+import Attachments from "@/components/Attachments";
 
 const ROLES = [
   "Pedreiro", "Servente", "Mestre de obras", "Encanador", "Eletricista",
@@ -72,6 +74,8 @@ export default function Labor() {
   const [form, setForm] = useState<Record<string, any>>({});
   const [exportOpen, setExportOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [formTab, setFormTab] = useState("dados");
+  const [cepLoading, setCepLoading] = useState(false);
 
   // Data
   const { data: obras = [] } = useQuery({
@@ -147,35 +151,64 @@ export default function Labor() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["obra_labor_all"] }); toast.success("Status atualizado!"); },
   });
 
+  const defaultForm = {
+    name: "", role: "", daily_rate: "", start_date: "", end_date: "", phone: "", document: "",
+    notes: "", active: true, obra_id: "", company_id: "", rg: "", birth_date: "", cellphone: "",
+    email: "", cep: "", address: "", address_number: "", neighborhood: "", complement: "",
+    state: "", city: "", contract_type: "", work_schedule: "", monthly_salary: "",
+    admission_date: "", dismissal_date: "", pis: "", ctps: "", ctps_serie: "",
+  };
+
   const openNew = () => {
     setEditing(null);
-    setForm({ name: "", role: "", daily_rate: "", start_date: "", end_date: "", phone: "", document: "", notes: "", active: true, obra_id: "" });
+    setForm({ ...defaultForm });
+    setFormTab("dados");
     setFormOpen(true);
   };
 
   const openEdit = (item: any) => {
     setEditing(item);
-    setForm({
-      name: item.name || "", role: item.role || "", daily_rate: item.daily_rate ?? "",
-      start_date: item.start_date || "", end_date: item.end_date || "",
-      phone: item.phone || "", document: item.document || "", notes: item.notes || "",
-      active: item.active, obra_id: item.obra_id || "",
-    });
+    const f: Record<string, any> = {};
+    Object.keys(defaultForm).forEach(k => { f[k] = item[k] ?? ""; });
+    f.active = item.active;
+    setForm(f);
+    setFormTab("dados");
     setFormOpen(true);
   };
 
   const closeForm = () => { setFormOpen(false); setEditing(null); setForm({}); };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleCepLookup = async (cep: string) => {
+    setForm(p => ({ ...p, cep }));
+    const clean = cep.replace(/\D/g, "");
+    if (clean.length === 8) {
+      setCepLoading(true);
+      const result = await fetchCep(clean);
+      if (result) {
+        setForm(p => ({ ...p, address: result.address, neighborhood: result.neighborhood, city: result.city, state: result.state }));
+      }
+      setCepLoading(false);
+    }
+  };
+
+  const handleSubmit = (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (!form.name?.trim()) { toast.error("Nome é obrigatório"); return; }
-    if (!form.obra_id) { toast.error("Obra é obrigatória"); return; }
+    if (!form.company_id) { toast.error("Empresa é obrigatória"); return; }
     const cleaned: Record<string, any> = {
-      name: form.name.trim(), obra_id: form.obra_id,
+      name: form.name.trim(), obra_id: form.obra_id || null, company_id: form.company_id || null,
       role: form.role || null, daily_rate: form.daily_rate ? Number(form.daily_rate) : 0,
       start_date: form.start_date || null, end_date: form.end_date || null,
       phone: form.phone || null, document: form.document || null,
       notes: form.notes || null, active: form.active ?? true,
+      rg: form.rg || null, birth_date: form.birth_date || null, cellphone: form.cellphone || null,
+      email: form.email || null, cep: form.cep || null, address: form.address || null,
+      address_number: form.address_number || null, neighborhood: form.neighborhood || null,
+      complement: form.complement || null, state: form.state || null, city: form.city || null,
+      contract_type: form.contract_type || null, work_schedule: form.work_schedule || null,
+      monthly_salary: form.monthly_salary ? Number(form.monthly_salary) : 0,
+      admission_date: form.admission_date || null, dismissal_date: form.dismissal_date || null,
+      pis: form.pis || null, ctps: form.ctps || null, ctps_serie: form.ctps_serie || null,
     };
     saveMutation.mutate(cleaned);
   };
@@ -374,70 +407,271 @@ export default function Labor() {
       {/* Form Modal */}
       {formOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={closeForm}>
-          <div className="bg-card border border-border rounded-xl w-full max-w-lg max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+          <div className="bg-card border border-border rounded-xl w-full max-w-4xl h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            {/* Header */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-border">
               <h3 className="text-lg font-semibold text-primary">{editing ? "Editar colaborador" : "Novo colaborador"}</h3>
               <button onClick={closeForm} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
             </div>
-            <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-5 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Obra *</label>
-                <select value={form.obra_id || ""} onChange={e => setForm(p => ({ ...p, obra_id: e.target.value }))} required className={inputClass}>
-                  <option value="">Selecione...</option>
-                  {obras.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
-                </select>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-foreground mb-1">Nome *</label>
-                  <input value={form.name || ""} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} required className={inputClass} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Função</label>
-                  <select value={form.role || ""} onChange={e => setForm(p => ({ ...p, role: e.target.value }))} className={inputClass}>
-                    <option value="">Selecione...</option>
-                    {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Diária (R$)</label>
-                  <input type="number" step="0.01" value={form.daily_rate || ""} onChange={e => setForm(p => ({ ...p, daily_rate: e.target.value }))} className={inputClass} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Data início</label>
-                  <input type="date" value={form.start_date || ""} onChange={e => setForm(p => ({ ...p, start_date: e.target.value }))} className={inputClass} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Data fim</label>
-                  <input type="date" value={form.end_date || ""} onChange={e => setForm(p => ({ ...p, end_date: e.target.value }))} className={inputClass} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Telefone</label>
-                  <input value={form.phone || ""} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} className={inputClass} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">CPF/Documento</label>
-                  <input value={form.document || ""} onChange={e => setForm(p => ({ ...p, document: e.target.value }))} className={inputClass} />
-                </div>
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-foreground mb-1">Observações</label>
-                  <textarea value={form.notes || ""} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} rows={2} className={inputClass} />
-                </div>
-                {editing && (
-                  <div className="col-span-2 flex items-center gap-3">
-                    <label className="text-sm font-medium text-foreground">Ativo?</label>
-                    <div className="flex gap-4">
-                      <label className="flex items-center gap-1.5 text-sm cursor-pointer"><input type="radio" checked={form.active === true} onChange={() => setForm(p => ({ ...p, active: true }))} className="accent-primary" /> Sim</label>
-                      <label className="flex items-center gap-1.5 text-sm cursor-pointer"><input type="radio" checked={form.active === false} onChange={() => setForm(p => ({ ...p, active: false }))} className="accent-primary" /> Não</label>
+
+            {/* Tabs */}
+            <div className="flex border-b border-border bg-muted/30">
+              {[
+                { key: "dados", label: "Dados" },
+                { key: "contratacao", label: "Contratação" },
+                { key: "encargos", label: "Encargos" },
+                { key: "beneficios", label: "Benefícios" },
+                { key: "epi", label: "EPI" },
+                { key: "historico", label: "Histórico de alocação" },
+                { key: "anexos", label: "Anexos" },
+              ].map(tab => (
+                <button
+                  key={tab.key}
+                  onClick={() => setFormTab(tab.key)}
+                  className={`flex-1 px-3 py-2.5 text-xs font-medium transition-colors whitespace-nowrap ${
+                    formTab === tab.key
+                      ? "text-primary border-b-2 border-primary bg-background"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Tab Content */}
+            <div className="flex-1 overflow-y-auto p-5">
+              {formTab === "dados" && (
+                <div className="space-y-5">
+                  {/* Empresa + Nome */}
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-1">Empresa *</label>
+                      <select value={form.company_id || ""} onChange={e => setForm(p => ({ ...p, company_id: e.target.value }))} className={inputClass}>
+                        <option value="">Selecione...</option>
+                        {companiesList.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      </select>
+                    </div>
+                    <div className="col-span-2">
+                      <label className="block text-sm font-medium text-foreground mb-1">Nome *</label>
+                      <input value={form.name || ""} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} className={inputClass} />
                     </div>
                   </div>
-                )}
-              </div>
-            </form>
+
+                  {/* CPF, RG, Dt. Nascimento */}
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-1">CPF</label>
+                      <input value={form.document || ""} onChange={e => setForm(p => ({ ...p, document: e.target.value }))} className={inputClass} placeholder="000.000.000-00" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-1">RG</label>
+                      <input value={form.rg || ""} onChange={e => setForm(p => ({ ...p, rg: e.target.value }))} className={inputClass} />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-1">Dt. Nascimento</label>
+                      <input type="date" value={form.birth_date || ""} onChange={e => setForm(p => ({ ...p, birth_date: e.target.value }))} className={inputClass} />
+                    </div>
+                  </div>
+
+                  {/* Telefone, Celular */}
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-1">Telefone</label>
+                      <input value={form.phone || ""} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} className={inputClass} />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-1">Celular</label>
+                      <input value={form.cellphone || ""} onChange={e => setForm(p => ({ ...p, cellphone: e.target.value }))} className={inputClass} />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-1">Função</label>
+                      <select value={form.role || ""} onChange={e => setForm(p => ({ ...p, role: e.target.value }))} className={inputClass}>
+                        <option value="">Selecione...</option>
+                        {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Email */}
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1">Email</label>
+                    <input type="email" value={form.email || ""} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} className={inputClass} />
+                  </div>
+
+                  {/* Address section */}
+                  <fieldset className="border border-border rounded-lg p-4 space-y-3">
+                    <legend className="text-sm font-medium text-muted-foreground px-2">Endereço</legend>
+                    <div className="grid grid-cols-4 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-foreground mb-1">CEP</label>
+                        <input value={form.cep || ""} onChange={e => handleCepLookup(e.target.value)} className={inputClass} placeholder="00000-000" />
+                        {cepLoading && <span className="text-xs text-muted-foreground">Buscando...</span>}
+                      </div>
+                      <div className="col-span-3">
+                        <label className="block text-sm font-medium text-foreground mb-1">Logradouro</label>
+                        <input value={form.address || ""} onChange={e => setForm(p => ({ ...p, address: e.target.value }))} className={inputClass} />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-4 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-foreground mb-1">Número</label>
+                        <input value={form.address_number || ""} onChange={e => setForm(p => ({ ...p, address_number: e.target.value }))} className={inputClass} />
+                      </div>
+                      <div className="col-span-3">
+                        <label className="block text-sm font-medium text-foreground mb-1">Bairro</label>
+                        <input value={form.neighborhood || ""} onChange={e => setForm(p => ({ ...p, neighborhood: e.target.value }))} className={inputClass} />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-4 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-foreground mb-1">Complemento</label>
+                        <input value={form.complement || ""} onChange={e => setForm(p => ({ ...p, complement: e.target.value }))} className={inputClass} />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-foreground mb-1">UF</label>
+                        <input value={form.state || ""} onChange={e => setForm(p => ({ ...p, state: e.target.value }))} className={inputClass} maxLength={2} />
+                      </div>
+                      <div className="col-span-2">
+                        <label className="block text-sm font-medium text-foreground mb-1">Cidade</label>
+                        <input value={form.city || ""} onChange={e => setForm(p => ({ ...p, city: e.target.value }))} className={inputClass} />
+                      </div>
+                    </div>
+                  </fieldset>
+
+                  {/* Obra + Observações + Status */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-1">Obra</label>
+                      <select value={form.obra_id || ""} onChange={e => setForm(p => ({ ...p, obra_id: e.target.value }))} className={inputClass}>
+                        <option value="">Nenhuma</option>
+                        {obras.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-1">Diária (R$)</label>
+                      <input type="number" step="0.01" value={form.daily_rate || ""} onChange={e => setForm(p => ({ ...p, daily_rate: e.target.value }))} className={inputClass} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1">Observações</label>
+                    <textarea value={form.notes || ""} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} rows={2} className={inputClass} />
+                  </div>
+                  {editing && (
+                    <div className="flex items-center gap-3">
+                      <label className="text-sm font-medium text-foreground">Ativo?</label>
+                      <div className="flex gap-4">
+                        <label className="flex items-center gap-1.5 text-sm cursor-pointer"><input type="radio" checked={form.active === true} onChange={() => setForm(p => ({ ...p, active: true }))} className="accent-primary" /> Sim</label>
+                        <label className="flex items-center gap-1.5 text-sm cursor-pointer"><input type="radio" checked={form.active === false} onChange={() => setForm(p => ({ ...p, active: false }))} className="accent-primary" /> Não</label>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {formTab === "contratacao" && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-1">Tipo de contrato</label>
+                      <select value={form.contract_type || ""} onChange={e => setForm(p => ({ ...p, contract_type: e.target.value }))} className={inputClass}>
+                        <option value="">Selecione...</option>
+                        <option value="clt">CLT</option>
+                        <option value="pj">PJ</option>
+                        <option value="temporario">Temporário</option>
+                        <option value="autonomo">Autônomo</option>
+                        <option value="estagio">Estágio</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-1">Jornada de trabalho</label>
+                      <input value={form.work_schedule || ""} onChange={e => setForm(p => ({ ...p, work_schedule: e.target.value }))} className={inputClass} placeholder="Ex: 08h às 17h" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-1">Salário mensal (R$)</label>
+                      <input type="number" step="0.01" value={form.monthly_salary || ""} onChange={e => setForm(p => ({ ...p, monthly_salary: e.target.value }))} className={inputClass} />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-1">Data admissão</label>
+                      <input type="date" value={form.admission_date || ""} onChange={e => setForm(p => ({ ...p, admission_date: e.target.value }))} className={inputClass} />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-1">Data demissão</label>
+                      <input type="date" value={form.dismissal_date || ""} onChange={e => setForm(p => ({ ...p, dismissal_date: e.target.value }))} className={inputClass} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-1">PIS</label>
+                      <input value={form.pis || ""} onChange={e => setForm(p => ({ ...p, pis: e.target.value }))} className={inputClass} />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-1">CTPS</label>
+                      <input value={form.ctps || ""} onChange={e => setForm(p => ({ ...p, ctps: e.target.value }))} className={inputClass} />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-1">Série CTPS</label>
+                      <input value={form.ctps_serie || ""} onChange={e => setForm(p => ({ ...p, ctps_serie: e.target.value }))} className={inputClass} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-1">Data início</label>
+                      <input type="date" value={form.start_date || ""} onChange={e => setForm(p => ({ ...p, start_date: e.target.value }))} className={inputClass} />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-1">Data fim</label>
+                      <input type="date" value={form.end_date || ""} onChange={e => setForm(p => ({ ...p, end_date: e.target.value }))} className={inputClass} />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {formTab === "encargos" && (
+                <div className="flex flex-col items-center justify-center h-48 text-muted-foreground gap-2">
+                  <p className="text-sm font-medium">Módulo de encargos</p>
+                  <p className="text-xs">Em desenvolvimento</p>
+                </div>
+              )}
+
+              {formTab === "beneficios" && (
+                <div className="flex flex-col items-center justify-center h-48 text-muted-foreground gap-2">
+                  <p className="text-sm font-medium">Módulo de benefícios</p>
+                  <p className="text-xs">Em desenvolvimento</p>
+                </div>
+              )}
+
+              {formTab === "epi" && (
+                <div className="flex flex-col items-center justify-center h-48 text-muted-foreground gap-2">
+                  <p className="text-sm font-medium">Módulo de EPI</p>
+                  <p className="text-xs">Em desenvolvimento</p>
+                </div>
+              )}
+
+              {formTab === "historico" && (
+                <div className="flex flex-col items-center justify-center h-48 text-muted-foreground gap-2">
+                  <p className="text-sm font-medium">Histórico de alocação</p>
+                  <p className="text-xs">Em desenvolvimento</p>
+                </div>
+              )}
+
+              {formTab === "anexos" && editing && (
+                <Attachments entityType="obra_labor" entityId={editing.id} />
+              )}
+              {formTab === "anexos" && !editing && (
+                <div className="flex flex-col items-center justify-center h-48 text-muted-foreground gap-2">
+                  <p className="text-sm">Salve o colaborador primeiro para gerenciar anexos.</p>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
             <div className="flex justify-end gap-2 px-5 py-4 border-t border-border bg-muted rounded-b-xl">
               <button onClick={closeForm} className="px-4 py-2 rounded-lg border border-border bg-background text-foreground text-sm hover:bg-muted">Cancelar</button>
-              <button onClick={handleSubmit as any} disabled={saveMutation.isPending} className="flex items-center gap-1.5 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50">
-                <Plus className="h-4 w-4" /> {editing ? "Salvar" : "Adicionar"}
+              <button onClick={() => handleSubmit()} disabled={saveMutation.isPending} className="flex items-center gap-1.5 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50">
+                <Save className="h-4 w-4" /> Salvar
               </button>
             </div>
           </div>
