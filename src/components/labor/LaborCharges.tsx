@@ -33,7 +33,7 @@ const CHARGE_TYPES = [
 
 const inputClass = "w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm";
 
-export default function LaborCharges({ laborId }: { laborId: string }) {
+export default function LaborCharges({ laborId, salary = 0 }: { laborId: string; salary?: number }) {
   const { user } = useAuth();
   const qc = useQueryClient();
   const [formOpen, setFormOpen] = useState(false);
@@ -77,12 +77,21 @@ export default function LaborCharges({ laborId }: { laborId: string }) {
 
   const handleChargeTypeChange = (value: string) => {
     const found = CHARGE_TYPES.find(c => c.value === value);
+    const pct = found?.percentage || 0;
+    const calculatedValue = salary && pct ? parseFloat(((pct / 100) * salary).toFixed(2)) : "";
     setForm(p => ({
       ...p,
       charge_type: value,
-      percentage: found?.percentage || "",
+      percentage: pct || "",
+      fixed_value: calculatedValue,
       description: found?.description || p.description || "",
     }));
+  };
+
+  const handlePercentageChange = (value: string) => {
+    const pct = parseFloat(value) || 0;
+    const calculatedValue = salary && pct ? parseFloat(((pct / 100) * salary).toFixed(2)) : "";
+    setForm(p => ({ ...p, percentage: value, fixed_value: calculatedValue }));
   };
 
   const handleSubmit = () => {
@@ -103,7 +112,10 @@ export default function LaborCharges({ laborId }: { laborId: string }) {
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h4 className="text-sm font-semibold text-foreground">Encargos Trabalhistas</h4>
+        <div>
+          <h4 className="text-sm font-semibold text-foreground">Encargos Trabalhistas</h4>
+          {salary > 0 && <p className="text-xs text-muted-foreground">Base salarial: {fmt(salary)}</p>}
+        </div>
         <button onClick={openNew} className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded text-xs font-medium hover:opacity-90">
           <Plus className="h-3.5 w-3.5" /> Adicionar
         </button>
@@ -142,6 +154,14 @@ export default function LaborCharges({ laborId }: { laborId: string }) {
               </tr>
             ))}
           </tbody>
+          <tfoot>
+            <tr className="bg-muted font-semibold">
+              <td className="px-2 py-2 text-foreground" colSpan={2}>Total</td>
+              <td className="px-2 py-2 text-right text-foreground">{items.reduce((s: number, i: any) => s + (Number(i.percentage) || 0), 0).toFixed(2)}%</td>
+              <td className="px-2 py-2 text-right text-foreground">{fmt(items.reduce((s: number, i: any) => s + (Number(i.fixed_value) || 0), 0))}</td>
+              <td colSpan={2} />
+            </tr>
+          </tfoot>
         </table>
       )}
 
@@ -161,7 +181,7 @@ export default function LaborCharges({ laborId }: { laborId: string }) {
             </div>
             <div>
               <label className="block text-xs font-medium text-foreground mb-1">Percentual (%)</label>
-              <input type="number" step="0.01" value={form.percentage || ""} onChange={e => setForm(p => ({ ...p, percentage: e.target.value }))} className={inputClass} />
+              <input type="number" step="0.01" value={form.percentage || ""} onChange={e => handlePercentageChange(e.target.value)} className={inputClass} />
             </div>
             <div>
               <label className="block text-xs font-medium text-foreground mb-1">Valor fixo (R$)</label>
