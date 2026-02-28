@@ -1108,6 +1108,8 @@ export type Database = {
           address_number: string | null
           admission_date: string | null
           birth_date: string | null
+          bonus_value: number | null
+          cargo: string | null
           cellphone: string | null
           cep: string | null
           city: string | null
@@ -1130,8 +1132,11 @@ export type Database = {
           obra_id: string
           phone: string | null
           pis: string | null
+          remuneration_type: string | null
+          remuneration_value: number | null
           rg: string | null
           role: string | null
+          shift_type: string | null
           start_date: string | null
           state: string | null
           user_id: string
@@ -1143,6 +1148,8 @@ export type Database = {
           address_number?: string | null
           admission_date?: string | null
           birth_date?: string | null
+          bonus_value?: number | null
+          cargo?: string | null
           cellphone?: string | null
           cep?: string | null
           city?: string | null
@@ -1165,8 +1172,11 @@ export type Database = {
           obra_id: string
           phone?: string | null
           pis?: string | null
+          remuneration_type?: string | null
+          remuneration_value?: number | null
           rg?: string | null
           role?: string | null
+          shift_type?: string | null
           start_date?: string | null
           state?: string | null
           user_id: string
@@ -1178,6 +1188,8 @@ export type Database = {
           address_number?: string | null
           admission_date?: string | null
           birth_date?: string | null
+          bonus_value?: number | null
+          cargo?: string | null
           cellphone?: string | null
           cep?: string | null
           city?: string | null
@@ -1200,8 +1212,11 @@ export type Database = {
           obra_id?: string
           phone?: string | null
           pis?: string | null
+          remuneration_type?: string | null
+          remuneration_value?: number | null
           rg?: string | null
           role?: string | null
+          shift_type?: string | null
           start_date?: string | null
           state?: string | null
           user_id?: string
