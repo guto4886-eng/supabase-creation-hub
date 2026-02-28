@@ -1,0 +1,1 @@
+ALTER TABLE public.obra_labor ALTER COLUMN obra_id DROP NOT NULL;
