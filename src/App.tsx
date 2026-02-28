@@ -22,6 +22,7 @@ import Profile from "@/pages/Profile";
 import Plans from "@/pages/Plans";
 import Companies from "@/pages/Companies";
 import Fleet from "@/pages/Fleet";
+import Labor from "@/pages/Labor";
 
 const queryClient = new QueryClient();
 
@@ -61,6 +62,7 @@ function App() {
                 <Route path="purchases/quotations" element={<PurchaseQuotations />} />
                 <Route path="purchases/orders" element={<PurchaseOrders />} />
                 <Route path="obras" element={<Obras />} />
+                <Route path="labor" element={<Labor />} />
                 <Route path="budgets" element={<Budgets />} />
                 <Route path="quotations" element={<Quotations />} />
                 <Route path="financial" element={<Financial />} />
