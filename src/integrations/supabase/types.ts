@@ -865,6 +865,216 @@ export type Database = {
         }
         Relationships: []
       }
+      labor_allocations: {
+        Row: {
+          created_at: string
+          daily_rate: number | null
+          end_date: string | null
+          id: string
+          labor_id: string
+          notes: string | null
+          obra_id: string | null
+          role: string | null
+          start_date: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          daily_rate?: number | null
+          end_date?: string | null
+          id?: string
+          labor_id: string
+          notes?: string | null
+          obra_id?: string | null
+          role?: string | null
+          start_date: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          daily_rate?: number | null
+          end_date?: string | null
+          id?: string
+          labor_id?: string
+          notes?: string | null
+          obra_id?: string | null
+          role?: string | null
+          start_date?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "labor_allocations_labor_id_fkey"
+            columns: ["labor_id"]
+            isOneToOne: false
+            referencedRelation: "obra_labor"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "labor_allocations_obra_id_fkey"
+            columns: ["obra_id"]
+            isOneToOne: false
+            referencedRelation: "obras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      labor_benefits: {
+        Row: {
+          active: boolean
+          benefit_type: string
+          created_at: string
+          description: string | null
+          discount_value: number | null
+          end_date: string | null
+          id: string
+          labor_id: string
+          notes: string | null
+          provider: string | null
+          start_date: string | null
+          user_id: string
+          value: number | null
+        }
+        Insert: {
+          active?: boolean
+          benefit_type: string
+          created_at?: string
+          description?: string | null
+          discount_value?: number | null
+          end_date?: string | null
+          id?: string
+          labor_id: string
+          notes?: string | null
+          provider?: string | null
+          start_date?: string | null
+          user_id: string
+          value?: number | null
+        }
+        Update: {
+          active?: boolean
+          benefit_type?: string
+          created_at?: string
+          description?: string | null
+          discount_value?: number | null
+          end_date?: string | null
+          id?: string
+          labor_id?: string
+          notes?: string | null
+          provider?: string | null
+          start_date?: string | null
+          user_id?: string
+          value?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "labor_benefits_labor_id_fkey"
+            columns: ["labor_id"]
+            isOneToOne: false
+            referencedRelation: "obra_labor"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      labor_charges: {
+        Row: {
+          charge_type: string
+          created_at: string
+          description: string | null
+          fixed_value: number | null
+          id: string
+          labor_id: string
+          notes: string | null
+          percentage: number | null
+          reference_month: string | null
+          user_id: string
+        }
+        Insert: {
+          charge_type: string
+          created_at?: string
+          description?: string | null
+          fixed_value?: number | null
+          id?: string
+          labor_id: string
+          notes?: string | null
+          percentage?: number | null
+          reference_month?: string | null
+          user_id: string
+        }
+        Update: {
+          charge_type?: string
+          created_at?: string
+          description?: string | null
+          fixed_value?: number | null
+          id?: string
+          labor_id?: string
+          notes?: string | null
+          percentage?: number | null
+          reference_month?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "labor_charges_labor_id_fkey"
+            columns: ["labor_id"]
+            isOneToOne: false
+            referencedRelation: "obra_labor"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      labor_epis: {
+        Row: {
+          ca_number: string | null
+          created_at: string
+          delivery_date: string | null
+          epi_name: string
+          id: string
+          labor_id: string
+          notes: string | null
+          quantity: number | null
+          return_date: string | null
+          signature: boolean | null
+          status: string | null
+          user_id: string
+        }
+        Insert: {
+          ca_number?: string | null
+          created_at?: string
+          delivery_date?: string | null
+          epi_name: string
+          id?: string
+          labor_id: string
+          notes?: string | null
+          quantity?: number | null
+          return_date?: string | null
+          signature?: boolean | null
+          status?: string | null
+          user_id: string
+        }
+        Update: {
+          ca_number?: string | null
+          created_at?: string
+          delivery_date?: string | null
+          epi_name?: string
+          id?: string
+          labor_id?: string
+          notes?: string | null
+          quantity?: number | null
+          return_date?: string | null
+          signature?: boolean | null
+          status?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "labor_epis_labor_id_fkey"
+            columns: ["labor_id"]
+            isOneToOne: false
+            referencedRelation: "obra_labor"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       letterhead_configs: {
         Row: {
           company_id: string | null
