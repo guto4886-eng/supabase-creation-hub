@@ -799,7 +799,7 @@ export default function Labor() {
               )}
 
               {formTab === "frequencia" && editing && (
-                <LaborAttendance laborId={editing.id} laborName={editing.name} companyId={editing.company_id} />
+                <LaborAttendance laborId={editing.id} laborName={editing.name} companyId={editing.company_id} shiftType={editing.shift_type} workSchedule={editing.work_schedule} />
               )}
               {formTab === "frequencia" && !editing && (
                 <div className="flex flex-col items-center justify-center h-48 text-muted-foreground gap-2">
