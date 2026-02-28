@@ -763,7 +763,7 @@ export default function Labor() {
               )}
 
               {formTab === "encargos" && editing && (
-                <LaborCharges laborId={editing.id} />
+                <LaborCharges laborId={editing.id} salary={Number(editing.monthly_salary || editing.remuneration_value || 0)} />
               )}
               {formTab === "encargos" && !editing && (
                 <div className="flex flex-col items-center justify-center h-48 text-muted-foreground gap-2">
