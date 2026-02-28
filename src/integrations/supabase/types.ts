@@ -1389,7 +1389,7 @@ export type Database = {
           name: string
           neighborhood: string | null
           notes: string | null
-          obra_id: string
+          obra_id: string | null
           phone: string | null
           pis: string | null
           remuneration_type: string | null
@@ -1429,7 +1429,7 @@ export type Database = {
           name: string
           neighborhood?: string | null
           notes?: string | null
-          obra_id: string
+          obra_id?: string | null
           phone?: string | null
           pis?: string | null
           remuneration_type?: string | null
@@ -1469,7 +1469,7 @@ export type Database = {
           name?: string
           neighborhood?: string | null
           notes?: string | null
-          obra_id?: string
+          obra_id?: string | null
           phone?: string | null
           pis?: string | null
           remuneration_type?: string | null
