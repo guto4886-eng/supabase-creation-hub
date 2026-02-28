@@ -12,6 +12,10 @@ import ExportDialog from "@/components/ExportDialog";
 import { useCompanies, CompanyFilterSelect } from "@/hooks/useCompanies";
 import { fetchCep } from "@/utils/cep";
 import Attachments from "@/components/Attachments";
+import LaborCharges from "@/components/labor/LaborCharges";
+import LaborBenefits from "@/components/labor/LaborBenefits";
+import LaborEpis from "@/components/labor/LaborEpis";
+import LaborAllocations from "@/components/labor/LaborAllocations";
 
 const ROLES = [
   "Pedreiro", "Servente", "Mestre de obras", "Encanador", "Eletricista",
@@ -746,31 +750,39 @@ export default function Labor() {
                 </div>
               )}
 
-              {formTab === "encargos" && (
+              {formTab === "encargos" && editing && (
+                <LaborCharges laborId={editing.id} />
+              )}
+              {formTab === "encargos" && !editing && (
                 <div className="flex flex-col items-center justify-center h-48 text-muted-foreground gap-2">
-                  <p className="text-sm font-medium">Módulo de encargos</p>
-                  <p className="text-xs">Em desenvolvimento</p>
+                  <p className="text-sm">Salve o colaborador primeiro para gerenciar encargos.</p>
                 </div>
               )}
 
-              {formTab === "beneficios" && (
+              {formTab === "beneficios" && editing && (
+                <LaborBenefits laborId={editing.id} />
+              )}
+              {formTab === "beneficios" && !editing && (
                 <div className="flex flex-col items-center justify-center h-48 text-muted-foreground gap-2">
-                  <p className="text-sm font-medium">Módulo de benefícios</p>
-                  <p className="text-xs">Em desenvolvimento</p>
+                  <p className="text-sm">Salve o colaborador primeiro para gerenciar benefícios.</p>
                 </div>
               )}
 
-              {formTab === "epi" && (
+              {formTab === "epi" && editing && (
+                <LaborEpis laborId={editing.id} />
+              )}
+              {formTab === "epi" && !editing && (
                 <div className="flex flex-col items-center justify-center h-48 text-muted-foreground gap-2">
-                  <p className="text-sm font-medium">Módulo de EPI</p>
-                  <p className="text-xs">Em desenvolvimento</p>
+                  <p className="text-sm">Salve o colaborador primeiro para gerenciar EPIs.</p>
                 </div>
               )}
 
-              {formTab === "historico" && (
+              {formTab === "historico" && editing && (
+                <LaborAllocations laborId={editing.id} />
+              )}
+              {formTab === "historico" && !editing && (
                 <div className="flex flex-col items-center justify-center h-48 text-muted-foreground gap-2">
-                  <p className="text-sm font-medium">Histórico de alocação</p>
-                  <p className="text-xs">Em desenvolvimento</p>
+                  <p className="text-sm">Salve o colaborador primeiro para gerenciar histórico.</p>
                 </div>
               )}
 
