@@ -1101,6 +1101,62 @@ export type Database = {
           },
         ]
       }
+      obra_labor: {
+        Row: {
+          active: boolean
+          created_at: string
+          daily_rate: number | null
+          document: string | null
+          end_date: string | null
+          id: string
+          name: string
+          notes: string | null
+          obra_id: string
+          phone: string | null
+          role: string | null
+          start_date: string | null
+          user_id: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          daily_rate?: number | null
+          document?: string | null
+          end_date?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          obra_id: string
+          phone?: string | null
+          role?: string | null
+          start_date?: string | null
+          user_id: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          daily_rate?: number | null
+          document?: string | null
+          end_date?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          obra_id?: string
+          phone?: string | null
+          role?: string | null
+          start_date?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "obra_labor_obra_id_fkey"
+            columns: ["obra_id"]
+            isOneToOne: false
+            referencedRelation: "obras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       obras: {
         Row: {
           active: boolean

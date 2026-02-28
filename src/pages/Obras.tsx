@@ -15,6 +15,7 @@ import ObraContacts from "@/components/ObraContacts";
 import ObraDailyEntries from "@/components/ObraDailyEntries";
 import ObraServiceMessages from "@/components/ObraServiceMessages";
 import ObraConfig from "@/components/ObraConfig";
+import ObraLabor from "@/components/ObraLabor";
 import { useCompanies, CompanyFilterSelect } from "@/hooks/useCompanies";
 
 const ESTADOS = [
@@ -42,6 +43,7 @@ const ALL_TABS = [
   { key: "dados", label: "Dados" },
   { key: "endereco", label: "Endereço" },
   { key: "contatos", label: "Contatos" },
+  { key: "maodeobra", label: "Mão de obra" },
   { key: "diadia", label: "Dia a dia" },
   { key: "pasta", label: "Pasta da obra" },
   { key: "atendimento", label: "Atendimento" },
@@ -877,6 +879,10 @@ export default function Obras() {
               {/* ─── CONTATOS ─── */}
               {activeTab === "contatos" && editing && <ObraContacts obraId={editing.id} />}
               {activeTab === "contatos" && !editing && <div className="p-5 text-muted-foreground text-center py-12">Salve a obra primeiro para gerenciar contatos.</div>}
+
+              {/* ─── MÃO DE OBRA ─── */}
+              {activeTab === "maodeobra" && editing && <ObraLabor obraId={editing.id} />}
+              {activeTab === "maodeobra" && !editing && <div className="p-5 text-muted-foreground text-center py-12">Salve a obra primeiro para gerenciar mão de obra.</div>}
 
               {/* ─── DIA A DIA ─── */}
               {activeTab === "diadia" && editing && <ObraDailyEntries obraId={editing.id} />}
