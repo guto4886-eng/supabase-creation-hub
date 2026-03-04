@@ -1126,21 +1126,31 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
 
             const addPlanPeriod = async () => {
               if (!user) return;
-              const now = new Date();
+              let nextDate: Date;
+              if (planPeriods.length > 0) {
+                // Get last period date and add 1 month
+                const lastPeriod = planPeriods[planPeriods.length - 1] as any;
+                const lastDate = new Date(lastPeriod.period_date + "T12:00:00");
+                nextDate = new Date(lastDate.getFullYear(), lastDate.getMonth() + 1, 1);
+              } else {
+                nextDate = new Date();
+                nextDate = new Date(nextDate.getFullYear(), nextDate.getMonth(), 1);
+              }
               const nextOrder = planPeriods.length;
+              const periodDateStr = nextDate.toISOString().split("T")[0];
+              const periodLabel = `${String(nextDate.getMonth() + 1).padStart(2, "0")}/${nextDate.getFullYear()}`;
               const { data, error } = await supabase
                 .from("budget_plan_periods" as any)
                 .insert({
                   budget_id: budgetId,
-                  period_date: now.toISOString().split("T")[0],
-                  period_label: `${String(now.getMonth() + 1).padStart(2, "0")}/${now.getFullYear()}`,
+                  period_date: periodDateStr,
+                  period_label: periodLabel,
                   sort_order: nextOrder,
                   user_id: user.id,
                 } as any)
                 .select()
                 .single();
               if (error) { toast.error(error.message); return; }
-              // Create plan items for all services
               const itemsToInsert = serviceItemsPlan.map((svc) => ({
                 plan_period_id: (data as any).id,
                 budget_item_id: svc.id,
@@ -1151,7 +1161,7 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
               }
               qc.invalidateQueries({ queryKey: ["budget_plan_periods", budgetId] });
               qc.invalidateQueries({ queryKey: ["budget_plan_items", budgetId] });
-              toast.success("Período adicionado!");
+              toast.success(`Período ${periodLabel} adicionado!`);
             };
 
             const deletePlanPeriod = async (periodId: string) => {
