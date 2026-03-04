@@ -576,8 +576,9 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
               .filter((v, i, arr) => arr.findIndex((a) => a.rootIndex === v.rootIndex) === i)
               .sort((a, b) => Number.parseInt(a.rootIndex, 10) - Number.parseInt(b.rootIndex, 10));
 
-            // Fallback: if no "Fase" items, use unique categories
-            const fallbackRows = phaseRows.length === 0
+            // Fallback: if no "Fase" items, use unique categories as phases
+            const useFallback = phaseRows.length === 0;
+            const fallbackRows = useFallback
               ? [...new Set(items.map((i) => (i.category || "Geral").trim()))].map((cat) => ({
                   rootIndex: cat,
                   label: cat,
@@ -594,11 +595,13 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
             const activePhaseLabel = activePhaseRow?.label ?? null;
 
             const displayItems = activePhaseRow
-              ? serviceItems.filter((s) => {
-                  const sPrefix = getDescPrefix(s.description);
-                  return sPrefix ? sPrefix.split(".")[0] === activePhaseRow.rootIndex : false;
-                })
-              : serviceItems.length > 0 ? serviceItems : items;
+              ? useFallback
+                ? items.filter((i) => (i.category || "Geral").trim() === activePhaseRow.label)
+                : serviceItems.filter((s) => {
+                    const sPrefix = getDescPrefix(s.description);
+                    return sPrefix ? sPrefix.split(".")[0] === activePhaseRow.rootIndex : false;
+                  })
+              : useFallback ? items : (serviceItems.length > 0 ? serviceItems : items);
 
             return (
               <div className="flex gap-0 h-full">
@@ -764,7 +767,8 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
               .filter((v, i, arr) => arr.findIndex((a) => a.rootIndex === v.rootIndex) === i)
               .sort((a, b) => Number.parseInt(a.rootIndex, 10) - Number.parseInt(b.rootIndex, 10));
 
-            const vendaFallbackRows = vendaPhaseRows.length === 0
+            const useFallbackVenda = vendaPhaseRows.length === 0;
+            const vendaFallbackRows = useFallbackVenda
               ? [...new Set(items.map((i) => (i.category || "Geral").trim()))].map((cat) => ({
                   rootIndex: cat,
                   label: cat,
@@ -784,11 +788,13 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
             const activeVendaLabel = activeVendaRow?.label ?? null;
 
             const vendaDisplayItems = activeVendaRow
-              ? serviceItemsVenda.filter((s) => {
-                  const sPrefix = getDescPrefixVenda(s.description);
-                  return sPrefix ? sPrefix.split(".")[0] === activeVendaRow.rootIndex : false;
-                })
-              : serviceItemsVenda.length > 0 ? serviceItemsVenda : items;
+              ? useFallbackVenda
+                ? items.filter((i) => (i.category || "Geral").trim() === activeVendaRow.label)
+                : serviceItemsVenda.filter((s) => {
+                    const sPrefix = getDescPrefixVenda(s.description);
+                    return sPrefix ? sPrefix.split(".")[0] === activeVendaRow.rootIndex : false;
+                  })
+              : useFallbackVenda ? items : (serviceItemsVenda.length > 0 ? serviceItemsVenda : items);
 
             const totalVenda = (serviceItemsVenda.length > 0 ? serviceItemsVenda : items).reduce((s, i) => {
               const bdi = (i as any).bdi || 0;
