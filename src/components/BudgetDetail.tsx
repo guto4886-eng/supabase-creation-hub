@@ -2124,13 +2124,36 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                           const doc = new jsPDF({ orientation: "landscape" });
                           let y = await addReportHeader(doc, companyInfo, "Previsto x Realizado", `${budget.budget_code || ""} — ${obra?.name || ""}`);
 
-                          // Summary cards
-                          doc.setFontSize(10);
-                          doc.setFont("helvetica", "normal");
-                          doc.text(`Previsto (Orçado): ${fmt(totalPrevisto)}   |   Realizado (Medido): ${fmt(totalRealizado)}   |   Desvio: ${desvio > 0 ? "+" : ""}${fmt(desvio)}   |   Execução: ${devPct.toFixed(1)}%`, 14, y);
-                          y += 8;
+                          const pageW = doc.internal.pageSize.getWidth();
 
-                          // Detail table
+                          // ── 1. Summary cards (4 boxes side by side) ──
+                          const cardW = (pageW - 28 - 18) / 4; // 14 margin each side, 6px gaps
+                          const cardH = 22;
+                          const cards = [
+                            { label: "PREVISTO (ORÇADO)", value: fmt(totalPrevisto), sub: "Valor total orçado para a obra", color: [30, 64, 175] as [number, number, number], bg: [219, 234, 254] as [number, number, number] },
+                            { label: "REALIZADO (MEDIDO)", value: fmt(totalRealizado), sub: "Valor acumulado das medições", color: [21, 128, 61] as [number, number, number], bg: [220, 252, 231] as [number, number, number] },
+                            { label: "DESVIO", value: `${desvio > 0 ? "+" : ""}${fmt(desvio)}`, sub: desvio > 0 ? "Acima do orçado" : desvio < 0 ? "Economia" : "Dentro do orçamento", color: desvio > 0 ? [185, 28, 28] as [number, number, number] : [4, 120, 87] as [number, number, number], bg: desvio > 0 ? [254, 226, 226] as [number, number, number] : [209, 250, 229] as [number, number, number] },
+                            { label: "% EXECUÇÃO", value: `${devPct.toFixed(1)}%`, sub: "Percentual executado do total", color: devPct > 100 ? [185, 28, 28] as [number, number, number] : [109, 40, 217] as [number, number, number], bg: [237, 233, 254] as [number, number, number] },
+                          ];
+                          cards.forEach((card, i) => {
+                            const x = 14 + i * (cardW + 6);
+                            doc.setFillColor(card.bg[0], card.bg[1], card.bg[2]);
+                            doc.roundedRect(x, y, cardW, cardH, 2, 2, "F");
+                            doc.setFontSize(6);
+                            doc.setFont("helvetica", "bold");
+                            doc.setTextColor(card.color[0], card.color[1], card.color[2]);
+                            doc.text(card.label, x + cardW / 2, y + 6, { align: "center" });
+                            doc.setFontSize(12);
+                            doc.text(card.value, x + cardW / 2, y + 14, { align: "center" });
+                            doc.setFontSize(5.5);
+                            doc.setFont("helvetica", "normal");
+                            doc.setTextColor(100, 100, 100);
+                            doc.text(card.sub, x + cardW / 2, y + 19, { align: "center" });
+                          });
+                          doc.setTextColor(0, 0, 0);
+                          y += cardH + 8;
+
+                          // ── 2. Detail table (Detalhamento por Fase) with progress bar ──
                           doc.setFontSize(11);
                           doc.setFont("helvetica", "bold");
                           doc.text("Detalhamento por Fase", 14, y);
@@ -2140,7 +2163,7 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
 
                           autoTable(doc, {
                             startY: y,
-                            head: [["Fase", "Orçado", "Planejado", "Realizado", "Desvio", "% Execução"]],
+                            head: [["Fase", "Orçado", "Planejado", "Realizado", "Desvio", "% Execução", "Progresso"]],
                             body: phaseChartData.map((d) => {
                               const dev = d.Realizado - d.Previsto;
                               const pct = d.Previsto > 0 ? (d.Realizado / d.Previsto) * 100 : 0;
@@ -2151,18 +2174,54 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                                 fmt(d.Realizado),
                                 `${dev > 0 ? "+" : ""}${fmt(dev)}`,
                                 `${pct.toFixed(1)}%`,
+                                "",
                               ];
                             }),
-                            foot: [["TOTAL", fmt(totalPrevisto), fmt(totalPlanejadoR), fmt(totalRealizado), `${desvio > 0 ? "+" : ""}${fmt(desvio)}`, `${devPct.toFixed(1)}%`]],
+                            foot: [["TOTAL", fmt(totalPrevisto), fmt(totalPlanejadoR), fmt(totalRealizado), `${desvio > 0 ? "+" : ""}${fmt(desvio)}`, `${devPct.toFixed(1)}%`, ""]],
                             styles: { fontSize: 8, cellPadding: 2 },
                             headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: "bold" },
                             footStyles: { fillColor: [230, 230, 230], fontStyle: "bold" },
                             alternateRowStyles: { fillColor: [245, 245, 245] },
+                            columnStyles: {
+                              0: { cellWidth: 50 },
+                              6: { cellWidth: 40 },
+                            },
+                            didDrawCell: (data: any) => {
+                              if (data.column.index === 6 && data.section === "body") {
+                                const d = phaseChartData[data.row.index];
+                                if (!d) return;
+                                const pct = d.Previsto > 0 ? Math.min((d.Realizado / d.Previsto) * 100, 100) : 0;
+                                const cellX = data.cell.x + 2;
+                                const cellY = data.cell.y + data.cell.height / 2 - 2;
+                                const barW = data.cell.width - 4;
+                                const barH = 4;
+                                doc.setFillColor(230, 230, 230);
+                                doc.roundedRect(cellX, cellY, barW, barH, 1, 1, "F");
+                                if (pct > 0) {
+                                  const fillColor = pct > 100 ? [220, 38, 38] : pct >= 50 ? [34, 197, 94] : [59, 130, 246];
+                                  doc.setFillColor(fillColor[0], fillColor[1], fillColor[2]);
+                                  doc.roundedRect(cellX, cellY, barW * (pct / 100), barH, 1, 1, "F");
+                                }
+                              }
+                              if (data.column.index === 6 && data.section === "foot") {
+                                const pct = Math.min(devPct, 100);
+                                const cellX = data.cell.x + 2;
+                                const cellY = data.cell.y + data.cell.height / 2 - 2;
+                                const barW = data.cell.width - 4;
+                                const barH = 4;
+                                doc.setFillColor(230, 230, 230);
+                                doc.roundedRect(cellX, cellY, barW, barH, 1, 1, "F");
+                                if (pct > 0) {
+                                  doc.setFillColor(34, 197, 94);
+                                  doc.roundedRect(cellX, cellY, barW * (pct / 100), barH, 1, 1, "F");
+                                }
+                              }
+                            },
                           });
 
                           y = (doc as any).lastAutoTable.finalY + 10;
 
-                          // Timeline data table
+                          // ── 3. Timeline table (Evolução Acumulada por Período) ──
                           if (timelineData.length > 0) {
                             if (y > 160) { doc.addPage(); y = 15; }
                             doc.setFontSize(11);
@@ -2172,13 +2231,19 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
 
                             autoTable(doc, {
                               startY: y,
-                              head: [["Período", "Orçado", "Planejado", "Realizado"]],
-                              body: timelineData.map((t) => [
-                                t.name,
-                                fmt(t.Orçado),
-                                t.Planejado !== undefined ? fmt(t.Planejado) : "—",
-                                t.Realizado !== undefined ? fmt(t.Realizado) : "—",
-                              ]),
+                              head: [["Período", "Orçado", "Planejado", "Realizado", "% Planejado", "% Realizado"]],
+                              body: timelineData.map((t) => {
+                                const pctPlan = t.Planejado !== undefined && t.Orçado > 0 ? ((t.Planejado / t.Orçado) * 100).toFixed(1) + "%" : "—";
+                                const pctReal = t.Realizado !== undefined && t.Orçado > 0 ? ((t.Realizado / t.Orçado) * 100).toFixed(1) + "%" : "—";
+                                return [
+                                  t.name,
+                                  fmt(t.Orçado),
+                                  t.Planejado !== undefined ? fmt(t.Planejado) : "—",
+                                  t.Realizado !== undefined ? fmt(t.Realizado) : "—",
+                                  pctPlan,
+                                  pctReal,
+                                ];
+                              }),
                               styles: { fontSize: 8, cellPadding: 2 },
                               headStyles: { fillColor: [46, 139, 87], textColor: 255, fontStyle: "bold" },
                               alternateRowStyles: { fillColor: [245, 250, 245] },
