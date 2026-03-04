@@ -1183,8 +1183,17 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
               qc.invalidateQueries({ queryKey: ["budget_plan_periods", budgetId] });
             };
 
-            const updatePlanItemPct = async (planItemId: string, pct: number) => {
-              await supabase.from("budget_plan_items" as any).update({ planned_percentage: pct } as any).eq("id", planItemId);
+            const updatePlanItemPct = async (planItemId: string, pct: number, budgetItemId: string) => {
+              // Calculate current accumulated EXCLUDING this plan item
+              const otherTotal = planItems
+                .filter((pi: any) => pi.budget_item_id === budgetItemId && pi.id !== planItemId)
+                .reduce((sum: number, pi: any) => sum + (pi.planned_percentage || 0), 0);
+              const maxAllowed = Math.max(0, 100 - otherTotal);
+              const clampedPct = Math.min(Math.max(0, pct), maxAllowed);
+              if (pct > maxAllowed) {
+                toast.error(`Valor limitado a ${maxAllowed.toFixed(2)}% (total não pode exceder 100%)`);
+              }
+              await supabase.from("budget_plan_items" as any).update({ planned_percentage: clampedPct } as any).eq("id", planItemId);
               qc.invalidateQueries({ queryKey: ["budget_plan_items", budgetId] });
             };
 
@@ -1359,6 +1368,8 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                                         <td className="px-3 py-2 text-right text-foreground tabular-nums text-xs">{fmt(getVendaTotal(svc))}</td>
                                         {planPeriods.map((period: any) => {
                                           const pi = planItems.find((item: any) => item.plan_period_id === period.id && item.budget_item_id === svc.id);
+                                          const piPct = pi?.planned_percentage || 0;
+                                          const piValue = getVendaTotal(svc) * (piPct / 100);
                                           return (
                                             <td key={period.id} className="px-1 py-1.5 text-center">
                                               <input
@@ -1366,22 +1377,25 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                                                 min="0"
                                                 max="100"
                                                 step="0.01"
-                                                defaultValue={pi?.planned_percentage || 0}
+                                                defaultValue={piPct}
                                                 key={`plan-${pi?.id}-${pi?.planned_percentage}`}
                                                 onBlur={(e) => {
-                                                  if (pi) updatePlanItemPct(pi.id, parseFloat(e.target.value) || 0);
+                                                  if (pi) updatePlanItemPct(pi.id, parseFloat(e.target.value) || 0, svc.id);
                                                 }}
                                                 className="w-full px-1.5 py-1 text-xs rounded border border-input bg-background text-foreground tabular-nums text-center"
                                                 disabled={!pi}
                                               />
+                                              <div className="text-[9px] text-muted-foreground mt-0.5 tabular-nums">{fmt(piValue)}</div>
                                             </td>
                                           );
                                         })}
                                         <td className="px-3 py-2 text-right tabular-nums text-xs">
                                           <span className={accPlan > 100 ? "text-destructive font-bold" : "text-primary font-medium"}>{accPlan.toFixed(1)}%</span>
+                                          <div className="text-[9px] text-muted-foreground">{fmt(getVendaTotal(svc) * (accPlan / 100))}</div>
                                         </td>
                                         <td className="px-3 py-2 text-right tabular-nums text-xs">
                                           <span className={saldoPct < 0 ? "text-destructive" : "text-muted-foreground"}>{saldoPct.toFixed(1)}%</span>
+                                          <div className="text-[9px] text-muted-foreground">{fmt(getVendaTotal(svc) * (saldoPct / 100))}</div>
                                         </td>
                                       </tr>
                                     );
@@ -1469,6 +1483,14 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                 const totalVenda = getVendaTotal(svc);
                 pct = totalVenda > 0 ? (val / totalVenda) * 100 : 0;
                 qty = (svc.quantity || 0) * (pct / 100);
+              }
+              // Clamp so accumulated (previous + this) doesn't exceed 100%
+              const prevAccPct = getPreviousAccumulatedPct(budgetItemId);
+              const maxAllowed = Math.max(0, 100 - prevAccPct);
+              if (pct > maxAllowed) {
+                pct = maxAllowed;
+                qty = (svc.quantity || 0) * (pct / 100);
+                toast.error(`Valor limitado a ${maxAllowed.toFixed(2)}% (acumulado não pode exceder 100%)`);
               }
               await supabase.from("budget_measurement_items").update({
                 measured_percentage: pct,
