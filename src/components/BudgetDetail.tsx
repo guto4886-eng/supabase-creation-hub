@@ -29,6 +29,17 @@ interface BudgetItem {
   sort_order: number | null;
 }
 
+/** Retorna o valor de VENDA (com BDI) de um item */
+const getVendaTotal = (item: any): number => {
+  const bdi = item.bdi || 0;
+  return (item.total_price || 0) * (1 + bdi / 100);
+};
+
+const getVendaUnit = (item: any): number => {
+  const bdi = item.bdi || 0;
+  return (item.unit_price || 0) * (1 + bdi / 100);
+};
+
 const TABS = [
   { key: "dados", label: "Dados" },
   { key: "valores_custo", label: "Valores custo" },
@@ -1109,7 +1120,7 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                 const sp = getPrefixPlan(s.description);
                 return sp ? sp.split(".")[0] === rootIdx : false;
               });
-              const total = children.reduce((sum, s) => sum + (s.total_price || 0), 0);
+              const total = children.reduce((sum, s) => sum + getVendaTotal(s), 0);
               return { rootIdx, label: phase.description, total, services: children };
             }).filter((p) => p.services.length > 0).sort((a, b) => parseInt(a.rootIdx) - parseInt(b.rootIdx));
 
@@ -1310,9 +1321,9 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                                       <tr key={svc.id} className={idx % 2 === 0 ? "bg-background" : "bg-muted/20"}>
                                         <td className="px-3 py-2 text-foreground sticky left-0 bg-inherit z-10">
                                           <div className="text-xs font-medium truncate max-w-[200px]">{svc.description}</div>
-                                          <div className="text-[10px] text-muted-foreground">{svc.quantity} {svc.unit} — {fmt(svc.unit_price)}</div>
+                                          <div className="text-[10px] text-muted-foreground">{svc.quantity} {svc.unit} — {fmt(getVendaUnit(svc))}</div>
                                         </td>
-                                        <td className="px-3 py-2 text-right text-foreground tabular-nums text-xs">{fmt(svc.total_price)}</td>
+                                        <td className="px-3 py-2 text-right text-foreground tabular-nums text-xs">{fmt(getVendaTotal(svc))}</td>
                                         {planPeriods.map((period: any) => {
                                           const pi = planItems.find((item: any) => item.plan_period_id === period.id && item.budget_item_id === svc.id);
                                           return (
@@ -1375,7 +1386,7 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                 const sp = getPrefixMed(s.description);
                 return sp ? sp.split(".")[0] === rootIdx : false;
               });
-              const total = children.reduce((sum, s) => sum + (s.total_price || 0), 0);
+              const total = children.reduce((sum, s) => sum + getVendaTotal(s), 0);
               return { rootIdx, label: phase.description, total, services: children };
             }).filter((p) => p.services.length > 0).sort((a, b) => parseInt(a.rootIdx) - parseInt(b.rootIdx));
 
@@ -1422,8 +1433,8 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                 pct = val;
                 qty = (svc.quantity || 0) * (pct / 100);
               } else {
-                const totalP = svc.total_price || 0;
-                pct = totalP > 0 ? (val / totalP) * 100 : 0;
+                const totalVenda = getVendaTotal(svc);
+                pct = totalVenda > 0 ? (val / totalVenda) * 100 : 0;
                 qty = (svc.quantity || 0) * (pct / 100);
               }
               await supabase.from("budget_measurement_items").update({
@@ -1487,10 +1498,10 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                 let y = await addReportHeader(doc, companyInfo, "Relatório de Medições", `${budget.budget_code || ""} — ${obra?.name || ""}`);
 
                 // Overall summary
-                const totalOrcado = serviceItemsMed.reduce((s, svc) => s + (svc.total_price || 0), 0);
+                const totalOrcado = serviceItemsMed.reduce((s, svc) => s + getVendaTotal(svc), 0);
                 const totalMedidoAcc = serviceItemsMed.reduce((sum, svc) => {
                   const accPct = getAccumulatedPct(svc.id);
-                  return sum + (svc.total_price || 0) * (accPct / 100);
+                  return sum + getVendaTotal(svc) * (accPct / 100);
                 }, 0);
                 const totalSaldo = totalOrcado - totalMedidoAcc;
                 const progressPct = totalOrcado > 0 ? Math.min((totalMedidoAcc / totalOrcado) * 100, 100) : 0;
@@ -1513,7 +1524,7 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                     const medItems = (allMeasurementItems as any[]).filter((mi: any) => mi.measurement_id === med.id);
                     const medValue = medItems.reduce((sum: number, mi: any) => {
                       const svc = serviceItemsMed.find(s => s.id === mi.budget_item_id);
-                      return sum + ((svc?.total_price || 0) * ((mi.measured_percentage || 0) / 100));
+                      return sum + (svc ? getVendaTotal(svc) : 0) * ((mi.measured_percentage || 0) / 100);
                     }, 0);
                     return [
                       `#${med.measurement_number}`,
@@ -1539,14 +1550,15 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
 
                 const detailBody = serviceItemsMed.map((svc) => {
                   const accPct = getAccumulatedPct(svc.id);
-                  const accValue = (svc.total_price || 0) * (accPct / 100);
-                  const saldo = (svc.total_price || 0) - accValue;
+                  const vendaTotal = getVendaTotal(svc);
+                  const accValue = vendaTotal * (accPct / 100);
+                  const saldo = vendaTotal - accValue;
                   return [
                     svc.category || "—",
                     svc.description,
                     `${svc.quantity ?? 0} ${svc.unit || ""}`,
-                    fmt(svc.unit_price),
-                    fmt(svc.total_price),
+                    fmt(getVendaUnit(svc)),
+                    fmt(vendaTotal),
                     `${accPct.toFixed(2)}%`,
                     fmt(accValue),
                     fmt(saldo),
@@ -1600,10 +1612,10 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
 
                 {/* Overall progress bar on main listing */}
                 {measurements.length > 0 && !activeMeasurement && (() => {
-                  const totalOrcado = serviceItemsMed.reduce((s, svc) => s + (svc.total_price || 0), 0);
+                  const totalOrcado = serviceItemsMed.reduce((s, svc) => s + getVendaTotal(svc), 0);
                   const totalMedidoAcc = serviceItemsMed.reduce((sum, svc) => {
                     const accPct = getAccumulatedPct(svc.id);
-                    return sum + (svc.total_price || 0) * (accPct / 100);
+                    return sum + getVendaTotal(svc) * (accPct / 100);
                   }, 0);
                   const totalSaldo = totalOrcado - totalMedidoAcc;
                   const progressPct = totalOrcado > 0 ? Math.min((totalMedidoAcc / totalOrcado) * 100, 100) : 0;
@@ -1721,7 +1733,7 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                           {phaseDataMed.map(({ rootIdx, label, total, services }) => {
                             const accumulatedTotal = services.reduce((sum, svc) => {
                               const accPct = getAccumulatedPct(svc.id);
-                              return sum + (svc.total_price || 0) * (accPct / 100);
+                              return sum + getVendaTotal(svc) * (accPct / 100);
                             }, 0);
                             const phasePct = total > 0 ? (accumulatedTotal / total) * 100 : 0;
                             const saldo = total - accumulatedTotal;
@@ -1763,12 +1775,13 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                               {phaseData.services.map((svc, idx) => {
                                 const mi = measurementItems.find((m: any) => m.budget_item_id === svc.id) as any;
                                 const pct = mi?.measured_percentage || 0;
-                                const measuredValue = (svc.total_price || 0) * (pct / 100);
+                                const vendaTotal = getVendaTotal(svc);
+                                const measuredValue = vendaTotal * (pct / 100);
                                 const prevAccPct = getPreviousAccumulatedPct(svc.id);
-                                const prevAccValue = (svc.total_price || 0) * (prevAccPct / 100);
+                                const prevAccValue = vendaTotal * (prevAccPct / 100);
                                 const accPct = getAccumulatedPct(svc.id);
-                                const accValue = (svc.total_price || 0) * (accPct / 100);
-                                const saldoSvc = (svc.total_price || 0) - accValue;
+                                const accValue = vendaTotal * (accPct / 100);
+                                const saldoSvc = vendaTotal - accValue;
                                 const measuredAt = mi?.measured_at ? new Date(mi.measured_at).toLocaleDateString("pt-BR") : "—";
                                 const isEditable = activeMed?.status === "aberta" && mi;
                                 return (
@@ -1778,8 +1791,8 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                                         <span className="text-sm font-medium text-foreground">{svc.description}</span>
                                         <div className="flex gap-4 text-xs text-muted-foreground mt-0.5">
                                           <span>Qtd: {svc.quantity ?? 0} {svc.unit}</span>
-                                          <span>Unit: {fmt(svc.unit_price)}</span>
-                                          <span>Total: {fmt(svc.total_price)}</span>
+                                          <span>Unit. Venda: {fmt(getVendaUnit(svc))}</span>
+                                          <span>Total Venda: {fmt(vendaTotal)}</span>
                                         </div>
                                       </div>
                                       <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Lançamento: {measuredAt}</span>
@@ -1845,14 +1858,14 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                     </div>
 
                     {(() => {
-                      const totalOrcado = serviceItemsMed.reduce((s, svc) => s + (svc.total_price || 0), 0);
+                      const totalOrcado = serviceItemsMed.reduce((s, svc) => s + getVendaTotal(svc), 0);
                       const totalMedidoAcc = serviceItemsMed.reduce((sum, svc) => {
                         const accPct = getAccumulatedPct(svc.id);
-                        return sum + (svc.total_price || 0) * (accPct / 100);
+                        return sum + getVendaTotal(svc) * (accPct / 100);
                       }, 0);
                       const totalMedidoEsta = serviceItemsMed.reduce((sum, svc) => {
                         const mi = measurementItems.find((m: any) => m.budget_item_id === svc.id) as any;
-                        return sum + (svc.total_price || 0) * ((mi?.measured_percentage || 0) / 100);
+                        return sum + getVendaTotal(svc) * ((mi?.measured_percentage || 0) / 100);
                       }, 0);
                       const totalSaldo = totalOrcado - totalMedidoAcc;
                       const progressPct = totalOrcado > 0 ? Math.min((totalMedidoAcc / totalOrcado) * 100, 100) : 0;
@@ -1930,19 +1943,19 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                 const sp = getPrefixPR(s.description);
                 return sp ? sp.split(".")[0] === rootIdx : false;
               });
-              const previsto = children.reduce((sum, s) => sum + (s.total_price || 0), 0);
+              const previsto = children.reduce((sum, s) => sum + getVendaTotal(s), 0);
               const realizado = children.reduce((sum, s) => {
                 const accPct = (allMeasurementItems as any[])
                   .filter((mi: any) => mi.budget_item_id === s.id)
                   .reduce((a: number, mi: any) => a + (mi.measured_percentage || 0), 0);
-                return sum + (s.total_price || 0) * (accPct / 100);
+                return sum + getVendaTotal(s) * (accPct / 100);
               }, 0);
               // Planejado: sum of planned percentages for children across all periods
               const planejado = children.reduce((sum, s) => {
                 const accPlanPct = planItems
                   .filter((pi: any) => pi.budget_item_id === s.id)
                   .reduce((a: number, pi: any) => a + (pi.planned_percentage || 0), 0);
-                return sum + (s.total_price || 0) * (accPlanPct / 100);
+                return sum + getVendaTotal(s) * (accPlanPct / 100);
               }, 0);
               return {
                 name: phase.description.replace(/^\d+(\.\d+)*\s*[-–.]?\s*/, "").substring(0, 20),
@@ -1960,7 +1973,7 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
               const periodPlanItems = planItems.filter((pi: any) => pi.plan_period_id === period.id);
               const periodValue = periodPlanItems.reduce((sum: number, pi: any) => {
                 const svc = serviceItemsPR.find(s => s.id === pi.budget_item_id);
-                return sum + ((svc?.total_price || 0) * ((pi.planned_percentage || 0) / 100));
+                return sum + (svc ? getVendaTotal(svc) : 0) * ((pi.planned_percentage || 0) / 100);
               }, 0);
               cumPlan += periodValue;
               const label = period.period_label || new Date(period.period_date).toLocaleDateString("pt-BR");
@@ -1970,7 +1983,7 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
             // Per-measurement (timeline) data
             const sortedMeasurements = [...measurements].sort((a: any, b: any) => a.measurement_number - b.measurement_number);
             let cumulativeValue = 0;
-            const totalOrçado = Math.round(serviceItemsPR.reduce((s, svc) => s + (svc.total_price || 0), 0) * 100) / 100;
+            const totalOrçado = Math.round(serviceItemsPR.reduce((s, svc) => s + getVendaTotal(svc), 0) * 100) / 100;
 
             // Merge plan periods and measurements into unified timeline
             const allTimelineLabels: string[] = [];
@@ -1991,7 +2004,7 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
               const medItems = (allMeasurementItems as any[]).filter((mi: any) => mi.measurement_id === med.id);
               const medValue = medItems.reduce((sum: number, mi: any) => {
                 const svc = serviceItemsPR.find(s => s.id === mi.budget_item_id);
-                return sum + ((svc?.total_price || 0) * ((mi.measured_percentage || 0) / 100));
+                return sum + (svc ? getVendaTotal(svc) : 0) * ((mi.measured_percentage || 0) / 100);
               }, 0);
               cumReal += medValue;
               const label = med.reference_period || `#${med.measurement_number}`;
