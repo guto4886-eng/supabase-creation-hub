@@ -286,23 +286,54 @@ export default function BudgetImportModal({ budgetId, onClose }: Props) {
     let errors = 0;
     const errorMessages: string[] = [];
 
-    // Batch insert
-    const records = parsedItems.map((item, idx) => {
+    // Build records: first insert phase rows (category="fase"), then service rows (category="serviço")
+    const records: any[] = [];
+    let sortIdx = 0;
+
+    // Collect unique phases in order of appearance
+    const seenPhases = new Set<string>();
+    const orderedPhases: string[] = [];
+    for (const item of parsedItems) {
+      const phaseName = sanitizeText(item.phase, "Geral") || "Geral";
+      if (!seenPhases.has(phaseName)) {
+        seenPhases.add(phaseName);
+        orderedPhases.push(phaseName);
+      }
+    }
+
+    // Insert phase rows with category "fase"
+    for (const phaseName of orderedPhases) {
+      const phaseTotal = parsedItems
+        .filter((i) => (sanitizeText(i.phase, "Geral") || "Geral") === phaseName)
+        .reduce((sum, i) => sum + i.total_price, 0);
+      records.push({
+        budget_id: budgetId,
+        description: phaseName,
+        category: "fase",
+        quantity: 1,
+        unit: "vb",
+        unit_price: phaseTotal,
+        sort_order: sortIdx++,
+      });
+    }
+
+    // Insert service rows with category "serviço"
+    for (const item of parsedItems) {
       const quantity = Number.isFinite(item.quantity) && item.quantity > 0 ? item.quantity : 1;
       const unitPrice = Number.isFinite(item.unit_price) ? item.unit_price : 0;
       const description = sanitizeText(item.description);
       const code = sanitizeText(item.code);
 
-      return {
+      records.push({
         budget_id: budgetId,
         description: code ? `${code} - ${description}` : description,
-        category: sanitizeText(item.phase, "Geral") || "Geral",
+        category: "serviço",
         quantity,
         unit: sanitizeText(item.unit, "un") || "un",
         unit_price: unitPrice,
-        sort_order: idx,
-      };
-    });
+        sort_order: sortIdx++,
+      });
+    }
 
     // Insert in batches of 50 (with row fallback for detailed errors)
     for (let i = 0; i < records.length; i += 50) {
