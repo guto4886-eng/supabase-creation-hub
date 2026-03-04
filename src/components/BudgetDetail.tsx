@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import html2canvas from "html2canvas";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -2331,6 +2331,153 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                                 <td className="px-4 py-3">
                                   <div className="w-full h-2.5 bg-muted rounded-full overflow-hidden">
                                     <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(devPct, 100)}%`, background: devPct > 100 ? "#dc2626" : "#22c55e" }} />
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })()}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Analytical detail - per service within each phase */}
+                    <div className="border border-border rounded-xl overflow-hidden shadow-sm" data-pdf-section="analytical-table">
+                      <div className="bg-muted/60 px-4 py-3 border-b border-border">
+                        <h5 className="text-sm font-bold text-foreground">📋 Informações Analíticas</h5>
+                        <p className="text-xs text-muted-foreground mt-0.5">Detalhamento analítico por serviço dentro de cada fase, com valores orçados, planejados e realizados.</p>
+                      </div>
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="bg-muted/30">
+                            <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Serviço</th>
+                            <th className="text-right px-4 py-3 font-semibold text-muted-foreground">Qtd</th>
+                            <th className="text-right px-4 py-3 font-semibold text-muted-foreground">Un</th>
+                            <th className="text-right px-4 py-3 font-semibold" style={{ color: "#3b82f6" }}>💰 Orçado</th>
+                            <th className="text-right px-4 py-3 font-semibold" style={{ color: "#d97706" }}>📋 Plan. %</th>
+                            <th className="text-right px-4 py-3 font-semibold" style={{ color: "#d97706" }}>📋 Planejado</th>
+                            <th className="text-right px-4 py-3 font-semibold" style={{ color: "#16a34a" }}>📊 Med. %</th>
+                            <th className="text-right px-4 py-3 font-semibold" style={{ color: "#16a34a" }}>📊 Realizado</th>
+                            <th className="text-right px-4 py-3 font-semibold text-muted-foreground">📈 Desvio</th>
+                            <th className="text-left px-4 py-3 font-semibold text-muted-foreground" style={{ minWidth: 100 }}>Progresso</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border">
+                          {rootPhasesPR.map((phase) => {
+                            const rootIdx = getPrefixPR(phase.description)!;
+                            const children = serviceItemsPR.filter((s) => {
+                              const sp = getPrefixPR(s.description);
+                              return sp ? sp.split(".")[0] === rootIdx : false;
+                            });
+                            if (children.length === 0) return null;
+
+                            const phaseOrcado = children.reduce((sum, s) => sum + getVendaTotal(s), 0);
+                            const phasePlanPct = phaseOrcado > 0 ? children.reduce((sum, s) => {
+                              const pct = planItems.filter((pi: any) => pi.budget_item_id === s.id).reduce((a: number, pi: any) => a + (pi.planned_percentage || 0), 0);
+                              return sum + getVendaTotal(s) * (pct / 100);
+                            }, 0) : 0;
+                            const phaseRealizado = children.reduce((sum, s) => {
+                              const accPct = (allMeasurementItems as any[]).filter((mi: any) => mi.budget_item_id === s.id).reduce((a: number, mi: any) => a + (mi.measured_percentage || 0), 0);
+                              return sum + getVendaTotal(s) * (accPct / 100);
+                            }, 0);
+                            const phaseDesvio = phaseRealizado - phaseOrcado;
+
+                            return (
+                              <React.Fragment key={phase.id}>
+                                {/* Phase header row */}
+                                <tr className="bg-muted/40">
+                                  <td colSpan={3} className="px-4 py-2.5 font-bold text-foreground text-xs uppercase tracking-wide">
+                                    {phase.description}
+                                  </td>
+                                  <td className="px-4 py-2.5 text-right tabular-nums font-bold text-xs" style={{ color: "#1d4ed8" }}>{fmt(phaseOrcado)}</td>
+                                  <td className="px-4 py-2.5 text-right tabular-nums font-bold text-xs" style={{ color: "#d97706" }}>
+                                    {phaseOrcado > 0 ? ((phasePlanPct / phaseOrcado) * 100).toFixed(1) + "%" : "–"}
+                                  </td>
+                                  <td className="px-4 py-2.5 text-right tabular-nums font-bold text-xs" style={{ color: "#d97706" }}>{fmt(phasePlanPct)}</td>
+                                  <td className="px-4 py-2.5 text-right tabular-nums font-bold text-xs" style={{ color: "#16a34a" }}>
+                                    {phaseOrcado > 0 ? ((phaseRealizado / phaseOrcado) * 100).toFixed(1) + "%" : "–"}
+                                  </td>
+                                  <td className="px-4 py-2.5 text-right tabular-nums font-bold text-xs" style={{ color: "#16a34a" }}>{fmt(phaseRealizado)}</td>
+                                  <td className="px-4 py-2.5 text-right tabular-nums font-bold text-xs" style={{ color: phaseDesvio > 0 ? "#dc2626" : "#059669" }}>
+                                    {phaseDesvio > 0 ? "+" : ""}{fmt(phaseDesvio)}
+                                  </td>
+                                  <td className="px-4 py-2.5">
+                                    <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+                                      <div className="h-full rounded-full" style={{
+                                        width: `${Math.min(phaseOrcado > 0 ? (phaseRealizado / phaseOrcado) * 100 : 0, 100)}%`,
+                                        background: (phaseRealizado / phaseOrcado) * 100 > 100 ? "#dc2626" : "#22c55e"
+                                      }} />
+                                    </div>
+                                  </td>
+                                </tr>
+                                {/* Service rows */}
+                                {children.map((svc, si) => {
+                                  const orcado = getVendaTotal(svc);
+                                  const planPctSvc = planItems.filter((pi: any) => pi.budget_item_id === svc.id).reduce((a: number, pi: any) => a + (pi.planned_percentage || 0), 0);
+                                  const planejadoSvc = orcado * (planPctSvc / 100);
+                                  const medPctSvc = (allMeasurementItems as any[]).filter((mi: any) => mi.budget_item_id === svc.id).reduce((a: number, mi: any) => a + (mi.measured_percentage || 0), 0);
+                                  const realizadoSvc = orcado * (medPctSvc / 100);
+                                  const desvioSvc = realizadoSvc - orcado;
+                                  const execPct = orcado > 0 ? (realizadoSvc / orcado) * 100 : 0;
+                                  return (
+                                    <tr key={svc.id} className={si % 2 === 0 ? "bg-background" : "bg-muted/5"}>
+                                      <td className="px-4 py-2 text-foreground text-xs pl-8">{svc.description.replace(/^\d+(\.\d+)*\s*[-–.]?\s*/, "")}</td>
+                                      <td className="px-4 py-2 text-right tabular-nums text-xs text-muted-foreground">{svc.quantity ?? "–"}</td>
+                                      <td className="px-4 py-2 text-right tabular-nums text-xs text-muted-foreground">{svc.unit || "–"}</td>
+                                      <td className="px-4 py-2 text-right tabular-nums text-xs" style={{ color: "#1d4ed8" }}>{fmt(orcado)}</td>
+                                      <td className="px-4 py-2 text-right tabular-nums text-xs" style={{ color: "#d97706" }}>{planPctSvc.toFixed(1)}%</td>
+                                      <td className="px-4 py-2 text-right tabular-nums text-xs" style={{ color: "#d97706" }}>{fmt(planejadoSvc)}</td>
+                                      <td className="px-4 py-2 text-right tabular-nums text-xs" style={{ color: "#16a34a" }}>{medPctSvc.toFixed(1)}%</td>
+                                      <td className="px-4 py-2 text-right tabular-nums text-xs font-medium" style={{ color: "#16a34a" }}>{fmt(realizadoSvc)}</td>
+                                      <td className="px-4 py-2 text-right tabular-nums text-xs" style={{ color: desvioSvc > 0 ? "#dc2626" : desvioSvc < 0 ? "#059669" : undefined }}>
+                                        {desvioSvc > 0 ? "+" : ""}{fmt(desvioSvc)}
+                                      </td>
+                                      <td className="px-4 py-2">
+                                        <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+                                          <div className="h-full rounded-full" style={{
+                                            width: `${Math.min(execPct, 100)}%`,
+                                            background: execPct > 100 ? "#dc2626" : execPct >= 50 ? "#22c55e" : "#3b82f6"
+                                          }} />
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </React.Fragment>
+                            );
+                          })}
+                          {/* Grand total */}
+                          {(() => {
+                            const grandOrcado = serviceItemsPR.reduce((s, svc) => s + getVendaTotal(svc), 0);
+                            const grandPlanPct = grandOrcado > 0 ? serviceItemsPR.reduce((sum, s) => {
+                              const pct = planItems.filter((pi: any) => pi.budget_item_id === s.id).reduce((a: number, pi: any) => a + (pi.planned_percentage || 0), 0);
+                              return sum + getVendaTotal(s) * (pct / 100);
+                            }, 0) : 0;
+                            const grandReal = serviceItemsPR.reduce((sum, s) => {
+                              const accPct = (allMeasurementItems as any[]).filter((mi: any) => mi.budget_item_id === s.id).reduce((a: number, mi: any) => a + (mi.measured_percentage || 0), 0);
+                              return sum + getVendaTotal(s) * (accPct / 100);
+                            }, 0);
+                            const grandDesvio = grandReal - grandOrcado;
+                            return (
+                              <tr className="bg-muted/50 font-bold border-t-2 border-border">
+                                <td colSpan={3} className="px-4 py-3 text-foreground text-xs">TOTAL GERAL</td>
+                                <td className="px-4 py-3 text-right tabular-nums text-xs" style={{ color: "#1d4ed8" }}>{fmt(grandOrcado)}</td>
+                                <td className="px-4 py-3 text-right tabular-nums text-xs" style={{ color: "#d97706" }}>
+                                  {grandOrcado > 0 ? ((grandPlanPct / grandOrcado) * 100).toFixed(1) + "%" : "–"}
+                                </td>
+                                <td className="px-4 py-3 text-right tabular-nums text-xs" style={{ color: "#d97706" }}>{fmt(grandPlanPct)}</td>
+                                <td className="px-4 py-3 text-right tabular-nums text-xs" style={{ color: "#16a34a" }}>
+                                  {grandOrcado > 0 ? ((grandReal / grandOrcado) * 100).toFixed(1) + "%" : "–"}
+                                </td>
+                                <td className="px-4 py-3 text-right tabular-nums text-xs" style={{ color: "#16a34a" }}>{fmt(grandReal)}</td>
+                                <td className="px-4 py-3 text-right tabular-nums text-xs" style={{ color: grandDesvio > 0 ? "#dc2626" : "#059669" }}>
+                                  {grandDesvio > 0 ? "+" : ""}{fmt(grandDesvio)}
+                                </td>
+                                <td className="px-4 py-3">
+                                  <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+                                    <div className="h-full rounded-full" style={{
+                                      width: `${Math.min(grandOrcado > 0 ? (grandReal / grandOrcado) * 100 : 0, 100)}%`,
+                                      background: (grandReal / grandOrcado) * 100 > 100 ? "#dc2626" : "#22c55e"
+                                    }} />
                                   </div>
                                 </td>
                               </tr>
