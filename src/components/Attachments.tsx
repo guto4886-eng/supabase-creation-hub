@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import { Paperclip, Trash2, Download, FileText, Image, File, UploadCloud, CalendarClock } from "lucide-react";
+import { Paperclip, Trash2, Download, FileText, Image, File, UploadCloud, CalendarClock, Pencil } from "lucide-react";
 
 interface Props {
   entityType: string;
@@ -59,6 +59,7 @@ export default function Attachments({ entityType, entityId }: Props) {
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [expiresAt, setExpiresAt] = useState("");
   const [showExpiryModal, setShowExpiryModal] = useState(false);
+  const [editingExpiry, setEditingExpiry] = useState<Attachment | null>(null);
 
   const queryKey = ["attachments", entityType, entityId];
 
@@ -171,6 +172,22 @@ export default function Attachments({ entityType, entityId }: Props) {
     setDragging(false);
   }, []);
 
+  const updateExpiryMutation = useMutation({
+    mutationFn: async ({ id, expires_at }: { id: string; expires_at: string | null }) => {
+      const { error } = await supabase
+        .from("attachments")
+        .update({ expires_at } as any)
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey });
+      toast.success("Validade atualizada!");
+      setEditingExpiry(null);
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
   const handleDownload = async (attachment: Attachment) => {
     const { data, error } = await supabase.storage
       .from("attachments")
@@ -219,6 +236,43 @@ export default function Attachments({ entityType, entityId }: Props) {
               </button>
               <button onClick={confirmUpload} className="px-4 py-2 text-sm rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-opacity font-medium">
                 Enviar
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Edit expiry modal */}
+      {editingExpiry && (
+        <>
+          <div className="fixed inset-0 z-50 bg-black/40" onClick={() => setEditingExpiry(null)} />
+          <div className="fixed z-50 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-card border border-border rounded-xl shadow-xl p-6 w-[380px] max-w-[90vw] space-y-4">
+            <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <CalendarClock className="h-4 w-4 text-primary" />
+              Alterar Validade
+            </h3>
+            <p className="text-xs text-muted-foreground truncate">Arquivo: {editingExpiry.file_name}</p>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-foreground">Nova validade</label>
+              <input
+                type="date"
+                defaultValue={editingExpiry.expires_at || ""}
+                id="edit-expiry-input"
+                className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background text-foreground"
+              />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setEditingExpiry(null)} className="px-4 py-2 text-sm rounded-lg border border-border text-muted-foreground hover:bg-muted/50 transition-colors">
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  const val = (document.getElementById("edit-expiry-input") as HTMLInputElement)?.value;
+                  updateExpiryMutation.mutate({ id: editingExpiry.id, expires_at: val || null });
+                }}
+                className="px-4 py-2 text-sm rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-opacity font-medium"
+              >
+                Salvar
               </button>
             </div>
           </div>
@@ -288,7 +342,14 @@ export default function Attachments({ entityType, entityId }: Props) {
                     </div>
                   </td>
                   <td className="px-3 py-2 text-muted-foreground whitespace-nowrap">{formatFileSize(a.file_size)}</td>
-                  <td className="px-3 py-2 whitespace-nowrap"><ExpiryBadge expiresAt={a.expires_at} /></td>
+                  <td className="px-3 py-2 whitespace-nowrap">
+                    <div className="flex items-center gap-1">
+                      <ExpiryBadge expiresAt={a.expires_at} />
+                      <button onClick={() => setEditingExpiry(a)} className="p-0.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground" title="Alterar validade">
+                        <Pencil className="h-3 w-3" />
+                      </button>
+                    </div>
+                  </td>
                   <td className="px-3 py-2 text-muted-foreground whitespace-nowrap">
                     {new Date(a.created_at).toLocaleDateString("pt-BR")}
                   </td>
