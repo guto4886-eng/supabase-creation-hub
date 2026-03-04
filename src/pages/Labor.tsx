@@ -291,7 +291,13 @@ export default function Labor() {
 
   const generateBlankForm = async (companyId?: string) => {
     setBlankFormCompanyModal(false);
-    const companyInfo = companyId ? await fetchCompanyInfo(companyId) : null;
+    let companyInfo: any = null;
+    if (companyId) {
+      const { data } = await supabase.from("companies").select("name, document, logo_url, address, city, state, phone, email").eq("id", companyId).maybeSingle();
+      if (data) {
+        companyInfo = { company_name: data.name, document: data.document, logo_url: data.logo_url, address: data.address, city: data.city, state: data.state, phone: data.phone, email: data.email };
+      }
+    }
     const doc = new jsPDF("p", "mm", "a4");
     const w = doc.internal.pageSize.getWidth();
     const M = 14;
