@@ -2137,6 +2137,7 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                           if (!container) { toast.error("Não foi possível capturar os dados."); return; }
 
                           const sections = Array.from(container.querySelectorAll('[data-pdf-section]')) as HTMLElement[];
+                          const BOTTOM_MARGIN = 18;
 
                           for (const section of sections) {
                             const canvas = await html2canvas(section, {
@@ -2147,19 +2148,58 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                             });
 
                             const imgData = canvas.toDataURL('image/png');
-                            const widthPx = canvas.width / 2;
-                            const heightPx = canvas.height / 2;
-                            const scaleFactor = contentW / widthPx;
-                            const heightMM = heightPx * scaleFactor;
+                            const canvasW = canvas.width;
+                            const canvasH = canvas.height;
+                            const scaleFactor = contentW / (canvasW / 2);
+                            const totalHeightMM = (canvasH / 2) * scaleFactor;
 
-                            const remainingSpace = pageH - MARGIN - y;
-                            if (heightMM > remainingSpace && y > MARGIN + 10) {
+                            const availableH = pageH - BOTTOM_MARGIN;
+
+                            // If the section fits on the remaining space, add it directly
+                            const remainingSpace = availableH - y;
+                            if (totalHeightMM <= remainingSpace) {
+                              doc.addImage(imgData, 'PNG', MARGIN, y, contentW, totalHeightMM);
+                              y += totalHeightMM + 4;
+                            } else if (totalHeightMM <= availableH - MARGIN) {
+                              // Section fits on a fresh page
                               doc.addPage();
                               y = MARGIN;
-                            }
+                              doc.addImage(imgData, 'PNG', MARGIN, y, contentW, totalHeightMM);
+                              y += totalHeightMM + 4;
+                            } else {
+                              // Section is too tall - slice it across multiple pages
+                              const usablePageH = availableH - MARGIN;
+                              const pxPerMM = (canvasH / 2) / totalHeightMM;
+                              let srcYOffset = 0;
+                              let firstSlice = true;
 
-                            doc.addImage(imgData, 'PNG', MARGIN, y, contentW, heightMM);
-                            y += heightMM + 4;
+                              while (srcYOffset < canvasH / 2) {
+                                const spaceOnPage = firstSlice ? remainingSpace : usablePageH;
+                                if (spaceOnPage < 10 || !firstSlice) {
+                                  if (!firstSlice || spaceOnPage < 10) {
+                                    doc.addPage();
+                                    y = MARGIN;
+                                  }
+                                }
+
+                                const sliceHeightMM = Math.min(firstSlice ? remainingSpace : usablePageH, totalHeightMM - srcYOffset / pxPerMM);
+                                const sliceHeightPx = sliceHeightMM * pxPerMM * 2; // multiply by scale
+
+                                // Create a slice canvas
+                                const sliceCanvas = document.createElement('canvas');
+                                sliceCanvas.width = canvasW;
+                                sliceCanvas.height = Math.ceil(sliceHeightPx);
+                                const ctx = sliceCanvas.getContext('2d')!;
+                                ctx.drawImage(canvas, 0, srcYOffset * 2, canvasW, sliceHeightPx, 0, 0, canvasW, sliceHeightPx);
+
+                                const sliceImg = sliceCanvas.toDataURL('image/png');
+                                doc.addImage(sliceImg, 'PNG', MARGIN, y, contentW, sliceHeightMM);
+                                y += sliceHeightMM;
+                                srcYOffset += sliceHeightMM * pxPerMM;
+                                firstSlice = false;
+                              }
+                              y += 4;
+                            }
                           }
 
                           addPageFooter(doc);
@@ -2343,49 +2383,48 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                     </div>
 
                     {/* Analytical detail - per service within each phase */}
-                    <div className="border border-border rounded-xl overflow-hidden shadow-sm" data-pdf-section="analytical-table">
-                      <div className="bg-muted/60 px-4 py-3 border-b border-border">
+                    <div className="border border-border rounded-xl overflow-hidden shadow-sm">
+                      <div className="bg-muted/60 px-4 py-3 border-b border-border" data-pdf-section="analytical-header">
                         <h5 className="text-sm font-bold text-foreground">📋 Informações Analíticas</h5>
                         <p className="text-xs text-muted-foreground mt-0.5">Detalhamento analítico por serviço dentro de cada fase, com valores orçados, planejados e realizados.</p>
                       </div>
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="bg-muted/30">
-                            <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Serviço</th>
-                            <th className="text-right px-4 py-3 font-semibold text-muted-foreground">Qtd</th>
-                            <th className="text-right px-4 py-3 font-semibold text-muted-foreground">Un</th>
-                            <th className="text-right px-4 py-3 font-semibold" style={{ color: "#3b82f6" }}>💰 Orçado</th>
-                            <th className="text-right px-4 py-3 font-semibold" style={{ color: "#d97706" }}>📋 Plan. %</th>
-                            <th className="text-right px-4 py-3 font-semibold" style={{ color: "#d97706" }}>📋 Planejado</th>
-                            <th className="text-right px-4 py-3 font-semibold" style={{ color: "#16a34a" }}>📊 Med. %</th>
-                            <th className="text-right px-4 py-3 font-semibold" style={{ color: "#16a34a" }}>📊 Realizado</th>
-                            <th className="text-right px-4 py-3 font-semibold text-muted-foreground">📈 Desvio</th>
-                            <th className="text-left px-4 py-3 font-semibold text-muted-foreground" style={{ minWidth: 100 }}>Progresso</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-border">
-                          {rootPhasesPR.map((phase) => {
-                            const rootIdx = getPrefixPR(phase.description)!;
-                            const children = serviceItemsPR.filter((s) => {
-                              const sp = getPrefixPR(s.description);
-                              return sp ? sp.split(".")[0] === rootIdx : false;
-                            });
-                            if (children.length === 0) return null;
+                      {rootPhasesPR.map((phase) => {
+                        const rootIdx = getPrefixPR(phase.description)!;
+                        const children = serviceItemsPR.filter((s) => {
+                          const sp = getPrefixPR(s.description);
+                          return sp ? sp.split(".")[0] === rootIdx : false;
+                        });
+                        if (children.length === 0) return null;
 
-                            const phaseOrcado = children.reduce((sum, s) => sum + getVendaTotal(s), 0);
-                            const phasePlanPct = phaseOrcado > 0 ? children.reduce((sum, s) => {
-                              const pct = planItems.filter((pi: any) => pi.budget_item_id === s.id).reduce((a: number, pi: any) => a + (pi.planned_percentage || 0), 0);
-                              return sum + getVendaTotal(s) * (pct / 100);
-                            }, 0) : 0;
-                            const phaseRealizado = children.reduce((sum, s) => {
-                              const accPct = (allMeasurementItems as any[]).filter((mi: any) => mi.budget_item_id === s.id).reduce((a: number, mi: any) => a + (mi.measured_percentage || 0), 0);
-                              return sum + getVendaTotal(s) * (accPct / 100);
-                            }, 0);
-                            const phaseDesvio = phaseRealizado - phaseOrcado;
+                        const phaseOrcado = children.reduce((sum, s) => sum + getVendaTotal(s), 0);
+                        const phasePlanPct = phaseOrcado > 0 ? children.reduce((sum, s) => {
+                          const pct = planItems.filter((pi: any) => pi.budget_item_id === s.id).reduce((a: number, pi: any) => a + (pi.planned_percentage || 0), 0);
+                          return sum + getVendaTotal(s) * (pct / 100);
+                        }, 0) : 0;
+                        const phaseRealizado = children.reduce((sum, s) => {
+                          const accPct = (allMeasurementItems as any[]).filter((mi: any) => mi.budget_item_id === s.id).reduce((a: number, mi: any) => a + (mi.measured_percentage || 0), 0);
+                          return sum + getVendaTotal(s) * (accPct / 100);
+                        }, 0);
+                        const phaseDesvio = phaseRealizado - phaseOrcado;
 
-                            return (
-                              <React.Fragment key={phase.id}>
-                                {/* Phase header row */}
+                        return (
+                          <div key={phase.id} data-pdf-section={`analytical-phase-${rootIdx}`}>
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr className="bg-muted/30">
+                                  <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Serviço</th>
+                                  <th className="text-right px-4 py-3 font-semibold text-muted-foreground">Qtd</th>
+                                  <th className="text-right px-4 py-3 font-semibold text-muted-foreground">Un</th>
+                                  <th className="text-right px-4 py-3 font-semibold" style={{ color: "#3b82f6" }}>💰 Orçado</th>
+                                  <th className="text-right px-4 py-3 font-semibold" style={{ color: "#d97706" }}>📋 Plan. %</th>
+                                  <th className="text-right px-4 py-3 font-semibold" style={{ color: "#d97706" }}>📋 Planejado</th>
+                                  <th className="text-right px-4 py-3 font-semibold" style={{ color: "#16a34a" }}>📊 Med. %</th>
+                                  <th className="text-right px-4 py-3 font-semibold" style={{ color: "#16a34a" }}>📊 Realizado</th>
+                                  <th className="text-right px-4 py-3 font-semibold text-muted-foreground">📈 Desvio</th>
+                                  <th className="text-left px-4 py-3 font-semibold text-muted-foreground" style={{ minWidth: 100 }}>Progresso</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-border">
                                 <tr className="bg-muted/40">
                                   <td colSpan={3} className="px-4 py-2.5 font-bold text-foreground text-xs uppercase tracking-wide">
                                     {phase.description}
@@ -2411,7 +2450,6 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                                     </div>
                                   </td>
                                 </tr>
-                                {/* Service rows */}
                                 {children.map((svc, si) => {
                                   const orcado = getVendaTotal(svc);
                                   const planPctSvc = planItems.filter((pi: any) => pi.budget_item_id === svc.id).reduce((a: number, pi: any) => a + (pi.planned_percentage || 0), 0);
@@ -2444,49 +2482,55 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                                     </tr>
                                   );
                                 })}
-                              </React.Fragment>
-                            );
-                          })}
-                          {/* Grand total */}
-                          {(() => {
-                            const grandOrcado = serviceItemsPR.reduce((s, svc) => s + getVendaTotal(svc), 0);
-                            const grandPlanPct = grandOrcado > 0 ? serviceItemsPR.reduce((sum, s) => {
-                              const pct = planItems.filter((pi: any) => pi.budget_item_id === s.id).reduce((a: number, pi: any) => a + (pi.planned_percentage || 0), 0);
-                              return sum + getVendaTotal(s) * (pct / 100);
-                            }, 0) : 0;
-                            const grandReal = serviceItemsPR.reduce((sum, s) => {
-                              const accPct = (allMeasurementItems as any[]).filter((mi: any) => mi.budget_item_id === s.id).reduce((a: number, mi: any) => a + (mi.measured_percentage || 0), 0);
-                              return sum + getVendaTotal(s) * (accPct / 100);
-                            }, 0);
-                            const grandDesvio = grandReal - grandOrcado;
-                            return (
-                              <tr className="bg-muted/50 font-bold border-t-2 border-border">
-                                <td colSpan={3} className="px-4 py-3 text-foreground text-xs">TOTAL GERAL</td>
-                                <td className="px-4 py-3 text-right tabular-nums text-xs" style={{ color: "#1d4ed8" }}>{fmt(grandOrcado)}</td>
-                                <td className="px-4 py-3 text-right tabular-nums text-xs" style={{ color: "#d97706" }}>
-                                  {grandOrcado > 0 ? ((grandPlanPct / grandOrcado) * 100).toFixed(1) + "%" : "–"}
-                                </td>
-                                <td className="px-4 py-3 text-right tabular-nums text-xs" style={{ color: "#d97706" }}>{fmt(grandPlanPct)}</td>
-                                <td className="px-4 py-3 text-right tabular-nums text-xs" style={{ color: "#16a34a" }}>
-                                  {grandOrcado > 0 ? ((grandReal / grandOrcado) * 100).toFixed(1) + "%" : "–"}
-                                </td>
-                                <td className="px-4 py-3 text-right tabular-nums text-xs" style={{ color: "#16a34a" }}>{fmt(grandReal)}</td>
-                                <td className="px-4 py-3 text-right tabular-nums text-xs" style={{ color: grandDesvio > 0 ? "#dc2626" : "#059669" }}>
-                                  {grandDesvio > 0 ? "+" : ""}{fmt(grandDesvio)}
-                                </td>
-                                <td className="px-4 py-3">
-                                  <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
-                                    <div className="h-full rounded-full" style={{
-                                      width: `${Math.min(grandOrcado > 0 ? (grandReal / grandOrcado) * 100 : 0, 100)}%`,
-                                      background: (grandReal / grandOrcado) * 100 > 100 ? "#dc2626" : "#22c55e"
-                                    }} />
-                                  </div>
-                                </td>
-                              </tr>
-                            );
-                          })()}
-                        </tbody>
-                      </table>
+                              </tbody>
+                            </table>
+                          </div>
+                        );
+                      })}
+                      {/* Grand total */}
+                      <div data-pdf-section="analytical-total">
+                        <table className="w-full text-sm">
+                          <tbody>
+                            {(() => {
+                              const grandOrcado = serviceItemsPR.reduce((s, svc) => s + getVendaTotal(svc), 0);
+                              const grandPlanPct = grandOrcado > 0 ? serviceItemsPR.reduce((sum, s) => {
+                                const pct = planItems.filter((pi: any) => pi.budget_item_id === s.id).reduce((a: number, pi: any) => a + (pi.planned_percentage || 0), 0);
+                                return sum + getVendaTotal(s) * (pct / 100);
+                              }, 0) : 0;
+                              const grandReal = serviceItemsPR.reduce((sum, s) => {
+                                const accPct = (allMeasurementItems as any[]).filter((mi: any) => mi.budget_item_id === s.id).reduce((a: number, mi: any) => a + (mi.measured_percentage || 0), 0);
+                                return sum + getVendaTotal(s) * (accPct / 100);
+                              }, 0);
+                              const grandDesvio = grandReal - grandOrcado;
+                              return (
+                                <tr className="bg-muted/50 font-bold border-t-2 border-border">
+                                  <td colSpan={3} className="px-4 py-3 text-foreground text-xs">TOTAL GERAL</td>
+                                  <td className="px-4 py-3 text-right tabular-nums text-xs" style={{ color: "#1d4ed8" }}>{fmt(grandOrcado)}</td>
+                                  <td className="px-4 py-3 text-right tabular-nums text-xs" style={{ color: "#d97706" }}>
+                                    {grandOrcado > 0 ? ((grandPlanPct / grandOrcado) * 100).toFixed(1) + "%" : "–"}
+                                  </td>
+                                  <td className="px-4 py-3 text-right tabular-nums text-xs" style={{ color: "#d97706" }}>{fmt(grandPlanPct)}</td>
+                                  <td className="px-4 py-3 text-right tabular-nums text-xs" style={{ color: "#16a34a" }}>
+                                    {grandOrcado > 0 ? ((grandReal / grandOrcado) * 100).toFixed(1) + "%" : "–"}
+                                  </td>
+                                  <td className="px-4 py-3 text-right tabular-nums text-xs" style={{ color: "#16a34a" }}>{fmt(grandReal)}</td>
+                                  <td className="px-4 py-3 text-right tabular-nums text-xs" style={{ color: grandDesvio > 0 ? "#dc2626" : "#059669" }}>
+                                    {grandDesvio > 0 ? "+" : ""}{fmt(grandDesvio)}
+                                  </td>
+                                  <td className="px-4 py-3">
+                                    <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+                                      <div className="h-full rounded-full" style={{
+                                        width: `${Math.min(grandOrcado > 0 ? (grandReal / grandOrcado) * 100 : 0, 100)}%`,
+                                        background: (grandReal / grandOrcado) * 100 > 100 ? "#dc2626" : "#22c55e"
+                                      }} />
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })()}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   </>
                 )}
