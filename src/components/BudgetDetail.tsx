@@ -1184,17 +1184,40 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                 .reduce((sum: number, pi: any) => sum + (pi.planned_percentage || 0), 0);
             };
 
+            const clearAllPlanData = async () => {
+              if (!confirm("Tem certeza que deseja excluir TODOS os dados de planejamento? Esta ação não pode ser desfeita.")) return;
+              const periodIds = planPeriods.map((p: any) => p.id);
+              if (periodIds.length > 0) {
+                await supabase.from("budget_plan_items" as any).delete().in("plan_period_id", periodIds);
+                await supabase.from("budget_plan_periods" as any).delete().eq("budget_id", budgetId);
+              }
+              qc.invalidateQueries({ queryKey: ["budget_plan_periods", budgetId] });
+              qc.invalidateQueries({ queryKey: ["budget_plan_items", budgetId] });
+              toast.success("Dados de planejamento excluídos!");
+            };
+
             return (
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <h4 className="text-sm font-semibold text-foreground">Planejamento Físico/Econômico</h4>
-                  <button
-                    onClick={addPlanPeriod}
-                    className="flex items-center gap-1.5 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90"
-                  >
-                    <Plus className="h-4 w-4" />
-                    Adicionar período
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {planPeriods.length > 0 && (
+                      <button
+                        onClick={clearAllPlanData}
+                        className="flex items-center gap-1.5 px-4 py-2 bg-destructive text-destructive-foreground rounded-lg text-sm font-medium hover:opacity-90"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Limpar dados
+                      </button>
+                    )}
+                    <button
+                      onClick={addPlanPeriod}
+                      className="flex items-center gap-1.5 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Adicionar período
+                    </button>
+                  </div>
                 </div>
 
                 {planPeriods.length === 0 ? (
