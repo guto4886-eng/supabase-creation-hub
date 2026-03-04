@@ -301,10 +301,25 @@ export default function BudgetImportModal({ budgetId, onClose }: Props) {
       }
     }
 
-    // Insert phase rows with category "fase"
+    // Insert only root-level phase rows (single numeric prefix like "1 - ...", "2 - ...")
+    // Subfases like "9.3 - ..." are NOT inserted as separate fase rows
+    const rootPhaseRegex = /^(\d+)\s*[-–—.]\s*/;
     for (const phaseName of orderedPhases) {
+      const match = phaseName.match(rootPhaseRegex);
+      // Only insert as "fase" if it starts with a single number (root level)
+      // and that number has no dots (not "9.3")
+      if (!match) continue;
+      const prefix = phaseName.match(/^(\d+(?:\.\d+)*)/);
+      if (prefix && prefix[1].includes(".")) continue; // skip subfases like "9.3 - ..."
+
+      // Sum all items whose phase starts with this root index
+      const rootIdx = match[1];
       const phaseTotal = parsedItems
-        .filter((i) => (sanitizeText(i.phase, "Geral") || "Geral") === phaseName)
+        .filter((i) => {
+          const p = sanitizeText(i.phase, "Geral") || "Geral";
+          const pMatch = p.match(/^(\d+)/);
+          return pMatch && pMatch[1] === rootIdx;
+        })
         .reduce((sum, i) => sum + i.total_price, 0);
       records.push({
         budget_id: budgetId,
