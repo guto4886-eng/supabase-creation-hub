@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import jsPDF from "jspdf";
 import { exportCSV, exportExcel, exportPDF, fetchCompanyInfo } from "@/utils/exportWithHeader";
+import { addReportHeader, addPageFooter } from "@/utils/pdfHeader";
 import ExportDialog from "@/components/ExportDialog";
 import { useCompanies, CompanyFilterSelect } from "@/hooks/useCompanies";
 import { fetchCep } from "@/utils/cep";
@@ -140,6 +141,7 @@ export default function Labor() {
   const [importOpen, setImportOpen] = useState(false);
   const [formTab, setFormTab] = useState("dados");
   const [cepLoading, setCepLoading] = useState(false);
+  const [blankFormCompanyModal, setBlankFormCompanyModal] = useState(false);
 
   // Data
   const { data: obras = [] } = useQuery({
@@ -287,90 +289,90 @@ export default function Labor() {
     setFilterName(""); setFilterRole(""); setFilterObra(""); setFilterCondition("ativo"); setFilterCompany(""); setSearched(false); setPage(0);
   };
 
-  const generateBlankForm = () => {
+  const generateBlankForm = async (companyId?: string) => {
+    setBlankFormCompanyModal(false);
+    const companyInfo = companyId ? await fetchCompanyInfo(companyId) : null;
     const doc = new jsPDF("p", "mm", "a4");
     const w = doc.internal.pageSize.getWidth();
-    const margin = 15;
-    let y = 20;
+    const M = 14;
+    const usable = w - M * 2;
 
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(16);
-    doc.text("FICHA DE CADASTRO DE FUNCIONÁRIO", w / 2, y, { align: "center" });
-    y += 12;
+    let y = await addReportHeader(doc, companyInfo, "FICHA DE CADASTRO DE FUNCIONÁRIO");
+    y += 2;
 
-    doc.setDrawColor(100);
-    doc.setLineWidth(0.3);
+    doc.setDrawColor(150);
+    doc.setLineWidth(0.2);
 
     const section = (title: string) => {
-      if (y > 260) { doc.addPage(); y = 20; }
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(11);
-      doc.setFillColor(230, 230, 230);
-      doc.rect(margin, y - 4, w - margin * 2, 7, "F");
-      doc.text(title, margin + 2, y);
-      y += 10;
+      doc.setFontSize(8);
+      doc.setFillColor(230, 230, 235);
+      doc.rect(M, y, usable, 5, "F");
+      doc.setTextColor(40, 40, 40);
+      doc.text(title, M + 1.5, y + 3.5);
+      y += 7;
     };
 
-    const field = (label: string, fieldWidth: number, x: number) => {
+    const field = (label: string, fw: number, x: number) => {
       doc.setFont("helvetica", "normal");
-      doc.setFontSize(8);
-      doc.text(label, x, y - 1);
-      doc.setFontSize(10);
-      doc.line(x, y + 3, x + fieldWidth, y + 3);
+      doc.setFontSize(6.5);
+      doc.setTextColor(100, 100, 100);
+      doc.text(label, x, y);
+      doc.setDrawColor(180);
+      doc.line(x, y + 4, x + fw, y + 4);
     };
 
     const row = (fields: { label: string; width: number }[]) => {
-      if (y > 270) { doc.addPage(); y = 20; }
-      let x = margin;
-      fields.forEach(f => {
+      let x = M;
+      const gap = 3;
+      fields.forEach((f, i) => {
         field(f.label, f.width, x);
-        x += f.width + 5;
+        x += f.width + gap;
       });
-      y += 12;
+      y += 9;
     };
 
     // Dados Pessoais
     section("DADOS PESSOAIS");
-    row([{ label: "Nome Completo", width: w - margin * 2 }]);
-    row([{ label: "CPF", width: 60 }, { label: "RG", width: 50 }, { label: "Data de Nascimento", width: 50 }]);
-    row([{ label: "Telefone", width: 55 }, { label: "Celular", width: 55 }, { label: "E-mail", width: 55 }]);
+    row([{ label: "Nome Completo", width: usable }]);
+    row([{ label: "CPF", width: 50 }, { label: "RG", width: 50 }, { label: "Data Nascimento", width: usable - 106 }]);
+    row([{ label: "Telefone", width: 45 }, { label: "Celular", width: 45 }, { label: "E-mail", width: usable - 96 }]);
 
     // Endereço
     section("ENDEREÇO");
-    row([{ label: "CEP", width: 40 }, { label: "Endereço", width: w - margin * 2 - 45 }]);
-    row([{ label: "Nº", width: 25 }, { label: "Complemento", width: 45 }, { label: "Bairro", width: 45 }, { label: "Cidade", width: 35 }, { label: "UF", width: 15 }]);
+    row([{ label: "CEP", width: 30 }, { label: "Endereço", width: usable - 33 }]);
+    row([{ label: "Nº", width: 20 }, { label: "Complemento", width: 40 }, { label: "Bairro", width: 45 }, { label: "Cidade", width: 40 }, { label: "UF", width: usable - 157 }]);
 
     // Documentos
     section("DOCUMENTOS TRABALHISTAS");
-    row([{ label: "PIS/PASEP", width: 55 }, { label: "CTPS Nº", width: 50 }, { label: "Série CTPS", width: 50 }]);
+    row([{ label: "PIS/PASEP", width: 55 }, { label: "CTPS Nº", width: 50 }, { label: "Série CTPS", width: usable - 111 }]);
 
     // Contratação
     section("DADOS DE CONTRATAÇÃO");
-    row([{ label: "Empresa", width: w - margin * 2 }]);
-    row([{ label: "Função", width: 55 }, { label: "Cargo", width: 55 }, { label: "Obra", width: 55 }]);
-    row([{ label: "Data Admissão", width: 45 }, { label: "Tipo Contrato", width: 45 }, { label: "Turno", width: 40 }, { label: "Horário", width: 35 }]);
-    row([{ label: "Tipo Remuneração", width: 50 }, { label: "Valor (R$)", width: 45 }, { label: "Diária (R$)", width: 40 }, { label: "Bônus (R$)", width: 35 }]);
-    row([{ label: "Salário Mensal (R$)", width: 55 }]);
+    row([{ label: "Empresa", width: usable }]);
+    row([{ label: "Função", width: 50 }, { label: "Cargo", width: 50 }, { label: "Obra", width: usable - 106 }]);
+    row([{ label: "Data Admissão", width: 38 }, { label: "Tipo Contrato", width: 38 }, { label: "Turno", width: 35 }, { label: "Horário", width: usable - 120 }]);
+    row([{ label: "Tipo Remuneração", width: 42 }, { label: "Valor (R$)", width: 38 }, { label: "Diária (R$)", width: 35 }, { label: "Salário Mensal (R$)", width: usable - 124 }]);
 
     // Observações
     section("OBSERVAÇÕES");
-    doc.rect(margin, y, w - margin * 2, 30);
-    y += 35;
+    const obsH = Math.min(20, 277 - y - 25);
+    doc.setDrawColor(180);
+    doc.rect(M, y, usable, obsH);
+    y += obsH + 5;
 
     // Assinaturas
-    if (y > 240) { doc.addPage(); y = 20; }
-    y += 10;
-    const sigW = (w - margin * 2 - 20) / 2;
-    doc.line(margin, y, margin + sigW, y);
-    doc.line(margin + sigW + 20, y, margin + sigW * 2 + 20, y);
-    doc.setFontSize(8);
-    doc.text("Assinatura do Funcionário", margin + sigW / 2, y + 5, { align: "center" });
-    doc.text("Assinatura do Responsável", margin + sigW + 20 + sigW / 2, y + 5, { align: "center" });
-
-    y += 12;
+    const sigW = (usable - 20) / 2;
+    doc.setDrawColor(100);
+    doc.line(M, y, M + sigW, y);
+    doc.line(M + sigW + 20, y, M + sigW * 2 + 20, y);
+    doc.setFont("helvetica", "normal");
     doc.setFontSize(7);
-    doc.text(`Data de impressão: ${new Date().toLocaleDateString("pt-BR")}`, margin, y);
+    doc.setTextColor(80, 80, 80);
+    doc.text("Assinatura do Funcionário", M + sigW / 2, y + 4, { align: "center" });
+    doc.text("Assinatura do Responsável", M + sigW + 20 + sigW / 2, y + 4, { align: "center" });
 
+    addPageFooter(doc);
     doc.save("ficha-cadastro-funcionario.pdf");
     toast.success("Ficha em branco gerada!");
   };
@@ -541,7 +543,7 @@ export default function Labor() {
                         <Download className="h-3.5 w-3.5" /> Exportar
                       </button>
                     )}
-                    <button onClick={generateBlankForm} className="flex items-center gap-1.5 px-3 py-1.5 border border-border text-foreground rounded text-xs font-medium hover:bg-muted">
+                    <button onClick={() => setBlankFormCompanyModal(true)} className="flex items-center gap-1.5 px-3 py-1.5 border border-border text-foreground rounded text-xs font-medium hover:bg-muted">
                       <Printer className="h-3.5 w-3.5" /> Ficha em Branco
                     </button>
                   </div>
@@ -952,6 +954,42 @@ export default function Labor() {
           }}
           onClose={() => setExportOpen(false)}
         />
+      )}
+
+      {/* Company selector for blank form */}
+      {blankFormCompanyModal && (
+        <>
+          <div className="fixed inset-0 z-50 bg-black/40" onClick={() => setBlankFormCompanyModal(false)} />
+          <div className="fixed z-50 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-card border border-border rounded-xl shadow-xl p-6 w-[380px] max-w-[90vw] space-y-4">
+            <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <Printer className="h-4 w-4 text-primary" />
+              Gerar Ficha em Branco
+            </h3>
+            <p className="text-xs text-muted-foreground">Selecione a empresa para o cabeçalho do formulário:</p>
+            <div className="space-y-2">
+              {companiesList.map(c => (
+                <button
+                  key={c.id}
+                  onClick={() => generateBlankForm(c.id)}
+                  className="w-full text-left px-3 py-2.5 rounded-lg border border-border hover:border-primary/50 hover:bg-muted/50 transition-colors text-sm text-foreground"
+                >
+                  {c.name}
+                </button>
+              ))}
+              {companiesList.length === 0 && (
+                <p className="text-xs text-muted-foreground text-center py-2">Nenhuma empresa cadastrada</p>
+              )}
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setBlankFormCompanyModal(false)} className="px-4 py-2 text-sm rounded-lg border border-border text-muted-foreground hover:bg-muted/50 transition-colors">
+                Cancelar
+              </button>
+              <button onClick={() => generateBlankForm()} className="px-4 py-2 text-sm rounded-lg bg-muted text-foreground hover:bg-muted/80 transition-colors">
+                Sem Cabeçalho
+              </button>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );
