@@ -199,36 +199,56 @@ export default function BudgetImportModal({ budgetId, onClose }: Props) {
           });
         }
 
-        // Post-process: remove parent/phase rows that are prefixes of child items (avoid double-counting subtotals)
-        const allCodes = items.map((it) => it.code.replace(/\.$/, "")).filter(Boolean);
-        const filtered = items.filter((item) => {
-          if (!item.code) return true;
-          const cleanCode = item.code.replace(/\.$/, "");
-          const parts = cleanCode.split(".");
-          // Only check rows with 1-2 level indices (potential phases/subphases)
-          if (parts.length > 2 || !parts.every((p) => /^\d+$/.test(p))) return true;
-          // Check if any other code starts with this code as prefix
-          const isParent = allCodes.some((c) => c !== cleanCode && c.startsWith(cleanCode + "."));
-          if (isParent) {
-            console.log("[BudgetImport] Removing parent/phase row:", item.code, item.description);
+        // Post-process Step 1: detect subtotal/phase rows by checking if a row's total
+        // matches the sum of consecutive following rows (regardless of codes)
+        // This identifies phase headers even without an index column
+        const subtotalIndices = new Set<number>();
+        for (let i = 0; i < items.length; i++) {
+          const item = items[i];
+          if (item.total_price <= 0) continue;
+          // Try summing consecutive items after this one
+          let runningSum = 0;
+          let matchEnd = -1;
+          for (let j = i + 1; j < items.length; j++) {
+            runningSum += items[j].total_price;
+            // Check if running sum matches this item's total (within 2% tolerance)
+            if (runningSum > 0 && Math.abs(item.total_price - runningSum) / runningSum < 0.02) {
+              matchEnd = j;
+              break;
+            }
+            // If sum exceeds item total, stop
+            if (runningSum > item.total_price * 1.02) break;
           }
-          return !isParent;
-        });
+          if (matchEnd > i) {
+            // This item is a subtotal/phase header — assign its description as phase to children
+            const phaseName = item.code ? `${item.code} - ${item.description}` : item.description;
+            console.log("[BudgetImport] Detected phase row:", phaseName, "total:", item.total_price, "children:", matchEnd - i);
+            subtotalIndices.add(i);
+            for (let j = i + 1; j <= matchEnd; j++) {
+              // Only override phase if children don't already have a meaningful phase
+              if (items[j].phase === "Geral" || items[j].phase === item.phase) {
+                items[j].phase = phaseName;
+              }
+            }
+          }
+        }
 
-        // Second post-process: detect subtotal rows without codes
-        // A subtotal row typically has qty=1 and its total matches the sum of subsequent items in the same phase
-        const finalItems = filtered.filter((item, idx) => {
-          if (item.code) return true; // already handled above
-          if (item.quantity !== 1) return true;
-          // Check if this item's total approximately equals the sum of next items with same phase
-          const samePhaseAfter = filtered
-            .slice(idx + 1)
-            .filter((next) => next.phase === item.phase && next !== item);
-          if (samePhaseAfter.length === 0) return true;
-          const sumAfter = samePhaseAfter.reduce((s, n) => s + n.total_price, 0);
-          if (sumAfter > 0 && Math.abs(item.total_price - sumAfter) / sumAfter < 0.02) {
-            console.log("[BudgetImport] Removing subtotal row:", item.description, "total:", item.total_price, "sum of children:", sumAfter);
-            return false;
+        // Post-process Step 2: remove parent/phase rows by code prefix
+        const allCodes = items.map((it) => it.code.replace(/\.$/, "")).filter(Boolean);
+        const finalItems = items.filter((item, idx) => {
+          // Remove subtotal rows detected above
+          if (subtotalIndices.has(idx)) return false;
+          // Remove parent rows by code prefix
+          if (item.code) {
+            const cleanCode = item.code.replace(/\.$/, "");
+            const parts = cleanCode.split(".");
+            if (parts.length <= 2 && parts.every((p) => /^\d+$/.test(p))) {
+              const isParent = allCodes.some((c) => c !== cleanCode && c.startsWith(cleanCode + "."));
+              if (isParent) {
+                console.log("[BudgetImport] Removing parent row by code:", item.code, item.description);
+                return false;
+              }
+            }
           }
           return true;
         });
