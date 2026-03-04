@@ -165,13 +165,15 @@ export default function BudgetImportModal({ budgetId, onClose }: Props) {
           if (indexVal && iPhase === -1) {
             const cleanIdx = indexVal.replace(/\.$/, "");
             const parts = cleanIdx.split(".");
-            if (parts.length === 1 && /^\d+$/.test(parts[0])) {
+            if (parts.length <= 2 && parts.every((p) => /^\d+$/.test(p))) {
+              // Always treat 1-level and 2-level indices as potential phase/subphase headers
+              // They'll be confirmed as parents in post-processing; for now mark as phase
               currentPhase = `${indexVal} - ${desc}`;
-              continue;
-            }
-            if (parts.length === 2 && parts.every((p) => /^\d+$/.test(p)) && qty === 0 && price === 0) {
-              currentPhase = `${indexVal} - ${desc}`;
-              continue;
+              // Only skip if no qty/price OR if it's a single-level index (always a phase)
+              if (parts.length === 1 || (qty === 0 && price === 0)) {
+                continue;
+              }
+              // 2-level with values: keep in items but mark code for post-processing removal
             }
           }
 
@@ -213,14 +215,32 @@ export default function BudgetImportModal({ budgetId, onClose }: Props) {
           return !isParent;
         });
 
-        console.log("[BudgetImport] Parsed items:", filtered.length, "(removed", items.length - filtered.length, "phase/subtotal rows)");
+        // Second post-process: detect subtotal rows without codes
+        // A subtotal row typically has qty=1 and its total matches the sum of subsequent items in the same phase
+        const finalItems = filtered.filter((item, idx) => {
+          if (item.code) return true; // already handled above
+          if (item.quantity !== 1) return true;
+          // Check if this item's total approximately equals the sum of next items with same phase
+          const samePhaseAfter = filtered
+            .slice(idx + 1)
+            .filter((next) => next.phase === item.phase && next !== item);
+          if (samePhaseAfter.length === 0) return true;
+          const sumAfter = samePhaseAfter.reduce((s, n) => s + n.total_price, 0);
+          if (sumAfter > 0 && Math.abs(item.total_price - sumAfter) / sumAfter < 0.02) {
+            console.log("[BudgetImport] Removing subtotal row:", item.description, "total:", item.total_price, "sum of children:", sumAfter);
+            return false;
+          }
+          return true;
+        });
 
-        if (filtered.length === 0) {
+        console.log("[BudgetImport] Parsed items:", finalItems.length, "(removed", items.length - finalItems.length, "phase/subtotal rows)");
+
+        if (finalItems.length === 0) {
           toast.error("Nenhum item válido encontrado. Headers detectados: " + headers.slice(0, 8).join(", "));
           return;
         }
 
-        setParsedItems(filtered);
+        setParsedItems(finalItems);
         setStep("preview");
       } catch (err) {
         toast.error("Erro ao ler a planilha. Verifique o formato do arquivo.");
