@@ -1722,12 +1722,19 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                           <th className="text-left px-3 py-2.5 font-medium text-muted-foreground">Nº</th>
                           <th className="text-left px-3 py-2.5 font-medium text-muted-foreground">Período</th>
                           <th className="text-left px-3 py-2.5 font-medium text-muted-foreground">Status</th>
+                          <th className="text-right px-3 py-2.5 font-medium text-muted-foreground">Valor Medido</th>
                           <th className="text-left px-3 py-2.5 font-medium text-muted-foreground">Criação</th>
                           <th className="text-center px-3 py-2.5 font-medium text-muted-foreground">Ações</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border">
-                        {measurements.map((med: any, idx: number) => (
+                        {measurements.map((med: any, idx: number) => {
+                          const medItems = (allMeasurementItems as any[]).filter((mi: any) => mi.measurement_id === med.id);
+                          const medValue = medItems.reduce((sum: number, mi: any) => {
+                            const svc = serviceItemsMed.find(s => s.id === mi.budget_item_id);
+                            return sum + (svc ? getVendaTotal(svc) : 0) * ((mi.measured_percentage || 0) / 100);
+                          }, 0);
+                          return (
                           <tr key={med.id} className={idx % 2 === 0 ? "bg-background" : "bg-muted/20"}>
                             <td className="px-3 py-2 font-medium text-foreground">#{med.measurement_number}</td>
                             <td className="px-3 py-2 text-foreground">{med.reference_period || "—"}</td>
@@ -1736,13 +1743,14 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                                 {med.status === "aberta" ? "Aberta" : "Fechada"}
                               </span>
                             </td>
+                            <td className="px-3 py-2 text-right font-medium text-foreground tabular-nums">{fmt(medValue)}</td>
                             <td className="px-3 py-2 text-muted-foreground">{new Date(med.created_at).toLocaleDateString("pt-BR")}</td>
                             <td className="px-3 py-2 text-center flex items-center justify-center gap-1.5">
                               <button
                                 onClick={() => setActiveMeasurement(med.id)}
                                 className="px-3 py-1 text-xs bg-primary text-primary-foreground rounded hover:opacity-90"
                               >
-                                Editar
+                                {med.status === "aberta" ? "Editar" : "Visualizar"}
                               </button>
                               <button
                                 onClick={() => deleteMeasurement(med.id)}
@@ -1753,7 +1761,8 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                               </button>
                             </td>
                           </tr>
-                        ))}
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -1783,7 +1792,7 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                         >
                           Excluir medição
                         </button>
-                        <button onClick={() => setActiveMeasurement(null)} className="px-3 py-1.5 text-xs border border-border rounded-lg hover:bg-muted text-foreground">
+                        <button onClick={() => { setActiveMeasurement(null); qc.invalidateQueries({ queryKey: ["all_budget_measurement_items", budgetId] }); }} className="px-3 py-1.5 text-xs border border-border rounded-lg hover:bg-muted text-foreground">
                           Voltar
                         </button>
                       </div>
@@ -1848,7 +1857,7 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                                 const accValue = vendaTotal * (accPct / 100);
                                 const saldoSvc = vendaTotal - accValue;
                                 const measuredAt = mi?.measured_at ? new Date(mi.measured_at).toLocaleDateString("pt-BR") : "—";
-                                const isEditable = !!mi;
+                                const isEditable = !!mi && activeMed?.status === "aberta";
                                 return (
                                   <div key={svc.id} className={`border border-border rounded-lg p-3 ${idx % 2 === 0 ? "bg-background" : "bg-muted/10"}`}>
                                     <div className="flex items-start justify-between mb-2">
