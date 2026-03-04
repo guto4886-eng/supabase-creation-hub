@@ -8,7 +8,7 @@ import {
 import {
   Building2, Users, Truck, DollarSign, TrendingUp, TrendingDown,
   FileText, ShoppingCart, ClipboardList, AlertTriangle, CheckCircle2,
-  Clock, Wallet, ArrowUpRight, ArrowDownRight, Activity,
+  Clock, Wallet, ArrowUpRight, ArrowDownRight, Activity, CalendarClock,
 } from "lucide-react";
 
 const fmt = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -42,6 +42,14 @@ const NeonTooltip = ({ active, payload, label }: any) => {
     </div>
   );
 };
+
+interface ExpiringDoc {
+  id: string;
+  file_name: string;
+  expires_at: string;
+  entity_type: string;
+  entity_id: string;
+}
 
 export default function Dashboard() {
   // ── Data queries ──
@@ -98,6 +106,23 @@ export default function Dashboard() {
     queryFn: async () => {
       const { data } = await supabase.from("budgets").select("id, status, total_value");
       return data ?? [];
+    },
+  });
+
+  // ── Expiring documents query ──
+  const { data: expiringDocs = [] } = useQuery({
+    queryKey: ["dash-expiring-docs"],
+    queryFn: async () => {
+      const futureLimit = new Date();
+      futureLimit.setDate(futureLimit.getDate() + 30);
+      const { data } = await supabase
+        .from("attachments")
+        .select("id, file_name, expires_at, entity_type, entity_id")
+        .not("expires_at", "is", null)
+        .lte("expires_at", futureLimit.toISOString().substring(0, 10))
+        .order("expires_at", { ascending: true })
+        .limit(20);
+      return (data ?? []) as ExpiringDoc[];
     },
   });
 
@@ -170,6 +195,19 @@ export default function Dashboard() {
 
   const NEON_COLORS = [NEON.cyan, NEON.green, NEON.pink, NEON.orange, NEON.purple, NEON.blue];
 
+  const entityLabel = (type: string) => {
+    const map: Record<string, string> = {
+      obra: "Obra", client: "Cliente", supplier: "Fornecedor", vehicle: "Veículo",
+      labor: "Funcionário", company: "Empresa", purchase_order: "Ordem de Compra",
+    };
+    return map[type] || type;
+  };
+
+  const daysUntil = (dateStr: string) => {
+    const diff = new Date(dateStr).getTime() - Date.now();
+    return Math.ceil(diff / (1000 * 60 * 60 * 24));
+  };
+
   return (
     <div className="space-y-5 p-4 lg:p-6 min-h-screen" style={{ background: "linear-gradient(135deg, hsl(var(--background)) 0%, hsl(var(--background)) 100%)" }}>
       {/* Header */}
@@ -180,6 +218,53 @@ export default function Dashboard() {
         </h2>
         <p className="text-sm text-muted-foreground">Visão completa do sistema de gestão de obras</p>
       </div>
+
+      {/* Expiring Documents Alert */}
+      {expiringDocs.length > 0 && (
+        <div className="animate-fade-in rounded-xl border border-orange-500/40 bg-orange-500/5 p-4 space-y-3" style={{ animationDelay: "0.05s" }}>
+          <div className="flex items-center gap-2">
+            <CalendarClock className="h-5 w-5 text-orange-500" />
+            <h3 className="text-sm font-semibold text-foreground">
+              Documentos a Vencer ({expiringDocs.length})
+            </h3>
+          </div>
+          <div className="space-y-1.5 max-h-[200px] overflow-y-auto pr-1">
+            {expiringDocs.map((doc) => {
+              const days = daysUntil(doc.expires_at);
+              const isExpired = days < 0;
+              const isUrgent = days >= 0 && days <= 7;
+              return (
+                <div
+                  key={doc.id}
+                  className={`flex items-center justify-between py-2 px-3 rounded-lg border transition-colors ${
+                    isExpired
+                      ? "border-destructive/40 bg-destructive/5"
+                      : isUrgent
+                      ? "border-orange-500/40 bg-orange-500/5"
+                      : "border-border/50 hover:border-primary/30"
+                  }`}
+                >
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <FileText className={`h-4 w-4 shrink-0 ${isExpired ? "text-destructive" : "text-orange-500"}`} />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">{doc.file_name}</p>
+                      <p className="text-xs text-muted-foreground">{entityLabel(doc.entity_type)}</p>
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0 ml-3">
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(doc.expires_at + "T00:00:00").toLocaleDateString("pt-BR")}
+                    </p>
+                    <p className={`text-xs font-bold ${isExpired ? "text-destructive" : isUrgent ? "text-orange-500" : "text-yellow-500"}`}>
+                      {isExpired ? `Vencido há ${Math.abs(days)} dia(s)` : `Vence em ${days} dia(s)`}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* KPI Cards Row 1 - Counts */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 animate-fade-in" style={{ animationDelay: "0.1s" }}>

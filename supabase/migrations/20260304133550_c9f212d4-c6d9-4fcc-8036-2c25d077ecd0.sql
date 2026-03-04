@@ -1,0 +1,1 @@
+ALTER TABLE public.attachments ADD COLUMN expires_at date DEFAULT NULL;
