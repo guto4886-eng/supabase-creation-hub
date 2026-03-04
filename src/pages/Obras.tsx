@@ -308,13 +308,10 @@ export default function Obras() {
     toast.success("RDO gerado!");
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!form.name?.trim()) { toast.error("Nome da obra é obrigatório"); return; }
-    // Clean form: convert empty strings to null for nullable fields, parse numbers
+  const cleanForm = (rawForm: Record<string, any>) => {
     const numericFields = ["total_budget", "area_m2", "duration"];
     const cleaned: Record<string, any> = {};
-    for (const [key, value] of Object.entries(form)) {
+    for (const [key, value] of Object.entries(rawForm)) {
       if (numericFields.includes(key)) {
         cleaned[key] = value === "" || value === null || value === undefined ? null : Number(value);
       } else if (value === "") {
@@ -323,10 +320,15 @@ export default function Obras() {
         cleaned[key] = value;
       }
     }
-    // Ensure required fields are not null
-    cleaned.name = form.name.trim();
-    cleaned.status = form.status || "nao_iniciada";
-    saveMutation.mutate(cleaned);
+    cleaned.name = rawForm.name?.trim() || null;
+    cleaned.status = rawForm.status || "nao_iniciada";
+    return cleaned;
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.name?.trim()) { toast.error("Nome da obra é obrigatório"); return; }
+    saveMutation.mutate(cleanForm(form));
   };
 
   const handleCepBlur = async (value: string, prefix = "") => {
@@ -942,7 +944,7 @@ export default function Obras() {
 
               <div className="flex items-center gap-2">
                 {(activeTab === "dados" || activeTab === "endereco" || activeTab === "config") && (
-                  <button type="submit" form="obra-form" onClick={(e) => { if (activeTab !== "dados") { e.preventDefault(); saveMutation.mutate(form); } }} disabled={saveMutation.isPending} className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50">
+                  <button type="submit" form="obra-form" onClick={(e) => { if (activeTab !== "dados") { e.preventDefault(); if (!form.name?.trim()) { toast.error("Nome da obra é obrigatório"); return; } saveMutation.mutate(cleanForm(form)); } }} disabled={saveMutation.isPending} className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50">
                     {saveMutation.isPending ? "Salvando..." : "Salvar"}
                   </button>
                 )}
