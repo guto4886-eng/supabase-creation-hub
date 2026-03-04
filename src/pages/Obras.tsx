@@ -206,7 +206,7 @@ export default function Obras() {
 
   const formFields = [
     "name", "company_id", "client_id", "category", "status", "notes",
-    "start_date", "duration", "duration_unit", "expected_end_date",
+    "start_date", "duration", "duration_unit", "expected_end_date", "actual_end_date",
     "cno", "area_m2", "empreiteiro", "resp_tecnico", "art_number", "resp_obra",
     "cep", "address", "address_number", "neighborhood", "complement", "state", "city",
     "billing_cep", "billing_address", "billing_number", "billing_neighborhood", "billing_complement", "billing_state", "billing_city", "billing_address_source",
@@ -648,7 +648,12 @@ export default function Obras() {
                     <input value={form.name || ""} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} required className={inputClass} />
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1">Descrição</label>
+                    <input value={form.description || ""} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} className={inputClass} placeholder="Descrição resumida da obra" />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-foreground mb-1">Categoria *</label>
                       <select value={form.category || ""} onChange={e => setForm(p => ({ ...p, category: e.target.value }))} required className={inputClass}>
@@ -663,19 +668,23 @@ export default function Obras() {
                         {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                       </select>
                     </div>
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-1">Orçamento total (R$)</label>
+                      <input type="number" step="0.01" value={form.total_budget || ""} onChange={e => setForm(p => ({ ...p, total_budget: e.target.value }))} className={inputClass} placeholder="0,00" />
+                    </div>
                   </div>
 
                   {/* Observação */}
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-1">Observação</label>
-                    <textarea value={form.notes || ""} onChange={e => { if (e.target.value.length <= OBS_MAX_LEN) setForm(p => ({ ...p, notes: e.target.value })); }} rows={5} className={inputClass} />
+                    <textarea value={form.notes || ""} onChange={e => { if (e.target.value.length <= OBS_MAX_LEN) setForm(p => ({ ...p, notes: e.target.value })); }} rows={4} className={inputClass} />
                     <p className="text-xs text-muted-foreground text-right mt-1">{OBS_MAX_LEN - (form.notes?.length || 0)} caracteres restantes</p>
                   </div>
 
                   {/* Período */}
                   <fieldset className="border border-border rounded-lg p-4 space-y-3">
                     <legend className="px-2 text-sm font-medium text-foreground">Período</legend>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                       <div>
                         <label className="block text-xs font-medium text-foreground mb-1">Data início</label>
                         <input type="date" value={form.start_date || ""} onChange={e => {
@@ -738,8 +747,12 @@ export default function Obras() {
                         </select>
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-foreground mb-1">Data fim</label>
+                        <label className="block text-xs font-medium text-foreground mb-1">Data fim prevista</label>
                         <input type="date" value={form.expected_end_date || ""} onChange={e => setForm(p => ({ ...p, expected_end_date: e.target.value }))} className={inputClass} />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-foreground mb-1">Data fim real</label>
+                        <input type="date" value={form.actual_end_date || ""} onChange={e => setForm(p => ({ ...p, actual_end_date: e.target.value }))} className={inputClass} />
                       </div>
                     </div>
                   </fieldset>
