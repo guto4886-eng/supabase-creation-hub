@@ -1686,16 +1686,15 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                         <span className="text-sm font-semibold text-foreground">Progresso Geral da Obra</span>
                         <span className="text-sm font-bold text-primary">{progressPct.toFixed(1)}%</span>
                       </div>
-                      <div className="w-full h-4 bg-muted rounded-full overflow-hidden border border-border">
+                      <div className="w-full h-4 bg-muted rounded-full overflow-hidden border border-border relative">
                         <div
-                          className="h-full rounded-full transition-all duration-500 ease-out"
+                          className="h-full rounded-full transition-all duration-500 ease-out absolute left-0 top-0"
                           style={{
-                            width: `${progressPct}%`,
-                            background: progressPct >= 100
+                            width: `${Math.max(progressPct, 0)}%`,
+                            minWidth: progressPct > 0 ? '8px' : '0px',
+                            backgroundColor: progressPct >= 100
                               ? 'hsl(var(--chart-2))'
-                              : progressPct >= 50
-                                ? 'hsl(var(--primary))'
-                                : 'hsl(var(--chart-4))',
+                              : 'hsl(var(--primary))',
                           }}
                         />
                       </div>
