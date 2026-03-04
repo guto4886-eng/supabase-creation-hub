@@ -375,6 +375,7 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
 
   const fmt = (v: number | null | undefined) => (v != null ? v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "R$ 0,00");
   const totalCusto = items.filter((i) => (i.category || "").toLowerCase() !== "fase").reduce((s, i) => s + (i.total_price || 0), 0);
+  const totalVenda = items.filter((i) => (i.category || "").toLowerCase() !== "fase").reduce((s, i) => s + getVendaTotal(i), 0);
 
   const formatDate = (d: string | null) => {
     if (!d) return "—";
@@ -484,7 +485,7 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                   </div>
                   <div>
                     <span className="text-muted-foreground">Valor venda + taxas: </span>
-                    <span className="font-semibold text-foreground">{fmt(totalCusto)}</span>
+                    <span className="font-semibold text-foreground">{fmt(totalVenda)}</span>
                   </div>
                 </div>
               </div>
@@ -545,7 +546,7 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                         <td className="px-3 py-2 text-foreground">1</td>
                         <td className="px-3 py-2 text-foreground">Atual</td>
                         <td className="px-3 py-2 text-right text-foreground">{totalCusto.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td>
-                        <td className="px-3 py-2 text-right text-foreground">{totalCusto.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td>
+                        <td className="px-3 py-2 text-right text-foreground">{totalVenda.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td>
                         <td className="px-3 py-2 text-muted-foreground">{new Date(budget.created_at).toLocaleString("pt-BR")}</td>
                         <td className="px-3 py-2 text-muted-foreground">{new Date(budget.updated_at).toLocaleString("pt-BR")}</td>
                         <td className="px-3 py-2 text-muted-foreground">{budget.description || "—"}</td>
