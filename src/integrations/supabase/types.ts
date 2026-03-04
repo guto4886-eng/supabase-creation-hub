@@ -21,6 +21,7 @@ export type Database = {
           created_at: string
           entity_id: string
           entity_type: string
+          expires_at: string | null
           file_name: string
           file_path: string
           file_size: number | null
@@ -34,6 +35,7 @@ export type Database = {
           created_at?: string
           entity_id: string
           entity_type: string
+          expires_at?: string | null
           file_name: string
           file_path: string
           file_size?: number | null
@@ -47,6 +49,7 @@ export type Database = {
           created_at?: string
           entity_id?: string
           entity_type?: string
+          expires_at?: string | null
           file_name?: string
           file_path?: string
           file_size?: number | null
