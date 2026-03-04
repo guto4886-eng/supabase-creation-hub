@@ -2110,9 +2110,94 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
 
             return (
               <div className="space-y-6">
-                <div>
-                  <h4 className="text-sm font-semibold text-foreground">Previsto x Realizado</h4>
-                  <p className="text-xs text-muted-foreground mt-0.5">Comparativo entre os valores orçados e os valores efetivamente medidos em obra.</p>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-sm font-semibold text-foreground">Previsto x Realizado</h4>
+                    <p className="text-xs text-muted-foreground mt-0.5">Comparativo entre os valores orçados e os valores efetivamente medidos em obra.</p>
+                  </div>
+                  {phaseChartData.length > 0 && (
+                    <button
+                      onClick={async () => {
+                        try {
+                          toast.info("Gerando relatório Previsto x Realizado...");
+                          const companyInfo = user?.id ? await fetchCompanyInfo(user.id) : null;
+                          const doc = new jsPDF({ orientation: "landscape" });
+                          let y = await addReportHeader(doc, companyInfo, "Previsto x Realizado", `${budget.budget_code || ""} — ${obra?.name || ""}`);
+
+                          // Summary cards
+                          doc.setFontSize(10);
+                          doc.setFont("helvetica", "normal");
+                          doc.text(`Previsto (Orçado): ${fmt(totalPrevisto)}   |   Realizado (Medido): ${fmt(totalRealizado)}   |   Desvio: ${desvio > 0 ? "+" : ""}${fmt(desvio)}   |   Execução: ${devPct.toFixed(1)}%`, 14, y);
+                          y += 8;
+
+                          // Detail table
+                          doc.setFontSize(11);
+                          doc.setFont("helvetica", "bold");
+                          doc.text("Detalhamento por Fase", 14, y);
+                          y += 2;
+
+                          const totalPlanejadoR = phaseChartData.reduce((s, d) => s + d.Planejado, 0);
+
+                          autoTable(doc, {
+                            startY: y,
+                            head: [["Fase", "Orçado", "Planejado", "Realizado", "Desvio", "% Execução"]],
+                            body: phaseChartData.map((d) => {
+                              const dev = d.Realizado - d.Previsto;
+                              const pct = d.Previsto > 0 ? (d.Realizado / d.Previsto) * 100 : 0;
+                              return [
+                                d.name,
+                                fmt(d.Previsto),
+                                fmt(d.Planejado),
+                                fmt(d.Realizado),
+                                `${dev > 0 ? "+" : ""}${fmt(dev)}`,
+                                `${pct.toFixed(1)}%`,
+                              ];
+                            }),
+                            foot: [["TOTAL", fmt(totalPrevisto), fmt(totalPlanejadoR), fmt(totalRealizado), `${desvio > 0 ? "+" : ""}${fmt(desvio)}`, `${devPct.toFixed(1)}%`]],
+                            styles: { fontSize: 8, cellPadding: 2 },
+                            headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: "bold" },
+                            footStyles: { fillColor: [230, 230, 230], fontStyle: "bold" },
+                            alternateRowStyles: { fillColor: [245, 245, 245] },
+                          });
+
+                          y = (doc as any).lastAutoTable.finalY + 10;
+
+                          // Timeline data table
+                          if (timelineData.length > 0) {
+                            if (y > 160) { doc.addPage(); y = 15; }
+                            doc.setFontSize(11);
+                            doc.setFont("helvetica", "bold");
+                            doc.text("Evolução Acumulada por Período", 14, y);
+                            y += 2;
+
+                            autoTable(doc, {
+                              startY: y,
+                              head: [["Período", "Orçado", "Planejado", "Realizado"]],
+                              body: timelineData.map((t) => [
+                                t.name,
+                                fmt(t.Orçado),
+                                t.Planejado !== undefined ? fmt(t.Planejado) : "—",
+                                t.Realizado !== undefined ? fmt(t.Realizado) : "—",
+                              ]),
+                              styles: { fontSize: 8, cellPadding: 2 },
+                              headStyles: { fillColor: [46, 139, 87], textColor: 255, fontStyle: "bold" },
+                              alternateRowStyles: { fillColor: [245, 250, 245] },
+                            });
+                          }
+
+                          addPageFooter(doc);
+                          doc.save(`Previsto_x_Realizado_${budget.budget_code || budgetId}.pdf`);
+                          toast.success("Relatório gerado com sucesso!");
+                        } catch (err: any) {
+                          toast.error("Erro ao gerar relatório: " + (err?.message || ""));
+                        }
+                      }}
+                      className="flex items-center gap-1.5 px-4 py-2 border border-border bg-background text-foreground rounded-lg text-sm font-medium hover:bg-muted"
+                    >
+                      <Download className="h-4 w-4" />
+                      Relatório
+                    </button>
+                  )}
                 </div>
 
                 {/* Summary cards */}
