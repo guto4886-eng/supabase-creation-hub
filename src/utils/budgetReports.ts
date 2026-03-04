@@ -179,46 +179,122 @@ async function reportOrcamentoVenda(data: ReportData) {
 async function reportPlanejamento(data: ReportData) {
   const doc = new jsPDF({ orientation: "landscape" });
   const ci = await getReportCompanyInfo(data);
-  const y = await addReportHeader(doc, ci, "Planejamento Físico-Econômico", buildSubtitle(data.budget.budget_code, data.obra?.name));
+  let startY = await addReportHeader(doc, ci, "Planejamento Físico-Econômico", buildSubtitle(data.budget.budget_code, data.obra?.name));
 
   const periods = data.planPeriods || [];
   const pItems = data.planItems || [];
 
   if (periods.length === 0) {
     doc.setFontSize(10);
-    doc.text("Nenhum período de planejamento cadastrado.", 14, y);
+    doc.text("Nenhum período de planejamento cadastrado.", 14, startY);
     addPageFooter(doc);
     doc.save(`Planejamento_${data.budget.budget_code || data.budget.id}.pdf`);
     return;
   }
 
-  const head = ["Descrição", "Total (R$)", ...periods.map((p: any) => p.period_label || new Date(p.period_date).toLocaleDateString("pt-BR"))];
-  const body = data.items.map((item) => {
-    const row: string[] = [item.description, fmt(item.total_price)];
-    for (const period of periods) {
-      const pi = pItems.find((x: any) => x.budget_item_id === item.id && x.plan_period_id === period.id);
-      row.push(pi ? `${fmtNum(pi.planned_percentage)}%` : "—");
-    }
-    return row;
+  // Helper: get venda total (with BDI)
+  const getVendaTotal = (item: BudgetItem) => {
+    const bdi = item.bdi ?? 0;
+    return (item.unit_price || 0) * (1 + bdi / 100) * (item.quantity || 0);
+  };
+
+  // Group items by phase
+  const getPrefix = (desc: string) => {
+    const m = desc.trim().match(/^(\d+(?:\.\d+)*)/);
+    return m ? m[1] : null;
+  };
+  const phaseItems = data.items.filter((i) => (i.category || "").toLowerCase() === "fase");
+  const serviceItems = data.items.filter((i) => ["serviço", "servico"].includes((i.category || "").toLowerCase()));
+  const rootPhases = phaseItems.filter((p) => {
+    const pfx = getPrefix(p.description);
+    return pfx && !pfx.includes(".");
   });
 
-  const totalsRow: string[] = ["TOTAL", fmt(data.items.reduce((s, i) => s + (i.total_price || 0), 0))];
-  for (const period of periods) {
-    const totalPct = data.items.reduce((s, item) => {
-      const pi = pItems.find((x: any) => x.budget_item_id === item.id && x.plan_period_id === period.id);
-      return s + (pi?.planned_percentage || 0) * ((item.total_price || 0) / Math.max(data.items.reduce((t, i2) => t + (i2.total_price || 0), 0), 1));
-    }, 0);
-    totalsRow.push(`${fmtNum(totalPct)}%`);
+  const phaseData = rootPhases.map((phase) => {
+    const rootIdx = getPrefix(phase.description)!;
+    const children = serviceItems.filter((s) => {
+      const sp = getPrefix(s.description);
+      return sp ? sp.split(".")[0] === rootIdx : false;
+    });
+    const total = children.reduce((sum, s) => sum + getVendaTotal(s), 0);
+    return { rootIdx, label: phase.description, total, services: children };
+  }).filter((p) => p.services.length > 0).sort((a, b) => parseInt(a.rootIdx) - parseInt(b.rootIdx));
+
+  // Build table per phase
+  const periodHeaders = periods.map((p: any) => p.period_label || new Date(p.period_date).toLocaleDateString("pt-BR"));
+  const head = ["Serviço", "Total Venda (R$)", ...periodHeaders, "Acum. (R$)", "Saldo (R$)"];
+
+  for (const phase of phaseData) {
+    // Phase totals per period
+    const phasePeriodTotals: number[] = periods.map((period: any) => {
+      return phase.services.reduce((sum, svc) => {
+        const pi = pItems.find((x: any) => x.budget_item_id === svc.id && x.plan_period_id === period.id);
+        const pct = pi?.planned_percentage || 0;
+        return sum + getVendaTotal(svc) * (pct / 100);
+      }, 0);
+    });
+    const phaseAccum = phasePeriodTotals.reduce((s, v) => s + v, 0);
+    const phaseSaldo = phase.total - phaseAccum;
+
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(142, 68, 173);
+    doc.text(`${phase.label}  —  Total: ${fmt(phase.total)}  |  Planejado: ${fmt(phaseAccum)}  |  Saldo: ${fmt(phaseSaldo)}`, 14, startY);
+    doc.setTextColor(0, 0, 0);
+    startY += 2;
+
+    const body = phase.services.map((svc) => {
+      const vendaTotal = getVendaTotal(svc);
+      const row: string[] = [svc.description, fmt(vendaTotal)];
+      let accum = 0;
+      for (const period of periods) {
+        const pi = pItems.find((x: any) => x.budget_item_id === svc.id && x.plan_period_id === period.id);
+        const pct = pi?.planned_percentage || 0;
+        const value = vendaTotal * (pct / 100);
+        accum += value;
+        row.push(fmt(value));
+      }
+      row.push(fmt(accum));
+      row.push(fmt(vendaTotal - accum));
+      return row;
+    });
+
+    // Subtotal row
+    const subtotalRow: string[] = ["SUBTOTAL", fmt(phase.total)];
+    for (let i = 0; i < phasePeriodTotals.length; i++) {
+      subtotalRow.push(fmt(phasePeriodTotals[i]));
+    }
+    subtotalRow.push(fmt(phaseAccum));
+    subtotalRow.push(fmt(phaseSaldo));
+
+    autoTable(doc, {
+      startY,
+      head: [head],
+      body,
+      foot: [subtotalRow],
+      styles: { fontSize: 6, cellPadding: 1.5 },
+      headStyles: { fillColor: [142, 68, 173], textColor: 255, fontStyle: "bold" },
+      footStyles: { fillColor: [230, 220, 240], fontStyle: "bold" },
+      alternateRowStyles: { fillColor: [248, 245, 250] },
+    });
+    startY = (doc as any).lastAutoTable.finalY + 6;
+    if (startY > 170) { doc.addPage(); startY = 15; }
   }
 
-  autoTable(doc, {
-    startY: y,
-    head: [head],
-    body: [...body, totalsRow],
-    styles: { fontSize: 6, cellPadding: 1.5 },
-    headStyles: { fillColor: [142, 68, 173], textColor: 255, fontStyle: "bold" },
-    alternateRowStyles: { fillColor: [248, 245, 250] },
-  });
+  // Grand total
+  const grandTotal = phaseData.reduce((s, p) => s + p.total, 0);
+  const grandAccum = phaseData.reduce((s, p) => {
+    return s + p.services.reduce((ss, svc) => {
+      const vendaTotal = getVendaTotal(svc);
+      const accPct = pItems
+        .filter((x: any) => x.budget_item_id === svc.id)
+        .reduce((a: number, x: any) => a + (x.planned_percentage || 0), 0);
+      return ss + vendaTotal * (accPct / 100);
+    }, 0);
+  }, 0);
+  doc.setFontSize(11);
+  doc.setFont("helvetica", "bold");
+  doc.text(`TOTAL GERAL: ${fmt(grandTotal)}  |  Planejado: ${fmt(grandAccum)}  |  Saldo: ${fmt(grandTotal - grandAccum)}`, 14, startY + 2);
 
   addPageFooter(doc);
   doc.save(`Planejamento_${data.budget.budget_code || data.budget.id}.pdf`);
