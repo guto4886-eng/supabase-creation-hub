@@ -12,6 +12,7 @@ import { fetchCep } from "@/utils/cep";
 import { fetchCnpj } from "@/utils/cnpjLookup";
 import Attachments from "@/components/Attachments";
 import ImageCropper from "@/components/ImageCropper";
+import CompanyLinks from "@/components/CompanyLinks";
 
 const ESTADOS = [
   "AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG",
@@ -20,6 +21,7 @@ const ESTADOS = [
 
 const ALL_TABS = [
   { key: "dados", label: "Dados" },
+  { key: "links", label: "Links Úteis" },
   { key: "anexos", label: "Anexos" },
 ];
 
@@ -817,6 +819,12 @@ function CompanyFormModal({
                 <textarea value={form.notes ?? ""} onChange={(e: any) => setForm((p: any) => ({ ...p, notes: e.target.value }))} rows={3} className={inputClass} />
               </div>
             </form>
+          )}
+
+          {activeTab === "links" && editing && (
+            <div className="flex-1 overflow-y-auto">
+              <CompanyLinks companyId={editing.id} />
+            </div>
           )}
 
           {activeTab === "anexos" && editing && (

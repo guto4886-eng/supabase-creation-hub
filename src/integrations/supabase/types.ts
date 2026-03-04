@@ -640,6 +640,50 @@ export type Database = {
           },
         ]
       }
+      company_links: {
+        Row: {
+          company_id: string
+          created_at: string
+          description: string | null
+          id: string
+          password: string | null
+          title: string
+          url: string
+          user_id: string
+          username: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          password?: string | null
+          title: string
+          url: string
+          user_id: string
+          username?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          password?: string | null
+          title?: string
+          url?: string
+          user_id?: string
+          username?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_links_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       company_settings: {
         Row: {
           address: string | null
