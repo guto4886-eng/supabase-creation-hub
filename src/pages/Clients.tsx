@@ -74,6 +74,7 @@ export default function Clients() {
   const [activeTab, setActiveTab] = useState("dados");
   const [cepLoading, setCepLoading] = useState(false);
   const [cnpjLoading, setCnpjLoading] = useState(false);
+  const cnpjLookedUp = useRef("");
   const [importOpen, setImportOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
 
@@ -195,6 +196,7 @@ export default function Clients() {
     setEditing(null);
     setForm({ person_type: "f" });
     setActiveTab("dados");
+    cnpjLookedUp.current = "";
     setFormOpen(true);
   };
 
@@ -202,6 +204,7 @@ export default function Clients() {
     setEditing(item);
     setForm({ ...item });
     setActiveTab("dados");
+    cnpjLookedUp.current = item.document?.replace(/\D/g, "") || "";
     setFormOpen(true);
   };
 
@@ -229,10 +232,14 @@ export default function Clients() {
     }
   };
 
-  const handleDocumentBlur = async (value: string) => {
-    const digits = value.replace(/\D/g, "");
-    if (digits.length === 14) {
-      // CNPJ - lookup via BrasilAPI
+  const handleDocumentChange = async (value: string) => {
+    const masked = maskCpfCnpj(value);
+    const digits = masked.replace(/\D/g, "");
+    setForm((p) => ({ ...p, document: masked }));
+    
+    // Auto-trigger CNPJ lookup when 14 digits are typed
+    if (digits.length === 14 && digits !== cnpjLookedUp.current) {
+      cnpjLookedUp.current = digits;
       setCnpjLoading(true);
       const result = await fetchCnpj(digits);
       setCnpjLoading(false);
@@ -251,7 +258,7 @@ export default function Clients() {
           phone: result.telefone || p.phone,
           email: result.email || p.email,
         }));
-        toast.success("Dados do CNPJ preenchidos!");
+        toast.success("Dados do CNPJ preenchidos automaticamente!");
       } else {
         toast.error("CNPJ não encontrado");
       }
@@ -564,7 +571,7 @@ export default function Clients() {
                   <div className="grid grid-cols-3 gap-4">
                     <div className="flex items-center gap-2">
                       <label className="text-sm font-medium text-card-foreground whitespace-nowrap">{form.person_type === "j" ? "CNPJ" : "CPF"}</label>
-                      <input type="text" value={form.document ?? ""} onChange={(e) => setForm((p) => ({ ...p, document: maskCpfCnpj(e.target.value) }))} onBlur={(e) => handleDocumentBlur(e.target.value)} placeholder={form.person_type === "j" ? "00.000.000/0000-00" : "000.000.000-00"} className={inputClass} />
+                      <input type="text" value={form.document ?? ""} onChange={(e) => handleDocumentChange(e.target.value)} placeholder={form.person_type === "j" ? "00.000.000/0000-00" : "000.000.000-00"} className={inputClass} />
                       {cnpjLoading && <span className="text-xs text-muted-foreground animate-pulse">Consultando...</span>}
                     </div>
                     <div className="flex items-center gap-2">
