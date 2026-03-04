@@ -1687,7 +1687,7 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                                 onClick={() => setActiveMeasurement(med.id)}
                                 className="px-3 py-1 text-xs bg-primary text-primary-foreground rounded hover:opacity-90"
                               >
-                                {med.status === "aberta" ? "Editar" : "Visualizar"}
+                                Editar
                               </button>
                               <button
                                 onClick={() => deleteMeasurement(med.id)}
