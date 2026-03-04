@@ -5,8 +5,9 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import {
   Search, Plus, ChevronLeft, ChevronRight, Pencil, Trash2, X, Download, Eraser,
-  Power, Users, Upload, RefreshCw, FileSpreadsheet, CheckCircle, AlertTriangle, Save
+  Power, Users, Upload, RefreshCw, FileSpreadsheet, CheckCircle, AlertTriangle, Save, Printer
 } from "lucide-react";
+import jsPDF from "jspdf";
 import { exportCSV, exportExcel, exportPDF, fetchCompanyInfo } from "@/utils/exportWithHeader";
 import ExportDialog from "@/components/ExportDialog";
 import { useCompanies, CompanyFilterSelect } from "@/hooks/useCompanies";
@@ -286,6 +287,94 @@ export default function Labor() {
     setFilterName(""); setFilterRole(""); setFilterObra(""); setFilterCondition("ativo"); setFilterCompany(""); setSearched(false); setPage(0);
   };
 
+  const generateBlankForm = () => {
+    const doc = new jsPDF("p", "mm", "a4");
+    const w = doc.internal.pageSize.getWidth();
+    const margin = 15;
+    let y = 20;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.text("FICHA DE CADASTRO DE FUNCIONÁRIO", w / 2, y, { align: "center" });
+    y += 12;
+
+    doc.setDrawColor(100);
+    doc.setLineWidth(0.3);
+
+    const section = (title: string) => {
+      if (y > 260) { doc.addPage(); y = 20; }
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.setFillColor(230, 230, 230);
+      doc.rect(margin, y - 4, w - margin * 2, 7, "F");
+      doc.text(title, margin + 2, y);
+      y += 10;
+    };
+
+    const field = (label: string, fieldWidth: number, x: number) => {
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.text(label, x, y - 1);
+      doc.setFontSize(10);
+      doc.line(x, y + 3, x + fieldWidth, y + 3);
+    };
+
+    const row = (fields: { label: string; width: number }[]) => {
+      if (y > 270) { doc.addPage(); y = 20; }
+      let x = margin;
+      fields.forEach(f => {
+        field(f.label, f.width, x);
+        x += f.width + 5;
+      });
+      y += 12;
+    };
+
+    // Dados Pessoais
+    section("DADOS PESSOAIS");
+    row([{ label: "Nome Completo", width: w - margin * 2 }]);
+    row([{ label: "CPF", width: 60 }, { label: "RG", width: 50 }, { label: "Data de Nascimento", width: 50 }]);
+    row([{ label: "Telefone", width: 55 }, { label: "Celular", width: 55 }, { label: "E-mail", width: 55 }]);
+
+    // Endereço
+    section("ENDEREÇO");
+    row([{ label: "CEP", width: 40 }, { label: "Endereço", width: w - margin * 2 - 45 }]);
+    row([{ label: "Nº", width: 25 }, { label: "Complemento", width: 45 }, { label: "Bairro", width: 45 }, { label: "Cidade", width: 35 }, { label: "UF", width: 15 }]);
+
+    // Documentos
+    section("DOCUMENTOS TRABALHISTAS");
+    row([{ label: "PIS/PASEP", width: 55 }, { label: "CTPS Nº", width: 50 }, { label: "Série CTPS", width: 50 }]);
+
+    // Contratação
+    section("DADOS DE CONTRATAÇÃO");
+    row([{ label: "Empresa", width: w - margin * 2 }]);
+    row([{ label: "Função", width: 55 }, { label: "Cargo", width: 55 }, { label: "Obra", width: 55 }]);
+    row([{ label: "Data Admissão", width: 45 }, { label: "Tipo Contrato", width: 45 }, { label: "Turno", width: 40 }, { label: "Horário", width: 35 }]);
+    row([{ label: "Tipo Remuneração", width: 50 }, { label: "Valor (R$)", width: 45 }, { label: "Diária (R$)", width: 40 }, { label: "Bônus (R$)", width: 35 }]);
+    row([{ label: "Salário Mensal (R$)", width: 55 }]);
+
+    // Observações
+    section("OBSERVAÇÕES");
+    doc.rect(margin, y, w - margin * 2, 30);
+    y += 35;
+
+    // Assinaturas
+    if (y > 240) { doc.addPage(); y = 20; }
+    y += 10;
+    const sigW = (w - margin * 2 - 20) / 2;
+    doc.line(margin, y, margin + sigW, y);
+    doc.line(margin + sigW + 20, y, margin + sigW * 2 + 20, y);
+    doc.setFontSize(8);
+    doc.text("Assinatura do Funcionário", margin + sigW / 2, y + 5, { align: "center" });
+    doc.text("Assinatura do Responsável", margin + sigW + 20 + sigW / 2, y + 5, { align: "center" });
+
+    y += 12;
+    doc.setFontSize(7);
+    doc.text(`Data de impressão: ${new Date().toLocaleDateString("pt-BR")}`, margin, y);
+
+    doc.save("ficha-cadastro-funcionario.pdf");
+    toast.success("Ficha em branco gerada!");
+  };
+
   const formatCurrency = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
   const formatDate = (d: string) => { if (!d) return ""; const [y, m, day] = d.split("-"); return `${day}/${m}/${y}`; };
 
@@ -452,6 +541,9 @@ export default function Labor() {
                         <Download className="h-3.5 w-3.5" /> Exportar
                       </button>
                     )}
+                    <button onClick={generateBlankForm} className="flex items-center gap-1.5 px-3 py-1.5 border border-border text-foreground rounded text-xs font-medium hover:bg-muted">
+                      <Printer className="h-3.5 w-3.5" /> Ficha em Branco
+                    </button>
                   </div>
                   <div className="flex items-center gap-3 text-xs text-muted-foreground">
                     <span>{filtered.length} registro{filtered.length !== 1 ? "s" : ""}</span>

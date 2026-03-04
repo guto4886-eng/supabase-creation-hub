@@ -219,52 +219,54 @@ export default function Dashboard() {
         <p className="text-sm text-muted-foreground">Visão completa do sistema de gestão de obras</p>
       </div>
 
-      {/* Expiring Documents Alert */}
-      {expiringDocs.length > 0 && (
-        <div className="animate-fade-in rounded-xl border border-orange-500/40 bg-orange-500/5 p-4 space-y-3" style={{ animationDelay: "0.05s" }}>
-          <div className="flex items-center gap-2">
-            <CalendarClock className="h-5 w-5 text-orange-500" />
-            <h3 className="text-sm font-semibold text-foreground">
-              Documentos a Vencer ({expiringDocs.length})
-            </h3>
-          </div>
-          <div className="space-y-1.5 max-h-[200px] overflow-y-auto pr-1">
-            {expiringDocs.map((doc) => {
-              const days = daysUntil(doc.expires_at);
-              const isExpired = days < 0;
-              const isUrgent = days >= 0 && days <= 7;
-              return (
-                <div
-                  key={doc.id}
-                  className={`flex items-center justify-between py-2 px-3 rounded-lg border transition-colors ${
-                    isExpired
-                      ? "border-destructive/40 bg-destructive/5"
-                      : isUrgent
-                      ? "border-orange-500/40 bg-orange-500/5"
-                      : "border-border/50 hover:border-primary/30"
-                  }`}
-                >
-                  <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <FileText className={`h-4 w-4 shrink-0 ${isExpired ? "text-destructive" : "text-orange-500"}`} />
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-foreground truncate">{doc.file_name}</p>
-                      <p className="text-xs text-muted-foreground">{entityLabel(doc.entity_type)}</p>
+      {/* Expiring Documents Card */}
+      <div className="animate-fade-in" style={{ animationDelay: "0.05s" }}>
+        <GlassCard title={`Documentos a Vencer (${expiringDocs.length})`}>
+          {expiringDocs.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+              <CheckCircle2 className="h-10 w-10 mb-3 text-primary/40" />
+              <p className="text-sm font-medium">Nenhum documento a vencer</p>
+              <p className="text-xs mt-1">Todos os documentos estão em dia</p>
+            </div>
+          ) : (
+            <div className="space-y-1.5 max-h-[280px] overflow-y-auto pr-1">
+              {expiringDocs.map((doc) => {
+                const days = daysUntil(doc.expires_at);
+                const isExpired = days < 0;
+                const isUrgent = days >= 0 && days <= 7;
+                return (
+                  <div
+                    key={doc.id}
+                    className={`flex items-center justify-between py-2 px-3 rounded-lg border transition-colors ${
+                      isExpired
+                        ? "border-destructive/40 bg-destructive/5"
+                        : isUrgent
+                        ? "border-orange-500/40 bg-orange-500/5"
+                        : "border-border/50 hover:border-primary/30"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <FileText className={`h-4 w-4 shrink-0 ${isExpired ? "text-destructive" : "text-orange-500"}`} />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate">{doc.file_name}</p>
+                        <p className="text-xs text-muted-foreground">{entityLabel(doc.entity_type)}</p>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0 ml-3">
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(doc.expires_at + "T00:00:00").toLocaleDateString("pt-BR")}
+                      </p>
+                      <p className={`text-xs font-bold ${isExpired ? "text-destructive" : isUrgent ? "text-orange-500" : "text-yellow-500"}`}>
+                        {isExpired ? `Vencido há ${Math.abs(days)} dia(s)` : `Vence em ${days} dia(s)`}
+                      </p>
                     </div>
                   </div>
-                  <div className="text-right shrink-0 ml-3">
-                    <p className="text-xs text-muted-foreground">
-                      {new Date(doc.expires_at + "T00:00:00").toLocaleDateString("pt-BR")}
-                    </p>
-                    <p className={`text-xs font-bold ${isExpired ? "text-destructive" : isUrgent ? "text-orange-500" : "text-yellow-500"}`}>
-                      {isExpired ? `Vencido há ${Math.abs(days)} dia(s)` : `Vence em ${days} dia(s)`}
-                    </p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
+                );
+              })}
+            </div>
+          )}
+        </GlassCard>
+      </div>
 
       {/* KPI Cards Row 1 - Counts */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 animate-fade-in" style={{ animationDelay: "0.1s" }}>
