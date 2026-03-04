@@ -12,6 +12,7 @@ interface Props {
 }
 
 interface ParsedItem {
+  tipo: "fase" | "serviço";
   phase: string;
   code: string;
   description: string;
@@ -106,8 +107,9 @@ export default function BudgetImportModal({ budgetId, onClose }: Props) {
         const iQty = findCol(headers, ["quantidade", "qtd", "quant", "qtde", "qtd.", "quant."]);
         const iUnit = findCol(headers, ["unidade", "un", "und", "un.", "und.", "unid"]);
         const iPrice = findCol(headers, ["preco unitario", "valor unitario", "preco unit", "valor unit", "preço unitário", "valor unitário", "p. unit", "p.unit", "p unit", "custo unitario", "custo unit", "preco", "preço", "vlr unit", "vlr. unit"]);
+        const iTipo = findCol(headers, ["tipo"]);
 
-        console.log("[BudgetImport] Column indices - desc:", iDesc, "phase:", iPhase, "index:", iIndex, "qty:", iQty, "unit:", iUnit, "price:", iPrice);
+        console.log("[BudgetImport] Column indices - desc:", iDesc, "phase:", iPhase, "index:", iIndex, "qty:", iQty, "unit:", iUnit, "price:", iPrice, "tipo:", iTipo);
 
         // If no description column found, try to use the first text-heavy column
         let descIdx = iDesc;
@@ -115,7 +117,7 @@ export default function BudgetImportModal({ budgetId, onClose }: Props) {
           let bestCol = -1;
           let bestAvgLen = 0;
           for (let c = 0; c < headers.length; c++) {
-            if (c === iQty || c === iUnit || c === iPrice || c === iIndex) continue;
+            if (c === iQty || c === iUnit || c === iPrice || c === iIndex || c === iTipo) continue;
             let totalLen = 0;
             let count = 0;
             for (let r = headerRowIdx + 1; r < Math.min(rows.length, headerRowIdx + 20); r++) {
@@ -139,124 +141,128 @@ export default function BudgetImportModal({ budgetId, onClose }: Props) {
           return;
         }
 
-        const items: ParsedItem[] = [];
+        // === Strategy: use TIPO column if available ===
+        const hasTipoCol = iTipo !== -1;
+        const allParsed: ParsedItem[] = [];
         let currentPhase = "Geral";
 
         for (let r = headerRowIdx + 1; r < rows.length; r++) {
           const row = rows[r];
           if (!row || row.every((c: any) => c === "" || c == null)) continue;
-          
+
           const desc = String(row[descIdx] || "").trim();
           if (!desc) continue;
 
-          // Read the index column to detect phases/subphases
           const indexVal = iIndex !== -1 ? String(row[iIndex] || "").trim() : "";
-
-          // Read phase column if available
-          if (iPhase !== -1 && row[iPhase]) {
-            currentPhase = String(row[iPhase]).trim();
-          }
-
           const qty = iQty !== -1 ? parseNum(row[iQty]) : 0;
           const price = iPrice !== -1 ? parseNum(row[iPrice]) : 0;
+          const unitVal = iUnit !== -1 ? String(row[iUnit] || "un").trim() || "un" : "un";
+          const tipoVal = hasTipoCol ? normalizeHeader(String(row[iTipo] || "")) : "";
 
-          // Use index to detect phase hierarchy: "1" or "1." = phase, "1.1" = subphase
-          // Skip phase/subphase rows regardless of whether they have values (avoids double-counting subtotals)
-          if (indexVal && iPhase === -1) {
-            const cleanIdx = indexVal.replace(/\.$/, "");
-            const parts = cleanIdx.split(".");
-            if (parts.length <= 2 && parts.every((p) => /^\d+$/.test(p))) {
-              // Always treat 1-level and 2-level indices as potential phase/subphase headers
-              // They'll be confirmed as parents in post-processing; for now mark as phase
-              currentPhase = `${indexVal} - ${desc}`;
-              // Only skip if no qty/price OR if it's a single-level index (always a phase)
-              if (parts.length === 1 || (qty === 0 && price === 0)) {
-                continue;
-              }
-              // 2-level with values: keep in items but mark code for post-processing removal
-            }
-          }
-
-          // Fallback phase detection from description
-          if (!indexVal && qty === 0 && price === 0 && iPhase === -1) {
-            if (/^\d+[\s.\-]/.test(desc) && desc.length < 120) {
-              currentPhase = desc;
+          // Determine if this row is a fase or serviço
+          if (hasTipoCol) {
+            // ---- TIPO column strategy ----
+            if (tipoVal === "fase") {
+              const phaseName = indexVal ? `${indexVal} - ${desc}` : desc;
+              currentPhase = phaseName;
+              allParsed.push({
+                tipo: "fase",
+                phase: phaseName,
+                code: indexVal,
+                description: desc,
+                quantity: 1,
+                unit: "vb",
+                unit_price: 0, // will be calculated from children
+                total_price: 0,
+              });
               continue;
             }
-          }
-
-          // Total is always calculated: qty * unit_price
-          const total = (qty || 1) * price;
-
-          items.push({
-            phase: currentPhase,
-            code: indexVal,
-            description: desc,
-            quantity: qty || 1,
-            unit: iUnit !== -1 ? String(row[iUnit] || "un").trim() || "un" : "un",
-            unit_price: price,
-            total_price: total,
-          });
-        }
-
-        // Post-process Step 1: detect subtotal/phase rows by checking if a row's total
-        // matches the sum of consecutive following rows (regardless of codes)
-        // This identifies phase headers even without an index column
-        const subtotalIndices = new Set<number>();
-        for (let i = 0; i < items.length; i++) {
-          const item = items[i];
-          if (item.total_price <= 0) continue;
-          // Try summing consecutive items after this one
-          let runningSum = 0;
-          let matchEnd = -1;
-          for (let j = i + 1; j < items.length; j++) {
-            runningSum += items[j].total_price;
-            // Check if running sum matches this item's total (within 2% tolerance)
-            if (runningSum > 0 && Math.abs(item.total_price - runningSum) / runningSum < 0.02) {
-              matchEnd = j;
-              break;
+            // serviço or any other tipo
+            const total = (qty || 1) * price;
+            allParsed.push({
+              tipo: "serviço",
+              phase: currentPhase,
+              code: indexVal,
+              description: desc,
+              quantity: qty || 1,
+              unit: unitVal,
+              unit_price: price,
+              total_price: total,
+            });
+          } else {
+            // ---- Heuristic strategy (no TIPO column) ----
+            // Read phase column if available
+            if (iPhase !== -1 && row[iPhase]) {
+              currentPhase = String(row[iPhase]).trim();
             }
-            // If sum exceeds item total, stop
-            if (runningSum > item.total_price * 1.02) break;
-          }
-          if (matchEnd > i) {
-            // This item is a subtotal/phase header — assign its description as phase to children
-            const phaseName = item.code ? `${item.code} - ${item.description}` : item.description;
-            console.log("[BudgetImport] Detected phase row:", phaseName, "total:", item.total_price, "children:", matchEnd - i);
-            subtotalIndices.add(i);
-            for (let j = i + 1; j <= matchEnd; j++) {
-              // Only override phase if children don't already have a meaningful phase
-              if (items[j].phase === "Geral" || items[j].phase === item.phase) {
-                items[j].phase = phaseName;
+
+            // Use index to detect phase hierarchy
+            if (indexVal && iPhase === -1) {
+              const cleanIdx = indexVal.replace(/\.$/, "");
+              const parts = cleanIdx.split(".");
+              if (parts.length === 1 && /^\d+$/.test(cleanIdx)) {
+                currentPhase = `${indexVal} - ${desc}`;
+                allParsed.push({
+                  tipo: "fase",
+                  phase: currentPhase,
+                  code: indexVal,
+                  description: desc,
+                  quantity: 1,
+                  unit: "vb",
+                  unit_price: 0,
+                  total_price: 0,
+                });
+                continue;
               }
             }
+
+            // Fallback phase detection from description
+            if (!indexVal && qty === 0 && price === 0 && iPhase === -1) {
+              if (/^\d+[\s.\-]/.test(desc) && desc.length < 120) {
+                currentPhase = desc;
+                allParsed.push({
+                  tipo: "fase",
+                  phase: currentPhase,
+                  code: "",
+                  description: desc,
+                  quantity: 1,
+                  unit: "vb",
+                  unit_price: 0,
+                  total_price: 0,
+                });
+                continue;
+              }
+            }
+
+            const total = (qty || 1) * price;
+            allParsed.push({
+              tipo: "serviço",
+              phase: currentPhase,
+              code: indexVal,
+              description: desc,
+              quantity: qty || 1,
+              unit: unitVal,
+              unit_price: price,
+              total_price: total,
+            });
           }
         }
 
-        // Post-process Step 2: remove parent/phase rows by code prefix
-        const allCodes = items.map((it) => it.code.replace(/\.$/, "")).filter(Boolean);
-        const finalItems = items.filter((item, idx) => {
-          // Remove subtotal rows detected above
-          if (subtotalIndices.has(idx)) return false;
-          // Remove parent rows by code prefix
-          if (item.code) {
-            const cleanCode = item.code.replace(/\.$/, "");
-            const parts = cleanCode.split(".");
-            if (parts.length <= 2 && parts.every((p) => /^\d+$/.test(p))) {
-              const isParent = allCodes.some((c) => c !== cleanCode && c.startsWith(cleanCode + "."));
-              if (isParent) {
-                console.log("[BudgetImport] Removing parent row by code:", item.code, item.description);
-                return false;
-              }
-            }
-          }
-          return true;
-        });
+        // Calculate fase totals from their children
+        for (const fase of allParsed.filter((i) => i.tipo === "fase")) {
+          const children = allParsed.filter((i) => i.tipo === "serviço" && i.phase === fase.phase);
+          const total = children.reduce((s, c) => s + c.total_price, 0);
+          fase.unit_price = total;
+          fase.total_price = total;
+        }
 
-        console.log("[BudgetImport] Parsed items:", finalItems.length, "(removed", items.length - finalItems.length, "phase/subtotal rows)");
+        // Only keep services for the parsedItems preview, but store phases too
+        const finalItems = allParsed;
 
-        if (finalItems.length === 0) {
-          toast.error("Nenhum item válido encontrado. Headers detectados: " + headers.slice(0, 8).join(", "));
+        console.log("[BudgetImport] Parsed:", finalItems.filter((i) => i.tipo === "fase").length, "fases,", finalItems.filter((i) => i.tipo === "serviço").length, "serviços");
+
+        if (finalItems.filter((i) => i.tipo === "serviço").length === 0) {
+          toast.error("Nenhum item de serviço encontrado. Headers detectados: " + headers.slice(0, 8).join(", "));
           return;
         }
 
@@ -269,14 +275,16 @@ export default function BudgetImportModal({ budgetId, onClose }: Props) {
     reader.readAsArrayBuffer(file);
   };
 
-  const phases = [...new Set(parsedItems.map((i) => i.phase))];
+  const serviceItems = parsedItems.filter((i) => i.tipo === "serviço");
+  const phaseItems = parsedItems.filter((i) => i.tipo === "fase");
+  const phases = phaseItems.map((i) => i.phase);
 
   const handleImport = async () => {
     if (!user) {
       toast.error("Sua sessão expirou. Faça login novamente para importar.");
       return;
     }
-    if (parsedItems.length === 0) {
+    if (serviceItems.length === 0) {
       toast.error("Nenhum item disponível para importar.");
       return;
     }
@@ -286,54 +294,25 @@ export default function BudgetImportModal({ budgetId, onClose }: Props) {
     let errors = 0;
     const errorMessages: string[] = [];
 
-    // Build records: first insert phase rows (category="fase"), then service rows (category="serviço")
     const records: any[] = [];
     let sortIdx = 0;
 
-    // Collect unique phases in order of appearance
-    const seenPhases = new Set<string>();
-    const orderedPhases: string[] = [];
-    for (const item of parsedItems) {
-      const phaseName = sanitizeText(item.phase, "Geral") || "Geral";
-      if (!seenPhases.has(phaseName)) {
-        seenPhases.add(phaseName);
-        orderedPhases.push(phaseName);
-      }
-    }
-
-    // Insert only root-level phase rows (single numeric prefix like "1 - ...", "2 - ...")
-    // Subfases like "9.3 - ..." are NOT inserted as separate fase rows
-    const rootPhaseRegex = /^(\d+)\s*[-–—.]\s*/;
-    for (const phaseName of orderedPhases) {
-      const match = phaseName.match(rootPhaseRegex);
-      // Only insert as "fase" if it starts with a single number (root level)
-      // and that number has no dots (not "9.3")
-      if (!match) continue;
-      const prefix = phaseName.match(/^(\d+(?:\.\d+)*)/);
-      if (prefix && prefix[1].includes(".")) continue; // skip subfases like "9.3 - ..."
-
-      // Sum all items whose phase starts with this root index
-      const rootIdx = match[1];
-      const phaseTotal = parsedItems
-        .filter((i) => {
-          const p = sanitizeText(i.phase, "Geral") || "Geral";
-          const pMatch = p.match(/^(\d+)/);
-          return pMatch && pMatch[1] === rootIdx;
-        })
-        .reduce((sum, i) => sum + i.total_price, 0);
+    // Insert fase rows with category "fase"
+    for (const fase of phaseItems) {
+      const description = sanitizeText(fase.code ? `${fase.code} - ${fase.description}` : fase.description);
       records.push({
         budget_id: budgetId,
-        description: phaseName,
+        description,
         category: "fase",
         quantity: 1,
         unit: "vb",
-        unit_price: phaseTotal,
+        unit_price: fase.total_price,
         sort_order: sortIdx++,
       });
     }
 
     // Insert service rows with category "serviço"
-    for (const item of parsedItems) {
+    for (const item of serviceItems) {
       const quantity = Number.isFinite(item.quantity) && item.quantity > 0 ? item.quantity : 1;
       const unitPrice = Number.isFinite(item.unit_price) ? item.unit_price : 0;
       const description = sanitizeText(item.description);
@@ -430,14 +409,14 @@ export default function BudgetImportModal({ budgetId, onClose }: Props) {
               <div className="flex items-center gap-2 text-sm">
                 <FileSpreadsheet className="h-4 w-4 text-primary" />
                 <span className="font-medium text-foreground">{fileName}</span>
-                <span className="text-muted-foreground">— {parsedItems.length} item(ns) em {phases.length} fase(s)</span>
+                <span className="text-muted-foreground">— {serviceItems.length} serviço(s) em {phases.length} fase(s)</span>
                 <button onClick={() => { setStep("upload"); setParsedItems([]); }} className="ml-auto text-xs text-primary hover:underline">Trocar arquivo</button>
               </div>
 
               <div className="space-y-3 max-h-[50vh] overflow-y-auto">
                 {phases.map((phase) => {
-                  const phaseItems = parsedItems.filter((i) => i.phase === phase);
-                  const phaseTotal = phaseItems.reduce((s, i) => s + i.total_price, 0);
+                  const pItems = serviceItems.filter((i) => i.phase === phase);
+                  const phaseTotal = pItems.reduce((s, i) => s + i.total_price, 0);
                   return (
                     <div key={phase} className="border border-border rounded-lg overflow-hidden">
                       <div className="bg-muted/50 px-4 py-2 flex items-center justify-between">
@@ -455,19 +434,19 @@ export default function BudgetImportModal({ budgetId, onClose }: Props) {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-border">
-                          {phaseItems.slice(0, 10).map((item, i) => (
+                          {pItems.slice(0, 10).map((item, i) => (
                             <tr key={i}>
-                              <td className="px-3 py-1.5 text-foreground">{item.description}</td>
+                              <td className="px-3 py-1.5 text-foreground">{item.code ? `${item.code} - ` : ""}{item.description}</td>
                               <td className="px-3 py-1.5 text-right text-foreground">{fmt(item.quantity)}</td>
                               <td className="px-3 py-1.5 text-muted-foreground">{item.unit}</td>
                               <td className="px-3 py-1.5 text-right text-foreground">R$ {fmt(item.unit_price)}</td>
                               <td className="px-3 py-1.5 text-right font-medium text-foreground">R$ {fmt(item.total_price)}</td>
                             </tr>
                           ))}
-                          {phaseItems.length > 10 && (
+                          {pItems.length > 10 && (
                             <tr>
                               <td colSpan={5} className="px-3 py-1.5 text-center text-muted-foreground italic">
-                                ... e mais {phaseItems.length - 10} item(ns)
+                                ... e mais {pItems.length - 10} item(ns)
                               </td>
                             </tr>
                           )}
@@ -480,7 +459,7 @@ export default function BudgetImportModal({ budgetId, onClose }: Props) {
 
               <div className="bg-muted/30 border border-border rounded-lg p-3 flex items-center justify-between">
                 <span className="text-sm font-semibold text-foreground">
-                  Total geral: R$ {fmt(parsedItems.reduce((s, i) => s + i.total_price, 0))}
+                  Total geral: R$ {fmt(serviceItems.reduce((s, i) => s + i.total_price, 0))}
                 </span>
               </div>
 
@@ -491,7 +470,7 @@ export default function BudgetImportModal({ budgetId, onClose }: Props) {
                   disabled={importing}
                   className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50"
                 >
-                  {importing ? "Importando..." : `Importar ${parsedItems.length} item(ns)`}
+                  {importing ? "Importando..." : `Importar ${serviceItems.length} serviço(s) e ${phaseItems.length} fase(s)`}
                 </button>
               </div>
             </>
