@@ -160,16 +160,16 @@ export default function BudgetImportModal({ budgetId, onClose }: Props) {
           const qty = iQty !== -1 ? parseNum(row[iQty]) : 0;
           const price = iPrice !== -1 ? parseNum(row[iPrice]) : 0;
 
-          // Use index to detect phase hierarchy: "1" or "1." = phase, "1.1" = subphase, "1.1.1"+ = item
+          // Use index to detect phase hierarchy: "1" or "1." = phase, "1.1" = subphase
+          // Skip phase/subphase rows regardless of whether they have values (avoids double-counting subtotals)
           if (indexVal && iPhase === -1) {
             const cleanIdx = indexVal.replace(/\.$/, "");
             const parts = cleanIdx.split(".");
-            if (parts.length === 1 && /^\d+$/.test(parts[0]) && qty === 0 && price === 0) {
+            if (parts.length === 1 && /^\d+$/.test(parts[0])) {
               currentPhase = `${indexVal} - ${desc}`;
               continue;
             }
             if (parts.length === 2 && parts.every((p) => /^\d+$/.test(p)) && qty === 0 && price === 0) {
-              // Subphase header — keep as part of phase name
               currentPhase = `${indexVal} - ${desc}`;
               continue;
             }
@@ -197,14 +197,30 @@ export default function BudgetImportModal({ budgetId, onClose }: Props) {
           });
         }
 
-        console.log("[BudgetImport] Parsed items:", items.length);
+        // Post-process: remove parent/phase rows that are prefixes of child items (avoid double-counting subtotals)
+        const allCodes = items.map((it) => it.code.replace(/\.$/, "")).filter(Boolean);
+        const filtered = items.filter((item) => {
+          if (!item.code) return true;
+          const cleanCode = item.code.replace(/\.$/, "");
+          const parts = cleanCode.split(".");
+          // Only check rows with 1-2 level indices (potential phases/subphases)
+          if (parts.length > 2 || !parts.every((p) => /^\d+$/.test(p))) return true;
+          // Check if any other code starts with this code as prefix
+          const isParent = allCodes.some((c) => c !== cleanCode && c.startsWith(cleanCode + "."));
+          if (isParent) {
+            console.log("[BudgetImport] Removing parent/phase row:", item.code, item.description);
+          }
+          return !isParent;
+        });
 
-        if (items.length === 0) {
+        console.log("[BudgetImport] Parsed items:", filtered.length, "(removed", items.length - filtered.length, "phase/subtotal rows)");
+
+        if (filtered.length === 0) {
           toast.error("Nenhum item válido encontrado. Headers detectados: " + headers.slice(0, 8).join(", "));
           return;
         }
 
-        setParsedItems(items);
+        setParsedItems(filtered);
         setStep("preview");
       } catch (err) {
         toast.error("Erro ao ler a planilha. Verifique o formato do arquivo.");
