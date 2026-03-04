@@ -8,6 +8,7 @@ import {
   FileText, Power
 } from "lucide-react";
 import { exportCSV, exportExcel, exportPDF, fetchCompanyInfo } from "@/utils/exportWithHeader";
+import { addReportHeader, addPageFooter, drawInfoGrid, fmtDate, fmtCurrency } from "@/utils/pdfHeader";
 import ExportDialog from "@/components/ExportDialog";
 import { fetchCep } from "@/utils/cep";
 import ObraFolders from "@/components/ObraFolders";
@@ -252,27 +253,125 @@ export default function Obras() {
 
   const generateObraDataPDF = async () => {
     if (!editing) return;
-    const doc = new (await import("jspdf")).default();
+    const jsPDF = (await import("jspdf")).default;
+    const { default: autoTable } = await import("jspdf-autotable");
+    const doc = new jsPDF();
     const company = user ? await fetchCompanyInfo(user.id) : null;
-    let y = 15;
-    if (company?.company_name) { doc.setFontSize(14); doc.setFont("helvetica", "bold"); doc.text(company.company_name, 14, y); y += 7; }
-    if (company?.document) { doc.setFontSize(9); doc.setFont("helvetica", "normal"); doc.text(`CNPJ/CPF: ${company.document}`, 14, y); y += 5; }
-    y += 5;
-    doc.setFontSize(12); doc.setFont("helvetica", "bold"); doc.text("DADOS DA OBRA", 14, y); y += 8;
-    doc.setFontSize(9); doc.setFont("helvetica", "normal");
-    const fields = [
-      ["Nome", editing.name], ["Cliente", editing.client_id ? getClientName(editing.client_id) : "—"],
-      ["Categoria", editing.category ? getCategoryLabel(editing.category) : "—"], ["Situação", getStatusLabel(editing.status)],
-      ["CNO", editing.cno || "—"], ["Área (m²)", editing.area_m2 || "—"], ["ART", editing.art_number || "—"],
-      ["Resp. Técnico", editing.resp_tecnico || "—"], ["Resp. Obra", editing.resp_obra || "—"],
-      ["Empreiteiro", editing.empreiteiro || "—"],
-      ["Início", editing.start_date ? new Date(editing.start_date + "T00:00:00").toLocaleDateString("pt-BR") : "—"],
-      ["Fim previsto", editing.expected_end_date ? new Date(editing.expected_end_date + "T00:00:00").toLocaleDateString("pt-BR") : "—"],
-      ["Endereço", [editing.address, editing.address_number, editing.neighborhood, editing.city, editing.state].filter(Boolean).join(", ") || "—"],
-      ["CEP", editing.cep || "—"], ["Orçamento", budgetNumberMap[editing.id] || "—"],
-      ["Controla estoque", editing.stock_control ? "Sim" : "Não"],
-    ];
-    fields.forEach(([label, val]) => { doc.text(`${label}: ${val}`, 14, y); y += 5; if (y > 280) { doc.addPage(); y = 15; } });
+    const pageW = doc.internal.pageSize.getWidth();
+    const MARGIN = 14;
+
+    // Header
+    let y = await addReportHeader(doc, company, "DADOS DA OBRA", editing.name);
+
+    // ── Informações gerais ──
+    doc.setFontSize(9); doc.setFont("helvetica", "bold"); doc.setTextColor(41, 128, 185);
+    doc.text("INFORMAÇÕES GERAIS", MARGIN, y); y += 5;
+
+    const companyName = companiesList.find(c => c.id === editing.company_id)?.name || "—";
+    y = drawInfoGrid(doc, [
+      ["Empresa:", companyName, "Cliente:", editing.client_id ? getClientName(editing.client_id) : "—"],
+      ["Categoria:", editing.category ? getCategoryLabel(editing.category) : "—", "Situação:", getStatusLabel(editing.status)],
+      ["Descrição:", editing.description || "—", "Orçamento (R$):", fmtCurrency(editing.total_budget)],
+      ["Orçamento nº:", budgetNumberMap[editing.id] || "—", "", ""],
+    ], y);
+    y += 2;
+
+    // ── Período ──
+    doc.setFontSize(9); doc.setFont("helvetica", "bold"); doc.setTextColor(41, 128, 185);
+    doc.text("PERÍODO", MARGIN, y); y += 5;
+
+    const durationLabel = editing.duration ? `${editing.duration} ${editing.duration_unit || "meses"}` : "—";
+    y = drawInfoGrid(doc, [
+      ["Início:", fmtDate(editing.start_date), "Duração:", durationLabel],
+      ["Fim previsto:", fmtDate(editing.expected_end_date), "Fim real:", fmtDate(editing.actual_end_date)],
+    ], y);
+    y += 2;
+
+    // ── Outras informações ──
+    doc.setFontSize(9); doc.setFont("helvetica", "bold"); doc.setTextColor(41, 128, 185);
+    doc.text("OUTRAS INFORMAÇÕES", MARGIN, y); y += 5;
+
+    y = drawInfoGrid(doc, [
+      ["CNO:", editing.cno || "—", "Área (m²):", editing.area_m2 ? String(editing.area_m2) : "—"],
+      ["Empreiteiro:", editing.empreiteiro || "—", "Resp. Técnico:", editing.resp_tecnico || "—"],
+      ["ART nº:", editing.art_number || "—", "Resp. Obra:", editing.resp_obra || "—"],
+      ["Estoque:", editing.stock_control ? "Sim" : "Não", "Acesso cliente:", editing.client_access ? "Sim" : "Não"],
+    ], y);
+    y += 2;
+
+    // ── Endereço da obra ──
+    doc.setFontSize(9); doc.setFont("helvetica", "bold"); doc.setTextColor(41, 128, 185);
+    doc.text("ENDEREÇO DA OBRA", MARGIN, y); y += 5;
+
+    const enderecoObra = [editing.address, editing.address_number].filter(Boolean).join(", ");
+    y = drawInfoGrid(doc, [
+      ["CEP:", editing.cep || "—", "Logradouro:", enderecoObra || "—"],
+      ["Bairro:", editing.neighborhood || "—", "Complemento:", editing.complement || "—"],
+      ["Cidade:", editing.city || "—", "Estado:", editing.state || "—"],
+    ], y);
+    y += 2;
+
+    // ── Endereço de cobrança ──
+    if (editing.billing_address || editing.billing_cep || editing.billing_city) {
+      if (y > 250) { doc.addPage(); y = 15; }
+      doc.setFontSize(9); doc.setFont("helvetica", "bold"); doc.setTextColor(41, 128, 185);
+      doc.text("ENDEREÇO DE COBRANÇA", MARGIN, y); y += 5;
+
+      const endCobranca = [editing.billing_address, editing.billing_number].filter(Boolean).join(", ");
+      y = drawInfoGrid(doc, [
+        ["CEP:", editing.billing_cep || "—", "Logradouro:", endCobranca || "—"],
+        ["Bairro:", editing.billing_neighborhood || "—", "Complemento:", editing.billing_complement || "—"],
+        ["Cidade:", editing.billing_city || "—", "Estado:", editing.billing_state || "—"],
+      ], y);
+      y += 2;
+    }
+
+    // ── Configurações ──
+    if (y > 240) { doc.addPage(); y = 15; }
+    doc.setFontSize(9); doc.setFont("helvetica", "bold"); doc.setTextColor(41, 128, 185);
+    doc.text("CONFIGURAÇÕES", MARGIN, y); y += 5;
+
+    const billingTypeMap: Record<string, string> = { taxa_administracao: "Taxa de Administração", empreitada: "Empreitada", preco_unitario: "Preço Unitário" };
+    const freqMap: Record<string, string> = { semanal: "Semanal", quinzenal: "Quinzenal", mensal: "Mensal" };
+    const trackMap: Record<string, string> = { custo: "Pelo custo", venda_taxas: "Pelo valor de venda+taxas", ambos: "Ambos" };
+    const docTypeMap: Record<string, string> = { reembolso: "Reembolso", nota_fiscal: "Nota Fiscal", recibo: "Recibo" };
+
+    y = drawInfoGrid(doc, [
+      ["Faturamento:", billingTypeMap[editing.billing_type] || "—", "Frequência:", freqMap[editing.billing_frequency] || "—"],
+      ["Documento:", docTypeMap[editing.document_type] || "—", "Planejamento:", freqMap[editing.planning_frequency] || "—"],
+      ["Acompanhamento:", trackMap[editing.tracking_method] || "—", "", ""],
+    ], y);
+    y += 2;
+
+    // ── Observações ──
+    if (editing.notes) {
+      if (y > 250) { doc.addPage(); y = 15; }
+      doc.setFontSize(9); doc.setFont("helvetica", "bold"); doc.setTextColor(41, 128, 185);
+      doc.text("OBSERVAÇÕES", MARGIN, y); y += 5;
+      doc.setFontSize(8); doc.setFont("helvetica", "normal"); doc.setTextColor(30, 30, 30);
+      const notesLines = doc.splitTextToSize(editing.notes, pageW - MARGIN * 2);
+      doc.text(notesLines, MARGIN, y);
+    }
+
+    // ── Contatos ──
+    const { data: contacts } = await supabase.from("obra_contacts").select("*").eq("obra_id", editing.id).order("name");
+    if (contacts && contacts.length > 0) {
+      y = (doc as any).lastAutoTable?.finalY || y + 4;
+      if (y > 240) { doc.addPage(); y = 15; }
+      doc.setFontSize(9); doc.setFont("helvetica", "bold"); doc.setTextColor(41, 128, 185);
+      doc.text("CONTATOS", MARGIN, y); y += 5;
+      autoTable(doc, {
+        startY: y,
+        head: [["Nome", "Telefone", "Celular", "E-mail"]],
+        body: contacts.map((c: any) => [c.name, c.phone || "—", c.cellphone || "—", c.email || "—"]),
+        styles: { fontSize: 7.5, cellPadding: 2.5 },
+        headStyles: { fillColor: [41, 128, 185], textColor: [255, 255, 255], fontStyle: "bold" },
+        alternateRowStyles: { fillColor: [245, 248, 252] },
+        margin: { left: MARGIN, right: MARGIN },
+      });
+    }
+
+    addPageFooter(doc);
     doc.save(`Obra_${editing.name.replace(/\s+/g, "_")}.pdf`);
     toast.success("Relatório gerado!");
   };
