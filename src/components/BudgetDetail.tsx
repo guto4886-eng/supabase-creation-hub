@@ -1450,8 +1450,14 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
               if (!activeMeasurement) return;
               await supabase.from("budget_measurements").update({ status: "fechada", closed_at: new Date().toISOString() } as any).eq("id", activeMeasurement);
               qc.invalidateQueries({ queryKey: ["budget_measurements", budgetId] });
-              setActiveMeasurement(null);
               toast.success("Medição fechada!");
+            };
+
+            const reopenMeasurement = async () => {
+              if (!activeMeasurement) return;
+              await supabase.from("budget_measurements").update({ status: "aberta", closed_at: null } as any).eq("id", activeMeasurement);
+              qc.invalidateQueries({ queryKey: ["budget_measurements", budgetId] });
+              toast.success("Medição reaberta!");
             };
 
             const deleteMeasurement = async (medId: string) => {
@@ -1707,9 +1713,13 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
-                        {activeMed?.status === "aberta" && (
+                        {activeMed?.status === "aberta" ? (
                           <button onClick={closeMeasurement} className="px-3 py-1.5 text-xs bg-amber-600 text-white rounded-lg hover:opacity-90 font-medium">
                             Fechar medição
+                          </button>
+                        ) : (
+                          <button onClick={reopenMeasurement} className="px-3 py-1.5 text-xs bg-primary text-primary-foreground rounded-lg hover:opacity-90 font-medium">
+                            Reabrir medição
                           </button>
                         )}
                         <button
@@ -1783,7 +1793,7 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                                 const accValue = vendaTotal * (accPct / 100);
                                 const saldoSvc = vendaTotal - accValue;
                                 const measuredAt = mi?.measured_at ? new Date(mi.measured_at).toLocaleDateString("pt-BR") : "—";
-                                const isEditable = activeMed?.status === "aberta" && mi;
+                                const isEditable = !!mi;
                                 return (
                                   <div key={svc.id} className={`border border-border rounded-lg p-3 ${idx % 2 === 0 ? "bg-background" : "bg-muted/10"}`}>
                                     <div className="flex items-start justify-between mb-2">
