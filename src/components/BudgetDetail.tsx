@@ -375,7 +375,8 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
 
   const fmt = (v: number | null | undefined) => (v != null ? v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "R$ 0,00");
   const totalCusto = items.filter((i) => (i.category || "").toLowerCase() !== "fase").reduce((s, i) => s + (i.total_price || 0), 0);
-  const totalVenda = items.filter((i) => (i.category || "").toLowerCase() !== "fase").reduce((s, i) => s + getVendaTotal(i), 0);
+  const serviceItemsGlobal = items.filter((i) => ["serviço", "servico"].includes((i.category || "").toLowerCase()));
+  const totalVenda = (serviceItemsGlobal.length > 0 ? serviceItemsGlobal : items).reduce((s, i) => s + getVendaTotal(i), 0);
 
   const formatDate = (d: string | null) => {
     if (!d) return "—";
