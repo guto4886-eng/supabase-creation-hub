@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import html2canvas from "html2canvas";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -2109,7 +2110,7 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
             const devPct = totalPrevisto > 0 ? (totalRealizado / totalPrevisto) * 100 : 0;
 
             return (
-              <div className="space-y-6">
+              <div className="space-y-6" data-pdf-container="previsto-realizado">
                 <div className="flex items-center justify-between">
                   <div>
                     <h4 className="text-sm font-semibold text-foreground">Previsto x Realizado</h4>
@@ -2125,129 +2126,38 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                           let y = await addReportHeader(doc, companyInfo, "Previsto x Realizado", `${budget.budget_code || ""} — ${obra?.name || ""}`);
 
                           const pageW = doc.internal.pageSize.getWidth();
+                          const pageH = doc.internal.pageSize.getHeight();
+                          const MARGIN = 14;
+                          const contentW = pageW - MARGIN * 2;
 
-                          // ── 1. Summary cards (4 boxes side by side) ──
-                          const cardW = (pageW - 28 - 18) / 4; // 14 margin each side, 6px gaps
-                          const cardH = 22;
-                          const cards = [
-                            { label: "PREVISTO (ORÇADO)", value: fmt(totalPrevisto), sub: "Valor total orçado para a obra", color: [30, 64, 175] as [number, number, number], bg: [219, 234, 254] as [number, number, number] },
-                            { label: "REALIZADO (MEDIDO)", value: fmt(totalRealizado), sub: "Valor acumulado das medições", color: [21, 128, 61] as [number, number, number], bg: [220, 252, 231] as [number, number, number] },
-                            { label: "DESVIO", value: `${desvio > 0 ? "+" : ""}${fmt(desvio)}`, sub: desvio > 0 ? "Acima do orçado" : desvio < 0 ? "Economia" : "Dentro do orçamento", color: desvio > 0 ? [185, 28, 28] as [number, number, number] : [4, 120, 87] as [number, number, number], bg: desvio > 0 ? [254, 226, 226] as [number, number, number] : [209, 250, 229] as [number, number, number] },
-                            { label: "% EXECUÇÃO", value: `${devPct.toFixed(1)}%`, sub: "Percentual executado do total", color: devPct > 100 ? [185, 28, 28] as [number, number, number] : [109, 40, 217] as [number, number, number], bg: [237, 233, 254] as [number, number, number] },
-                          ];
-                          cards.forEach((card, i) => {
-                            const x = 14 + i * (cardW + 6);
-                            doc.setFillColor(card.bg[0], card.bg[1], card.bg[2]);
-                            doc.roundedRect(x, y, cardW, cardH, 2, 2, "F");
-                            doc.setFontSize(6);
-                            doc.setFont("helvetica", "bold");
-                            doc.setTextColor(card.color[0], card.color[1], card.color[2]);
-                            doc.text(card.label, x + cardW / 2, y + 6, { align: "center" });
-                            doc.setFontSize(12);
-                            doc.text(card.value, x + cardW / 2, y + 14, { align: "center" });
-                            doc.setFontSize(5.5);
-                            doc.setFont("helvetica", "normal");
-                            doc.setTextColor(100, 100, 100);
-                            doc.text(card.sub, x + cardW / 2, y + 19, { align: "center" });
-                          });
-                          doc.setTextColor(0, 0, 0);
-                          y += cardH + 8;
+                          // Capture all sections marked with data-pdf-section
+                          const container = document.querySelector('[data-pdf-container="previsto-realizado"]');
+                          if (!container) { toast.error("Não foi possível capturar os dados."); return; }
 
-                          // ── 2. Detail table (Detalhamento por Fase) with progress bar ──
-                          doc.setFontSize(11);
-                          doc.setFont("helvetica", "bold");
-                          doc.text("Detalhamento por Fase", 14, y);
-                          y += 2;
+                          const sections = Array.from(container.querySelectorAll('[data-pdf-section]')) as HTMLElement[];
 
-                          const totalPlanejadoR = phaseChartData.reduce((s, d) => s + d.Planejado, 0);
-
-                          autoTable(doc, {
-                            startY: y,
-                            head: [["Fase", "Orçado", "Planejado", "Realizado", "Desvio", "% Execução", "Progresso"]],
-                            body: phaseChartData.map((d) => {
-                              const dev = d.Realizado - d.Previsto;
-                              const pct = d.Previsto > 0 ? (d.Realizado / d.Previsto) * 100 : 0;
-                              return [
-                                d.name,
-                                fmt(d.Previsto),
-                                fmt(d.Planejado),
-                                fmt(d.Realizado),
-                                `${dev > 0 ? "+" : ""}${fmt(dev)}`,
-                                `${pct.toFixed(1)}%`,
-                                "",
-                              ];
-                            }),
-                            foot: [["TOTAL", fmt(totalPrevisto), fmt(totalPlanejadoR), fmt(totalRealizado), `${desvio > 0 ? "+" : ""}${fmt(desvio)}`, `${devPct.toFixed(1)}%`, ""]],
-                            styles: { fontSize: 8, cellPadding: 2 },
-                            headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: "bold" },
-                            footStyles: { fillColor: [230, 230, 230], fontStyle: "bold" },
-                            alternateRowStyles: { fillColor: [245, 245, 245] },
-                            columnStyles: {
-                              0: { cellWidth: 50 },
-                              6: { cellWidth: 40 },
-                            },
-                            didDrawCell: (data: any) => {
-                              if (data.column.index === 6 && data.section === "body") {
-                                const d = phaseChartData[data.row.index];
-                                if (!d) return;
-                                const pct = d.Previsto > 0 ? Math.min((d.Realizado / d.Previsto) * 100, 100) : 0;
-                                const cellX = data.cell.x + 2;
-                                const cellY = data.cell.y + data.cell.height / 2 - 2;
-                                const barW = data.cell.width - 4;
-                                const barH = 4;
-                                doc.setFillColor(230, 230, 230);
-                                doc.roundedRect(cellX, cellY, barW, barH, 1, 1, "F");
-                                if (pct > 0) {
-                                  const fillColor = pct > 100 ? [220, 38, 38] : pct >= 50 ? [34, 197, 94] : [59, 130, 246];
-                                  doc.setFillColor(fillColor[0], fillColor[1], fillColor[2]);
-                                  doc.roundedRect(cellX, cellY, barW * (pct / 100), barH, 1, 1, "F");
-                                }
-                              }
-                              if (data.column.index === 6 && data.section === "foot") {
-                                const pct = Math.min(devPct, 100);
-                                const cellX = data.cell.x + 2;
-                                const cellY = data.cell.y + data.cell.height / 2 - 2;
-                                const barW = data.cell.width - 4;
-                                const barH = 4;
-                                doc.setFillColor(230, 230, 230);
-                                doc.roundedRect(cellX, cellY, barW, barH, 1, 1, "F");
-                                if (pct > 0) {
-                                  doc.setFillColor(34, 197, 94);
-                                  doc.roundedRect(cellX, cellY, barW * (pct / 100), barH, 1, 1, "F");
-                                }
-                              }
-                            },
-                          });
-
-                          y = (doc as any).lastAutoTable.finalY + 10;
-
-                          // ── 3. Timeline table (Evolução Acumulada por Período) ──
-                          if (timelineData.length > 0) {
-                            if (y > 160) { doc.addPage(); y = 15; }
-                            doc.setFontSize(11);
-                            doc.setFont("helvetica", "bold");
-                            doc.text("Evolução Acumulada por Período", 14, y);
-                            y += 2;
-
-                            autoTable(doc, {
-                              startY: y,
-                              head: [["Período", "Orçado", "Planejado", "Realizado", "% Planejado", "% Realizado"]],
-                              body: timelineData.map((t) => {
-                                const pctPlan = t.Planejado !== undefined && t.Orçado > 0 ? ((t.Planejado / t.Orçado) * 100).toFixed(1) + "%" : "—";
-                                const pctReal = t.Realizado !== undefined && t.Orçado > 0 ? ((t.Realizado / t.Orçado) * 100).toFixed(1) + "%" : "—";
-                                return [
-                                  t.name,
-                                  fmt(t.Orçado),
-                                  t.Planejado !== undefined ? fmt(t.Planejado) : "—",
-                                  t.Realizado !== undefined ? fmt(t.Realizado) : "—",
-                                  pctPlan,
-                                  pctReal,
-                                ];
-                              }),
-                              styles: { fontSize: 8, cellPadding: 2 },
-                              headStyles: { fillColor: [46, 139, 87], textColor: 255, fontStyle: "bold" },
-                              alternateRowStyles: { fillColor: [245, 250, 245] },
+                          for (const section of sections) {
+                            const canvas = await html2canvas(section, {
+                              scale: 2,
+                              useCORS: true,
+                              backgroundColor: '#ffffff',
+                              logging: false,
                             });
+
+                            const imgData = canvas.toDataURL('image/png');
+                            const widthPx = canvas.width / 2;
+                            const heightPx = canvas.height / 2;
+                            const scaleFactor = contentW / widthPx;
+                            const heightMM = heightPx * scaleFactor;
+
+                            const remainingSpace = pageH - MARGIN - y;
+                            if (heightMM > remainingSpace && y > MARGIN + 10) {
+                              doc.addPage();
+                              y = MARGIN;
+                            }
+
+                            doc.addImage(imgData, 'PNG', MARGIN, y, contentW, heightMM);
+                            y += heightMM + 4;
                           }
 
                           addPageFooter(doc);
@@ -2266,7 +2176,7 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                 </div>
 
                 {/* Summary cards */}
-                <div className="grid grid-cols-4 gap-3">
+                <div className="grid grid-cols-4 gap-3" data-pdf-section="cards">
                   <div className="rounded-xl border border-border p-4 text-center" style={{ background: "linear-gradient(135deg, hsl(220 70% 96%), hsl(220 60% 92%))" }}>
                     <div className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: "#3b82f6" }}>💰 Previsto (Orçado)</div>
                     <div className="text-xl font-extrabold mt-1.5" style={{ color: "#1e40af" }}>{fmt(totalPrevisto)}</div>
@@ -2301,7 +2211,7 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                 ) : (
                   <>
                     {/* Bar chart */}
-                    <div className="border border-border rounded-xl p-5 bg-background shadow-sm">
+                    <div className="border border-border rounded-xl p-5 bg-background shadow-sm" data-pdf-section="bar-chart">
                       <div className="mb-4">
                         <h5 className="text-sm font-bold text-foreground">Orçado x Planejado x Realizado por Fase</h5>
                         <p className="text-xs text-muted-foreground mt-0.5">Azul = orçado. Laranja = planejado (do planejamento físico). Verde = medido acumulado.</p>
@@ -2342,7 +2252,7 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
 
                     {/* Line chart */}
                     {timelineData.length > 0 && (
-                      <div className="border border-border rounded-xl p-5 bg-background shadow-sm">
+                      <div className="border border-border rounded-xl p-5 bg-background shadow-sm" data-pdf-section="line-chart">
                         <div className="mb-4">
                           <h5 className="text-sm font-bold text-foreground">Evolução Acumulada por Período</h5>
                           <p className="text-xs text-muted-foreground mt-0.5">Tracejada azul = meta orçada. Laranja = planejado (previsão do planejamento físico). Verde = medido acumulado.</p>
@@ -2369,7 +2279,7 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                     )}
 
                     {/* Detail table */}
-                    <div className="border border-border rounded-xl overflow-hidden shadow-sm">
+                    <div className="border border-border rounded-xl overflow-hidden shadow-sm" data-pdf-section="detail-table">
                       <div className="bg-muted/60 px-4 py-3 border-b border-border">
                         <h5 className="text-sm font-bold text-foreground">Detalhamento por Fase</h5>
                         <p className="text-xs text-muted-foreground mt-0.5">Valores individuais por fase com desvio e barra de progresso.</p>
