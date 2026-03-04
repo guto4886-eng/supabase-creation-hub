@@ -362,7 +362,7 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
   const closeItemForm = () => { setEditingItem(null); setAddingItem(false); };
 
   const fmt = (v: number | null | undefined) => (v != null ? v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "R$ 0,00");
-  const totalCusto = items.reduce((s, i) => s + (i.total_price || 0), 0);
+  const totalCusto = items.filter((i) => (i.category || "").toLowerCase() !== "fase").reduce((s, i) => s + (i.total_price || 0), 0);
 
   const formatDate = (d: string | null) => {
     if (!d) return "—";
