@@ -10,9 +10,29 @@ import {
 // Re-export for backward compatibility
 export { fetchCompanyInfo, type CompanyInfo };
 
+// ── Constants ──
+const MARGIN = 14;
+const PAGE_TOP = 15;
+
+/** Get usable page height minus bottom margin */
+function getMaxY(doc: jsPDF) {
+  return doc.internal.pageSize.getHeight() - 20;
+}
+
+/** Ensure enough space for next section, otherwise add page */
+function ensureSpace(doc: jsPDF, currentY: number, needed: number): number {
+  if (currentY + needed > getMaxY(doc)) {
+    doc.addPage();
+    return PAGE_TOP;
+  }
+  return currentY;
+}
+
+/** Common autoTable margin config */
+const TABLE_MARGIN = { left: MARGIN, right: MARGIN, top: PAGE_TOP, bottom: 20 };
+
 // ── Fetch company info from the linked company (companies table) or fall back to company_settings ──
 async function getReportCompanyInfo(data: ReportData): Promise<CompanyInfo | null> {
-  // If budget has a linked company, use that
   if (data.company?.id) {
     const { data: comp } = await supabase
       .from("companies")
@@ -32,7 +52,6 @@ async function getReportCompanyInfo(data: ReportData): Promise<CompanyInfo | nul
       };
     }
   }
-  // Fallback to company_settings
   return fetchCompanyInfo(data.userId);
 }
 
@@ -74,22 +93,28 @@ function buildSubtitle(budgetCode?: string, obraName?: string): string | undefin
   return parts.length > 0 ? parts.join("  |  ") : undefined;
 }
 
+const getPrefix = (desc: string) => {
+  const m = desc.trim().match(/^(\d+(?:\.\d+)*)/);
+  return m ? m[1] : null;
+};
+
+function getServiceAndPhaseItems(items: BudgetItem[]) {
+  const phaseItems = items.filter((i) => (i.category || "").toLowerCase() === "fase");
+  const serviceItems = items.filter((i) => ["serviço", "servico"].includes((i.category || "").toLowerCase()));
+  const rootPhases = phaseItems.filter((p) => {
+    const pfx = getPrefix(p.description);
+    return pfx && !pfx.includes(".");
+  }).sort((a, b) => parseInt(getPrefix(a.description)!) - parseInt(getPrefix(b.description)!));
+  return { phaseItems, serviceItems, rootPhases };
+}
+
 // ─── 1. Orçamento de custo ───
 async function reportOrcamentoCusto(data: ReportData) {
   const doc = new jsPDF({ orientation: "landscape" });
   const ci = await getReportCompanyInfo(data);
   let startY = await addReportHeader(doc, ci, "Orçamento de Custo", buildSubtitle(data.budget.budget_code, data.obra?.name));
 
-  const getPrefix = (desc: string) => {
-    const m = desc.trim().match(/^(\d+(?:\.\d+)*)/);
-    return m ? m[1] : null;
-  };
-  const phaseItems = data.items.filter((i) => (i.category || "").toLowerCase() === "fase");
-  const serviceItems = data.items.filter((i) => ["serviço", "servico"].includes((i.category || "").toLowerCase()));
-  const rootPhases = phaseItems.filter((p) => {
-    const pfx = getPrefix(p.description);
-    return pfx && !pfx.includes(".");
-  }).sort((a, b) => parseInt(getPrefix(a.description)!) - parseInt(getPrefix(b.description)!));
+  const { serviceItems, rootPhases } = getServiceAndPhaseItems(data.items);
 
   for (const phase of rootPhases) {
     const rootIdx = getPrefix(phase.description)!;
@@ -101,15 +126,18 @@ async function reportOrcamentoCusto(data: ReportData) {
 
     const phaseTotal = children.reduce((s, i) => s + (i.total_price || 0), 0);
 
+    startY = ensureSpace(doc, startY, 20);
+
     doc.setFontSize(10);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(41, 128, 185);
-    doc.text(`${phase.description}  —  ${fmt(phaseTotal)}`, 14, startY);
+    doc.text(`${phase.description}  —  ${fmt(phaseTotal)}`, MARGIN, startY);
     doc.setTextColor(0, 0, 0);
     startY += 2;
 
     autoTable(doc, {
       startY,
+      margin: TABLE_MARGIN,
       head: [["#", "Descrição", "Unid.", "Qtd.", "Preço Unit.", "Total"]],
       body: children.map((i, idx) => [
         String(idx + 1), i.description, i.unit || "un",
@@ -122,13 +150,13 @@ async function reportOrcamentoCusto(data: ReportData) {
       footStyles: { fillColor: [230, 230, 230], fontStyle: "bold" },
     });
     startY = (doc as any).lastAutoTable.finalY + 6;
-    if (startY > 170) { doc.addPage(); startY = 15; }
   }
 
   const total = serviceItems.reduce((s, i) => s + (i.total_price || 0), 0);
+  startY = ensureSpace(doc, startY, 10);
   doc.setFontSize(11);
   doc.setFont("helvetica", "bold");
-  doc.text(`TOTAL GERAL: ${fmt(total)}`, 14, startY + 2);
+  doc.text(`TOTAL GERAL: ${fmt(total)}`, MARGIN, startY + 2);
 
   addPageFooter(doc);
   doc.save(`Orcamento_Custo_${data.budget.budget_code || data.budget.id}.pdf`);
@@ -141,16 +169,7 @@ async function reportOrcamentoVenda(data: ReportData) {
   let startY = await addReportHeader(doc, ci, "Orçamento de Venda", buildSubtitle(data.budget.budget_code, data.obra?.name));
 
   const bdiDefault = 0;
-  const getPrefix = (desc: string) => {
-    const m = desc.trim().match(/^(\d+(?:\.\d+)*)/);
-    return m ? m[1] : null;
-  };
-  const phaseItems = data.items.filter((i) => (i.category || "").toLowerCase() === "fase");
-  const serviceItems = data.items.filter((i) => ["serviço", "servico"].includes((i.category || "").toLowerCase()));
-  const rootPhases = phaseItems.filter((p) => {
-    const pfx = getPrefix(p.description);
-    return pfx && !pfx.includes(".");
-  }).sort((a, b) => parseInt(getPrefix(a.description)!) - parseInt(getPrefix(b.description)!));
+  const { serviceItems, rootPhases } = getServiceAndPhaseItems(data.items);
 
   for (const phase of rootPhases) {
     const rootIdx = getPrefix(phase.description)!;
@@ -165,15 +184,18 @@ async function reportOrcamentoVenda(data: ReportData) {
       return s + (i.unit_price || 0) * (1 + bdi / 100) * (i.quantity || 0);
     }, 0);
 
+    startY = ensureSpace(doc, startY, 20);
+
     doc.setFontSize(10);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(39, 174, 96);
-    doc.text(`${phase.description}  —  ${fmt(phaseTotal)}`, 14, startY);
+    doc.text(`${phase.description}  —  ${fmt(phaseTotal)}`, MARGIN, startY);
     doc.setTextColor(0, 0, 0);
     startY += 2;
 
     autoTable(doc, {
       startY,
+      margin: TABLE_MARGIN,
       head: [["#", "Descrição", "Unid.", "Qtd.", "Preço Unit.", "BDI %", "Preço c/ BDI", "Total"]],
       body: children.map((i, idx) => {
         const bdi = i.bdi ?? bdiDefault;
@@ -191,7 +213,6 @@ async function reportOrcamentoVenda(data: ReportData) {
       footStyles: { fillColor: [230, 250, 230], fontStyle: "bold" },
     });
     startY = (doc as any).lastAutoTable.finalY + 6;
-    if (startY > 170) { doc.addPage(); startY = 15; }
   }
 
   const totalVenda = serviceItems.reduce((s, i) => {
@@ -199,9 +220,10 @@ async function reportOrcamentoVenda(data: ReportData) {
     return s + (i.unit_price || 0) * (1 + bdi / 100) * (i.quantity || 0);
   }, 0);
 
+  startY = ensureSpace(doc, startY, 10);
   doc.setFontSize(11);
   doc.setFont("helvetica", "bold");
-  doc.text(`TOTAL VENDA: ${fmt(totalVenda)}`, 14, startY + 2);
+  doc.text(`TOTAL VENDA: ${fmt(totalVenda)}`, MARGIN, startY + 2);
 
   addPageFooter(doc);
   doc.save(`Orcamento_Venda_${data.budget.budget_code || data.budget.id}.pdf`);
@@ -218,29 +240,18 @@ async function reportPlanejamento(data: ReportData) {
 
   if (periods.length === 0) {
     doc.setFontSize(10);
-    doc.text("Nenhum período de planejamento cadastrado.", 14, startY);
+    doc.text("Nenhum período de planejamento cadastrado.", MARGIN, startY);
     addPageFooter(doc);
     doc.save(`Planejamento_${data.budget.budget_code || data.budget.id}.pdf`);
     return;
   }
 
-  // Helper: get venda total (with BDI)
   const getVendaTotal = (item: BudgetItem) => {
     const bdi = item.bdi ?? 0;
     return (item.unit_price || 0) * (1 + bdi / 100) * (item.quantity || 0);
   };
 
-  // Group items by phase
-  const getPrefix = (desc: string) => {
-    const m = desc.trim().match(/^(\d+(?:\.\d+)*)/);
-    return m ? m[1] : null;
-  };
-  const phaseItems = data.items.filter((i) => (i.category || "").toLowerCase() === "fase");
-  const serviceItems = data.items.filter((i) => ["serviço", "servico"].includes((i.category || "").toLowerCase()));
-  const rootPhases = phaseItems.filter((p) => {
-    const pfx = getPrefix(p.description);
-    return pfx && !pfx.includes(".");
-  });
+  const { serviceItems, rootPhases } = getServiceAndPhaseItems(data.items);
 
   const phaseData = rootPhases.map((phase) => {
     const rootIdx = getPrefix(phase.description)!;
@@ -252,12 +263,10 @@ async function reportPlanejamento(data: ReportData) {
     return { rootIdx, label: phase.description, total, services: children };
   }).filter((p) => p.services.length > 0).sort((a, b) => parseInt(a.rootIdx) - parseInt(b.rootIdx));
 
-  // Build table per phase
   const periodHeaders = periods.map((p: any) => p.period_label || new Date(p.period_date).toLocaleDateString("pt-BR"));
   const head = ["Serviço", "Total Venda (R$)", ...periodHeaders, "Acum. (R$)", "Saldo (R$)"];
 
   for (const phase of phaseData) {
-    // Phase totals per period
     const phasePeriodTotals: number[] = periods.map((period: any) => {
       return phase.services.reduce((sum, svc) => {
         const pi = pItems.find((x: any) => x.budget_item_id === svc.id && x.plan_period_id === period.id);
@@ -268,10 +277,12 @@ async function reportPlanejamento(data: ReportData) {
     const phaseAccum = phasePeriodTotals.reduce((s, v) => s + v, 0);
     const phaseSaldo = phase.total - phaseAccum;
 
+    startY = ensureSpace(doc, startY, 20);
+
     doc.setFontSize(10);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(142, 68, 173);
-    doc.text(`${phase.label}  —  Total: ${fmt(phase.total)}  |  Planejado: ${fmt(phaseAccum)}  |  Saldo: ${fmt(phaseSaldo)}`, 14, startY);
+    doc.text(`${phase.label}  —  Total: ${fmt(phase.total)}  |  Planejado: ${fmt(phaseAccum)}  |  Saldo: ${fmt(phaseSaldo)}`, MARGIN, startY);
     doc.setTextColor(0, 0, 0);
     startY += 2;
 
@@ -291,7 +302,6 @@ async function reportPlanejamento(data: ReportData) {
       return row;
     });
 
-    // Subtotal row
     const subtotalRow: string[] = ["SUBTOTAL", fmt(phase.total)];
     for (let i = 0; i < phasePeriodTotals.length; i++) {
       subtotalRow.push(fmt(phasePeriodTotals[i]));
@@ -301,6 +311,7 @@ async function reportPlanejamento(data: ReportData) {
 
     autoTable(doc, {
       startY,
+      margin: TABLE_MARGIN,
       head: [head],
       body,
       foot: [subtotalRow],
@@ -310,10 +321,8 @@ async function reportPlanejamento(data: ReportData) {
       alternateRowStyles: { fillColor: [248, 245, 250] },
     });
     startY = (doc as any).lastAutoTable.finalY + 6;
-    if (startY > 170) { doc.addPage(); startY = 15; }
   }
 
-  // Grand total
   const grandTotal = phaseData.reduce((s, p) => s + p.total, 0);
   const grandAccum = phaseData.reduce((s, p) => {
     return s + p.services.reduce((ss, svc) => {
@@ -324,9 +333,11 @@ async function reportPlanejamento(data: ReportData) {
       return ss + vendaTotal * (accPct / 100);
     }, 0);
   }, 0);
+
+  startY = ensureSpace(doc, startY, 10);
   doc.setFontSize(11);
   doc.setFont("helvetica", "bold");
-  doc.text(`TOTAL GERAL: ${fmt(grandTotal)}  |  Planejado: ${fmt(grandAccum)}  |  Saldo: ${fmt(grandTotal - grandAccum)}`, 14, startY + 2);
+  doc.text(`TOTAL GERAL: ${fmt(grandTotal)}  |  Planejado: ${fmt(grandAccum)}  |  Saldo: ${fmt(grandTotal - grandAccum)}`, MARGIN, startY + 2);
 
   addPageFooter(doc);
   doc.save(`Planejamento_${data.budget.budget_code || data.budget.id}.pdf`);
@@ -365,6 +376,7 @@ async function reportPrevistoRealizadoCusto(data: ReportData) {
 
   autoTable(doc, {
     startY: y,
+    margin: TABLE_MARGIN,
     head: [["Fase", "Orçado (R$)", "Realizado (R$)", "Desvio (R$)", "% Execução"]],
     body,
     foot: [["TOTAL", fmt(totalOrc), fmt(totalReal), fmt(totalReal - totalOrc), fmtPct(totalOrc > 0 ? (totalReal / totalOrc) * 100 : 0)]],
@@ -397,10 +409,12 @@ async function reportPrevistoRealizadoInsumos(data: ReportData) {
       phaseRealizado += (item.quantity || 0) * (accPct / 100);
     });
 
+    startY = ensureSpace(doc, startY, 20);
+
     doc.setFontSize(10);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(230, 126, 34);
-    doc.text(`${phase}  —  Prev: ${fmtNum(phasePrevisto)}  |  Real: ${fmtNum(phaseRealizado)}  |  Saldo: ${fmtNum(phasePrevisto - phaseRealizado)}`, 14, startY);
+    doc.text(`${phase}  —  Prev: ${fmtNum(phasePrevisto)}  |  Real: ${fmtNum(phaseRealizado)}  |  Saldo: ${fmtNum(phasePrevisto - phaseRealizado)}`, MARGIN, startY);
     doc.setTextColor(0, 0, 0);
     startY += 2;
 
@@ -418,6 +432,7 @@ async function reportPrevistoRealizadoInsumos(data: ReportData) {
 
     autoTable(doc, {
       startY,
+      margin: TABLE_MARGIN,
       head: [["Insumo/Serviço", "Unid.", "Previsto", "Realizado", "Saldo", "% Exec."]],
       body,
       styles: { fontSize: 7, cellPadding: 1.5 },
@@ -443,7 +458,7 @@ async function reportCurvaABC(data: ReportData) {
   doc.setFontSize(10);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(192, 57, 43);
-  doc.text("Resumo por Fase", 14, startY);
+  doc.text("Resumo por Fase", MARGIN, startY);
   doc.setTextColor(0, 0, 0);
   startY += 2;
 
@@ -456,6 +471,7 @@ async function reportCurvaABC(data: ReportData) {
 
   autoTable(doc, {
     startY,
+    margin: TABLE_MARGIN,
     head: [["Fase", "Itens", "Valor Total", "% do Total"]],
     body: phaseSummary,
     styles: { fontSize: 8, cellPadding: 2 },
@@ -478,6 +494,7 @@ async function reportCurvaABC(data: ReportData) {
 
   autoTable(doc, {
     startY,
+    margin: TABLE_MARGIN,
     head: [["#", "Descrição", "Fase", "Unid.", "Qtd.", "Total (R$)", "% Ind.", "% Acum.", "Classe"]],
     body,
     styles: { fontSize: 7, cellPadding: 1.5 },
@@ -515,7 +532,7 @@ async function reportFormularioOrcamento(data: ReportData) {
     [`Data criação: ${new Date(data.budget.created_at).toLocaleDateString("pt-BR")}`, `Valor total: ${fmt(data.budget.total_value)}`],
   ];
   for (const [l, r] of infoLines) {
-    doc.text(l, 14, cy);
+    doc.text(l, MARGIN, cy);
     doc.text(r, 110, cy);
     cy += 5;
   }
@@ -527,15 +544,18 @@ async function reportFormularioOrcamento(data: ReportData) {
     const phaseItems = data.items.filter((i) => (i.category || "Sem fase") === phase);
     const phaseTotal = phaseItems.reduce((s, i) => s + (i.total_price || 0), 0);
 
+    cy = ensureSpace(doc, cy, 20);
+
     doc.setFontSize(10);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(41, 128, 185);
-    doc.text(`${phase}  —  ${fmt(phaseTotal)}`, 14, cy);
+    doc.text(`${phase}  —  ${fmt(phaseTotal)}`, MARGIN, cy);
     doc.setTextColor(0, 0, 0);
     cy += 2;
 
     autoTable(doc, {
       startY: cy,
+      margin: TABLE_MARGIN,
       head: [["#", "Descrição", "Unid.", "Qtd.", "Preço Unit.", "Total"]],
       body: phaseItems.map((i, idx) => [
         String(idx + 1), i.description, i.unit || "un",
@@ -551,13 +571,14 @@ async function reportFormularioOrcamento(data: ReportData) {
   }
 
   const total = data.items.reduce((s, i) => s + (i.total_price || 0), 0);
+  cy = ensureSpace(doc, cy, 30);
   doc.setFontSize(11);
   doc.setFont("helvetica", "bold");
-  doc.text(`TOTAL GERAL: ${fmt(total)}`, 14, cy + 2);
+  doc.text(`TOTAL GERAL: ${fmt(total)}`, MARGIN, cy + 2);
 
   const fy = cy + 22;
   doc.setDrawColor(100);
-  doc.line(14, fy, 85, fy);
+  doc.line(MARGIN, fy, 85, fy);
   doc.line(120, fy, 195, fy);
   doc.setFontSize(8);
   doc.setFont("helvetica", "normal");
@@ -577,20 +598,21 @@ async function reportPrestacaoServico(data: ReportData) {
   cy += 2;
   doc.setFontSize(9);
   doc.setFont("helvetica", "normal");
-  doc.text(`Contratante: ${data.client?.name || "—"}`, 14, cy); cy += 5;
-  doc.text(`Obra: ${data.obra?.name || "—"}`, 14, cy); cy += 5;
-  doc.text(`Empresa: ${data.company?.name || "—"}`, 14, cy); cy += 5;
-  doc.text(`Data: ${new Date().toLocaleDateString("pt-BR")}`, 14, cy); cy += 8;
+  doc.text(`Contratante: ${data.client?.name || "—"}`, MARGIN, cy); cy += 5;
+  doc.text(`Obra: ${data.obra?.name || "—"}`, MARGIN, cy); cy += 5;
+  doc.text(`Empresa: ${data.company?.name || "—"}`, MARGIN, cy); cy += 5;
+  doc.text(`Data: ${new Date().toLocaleDateString("pt-BR")}`, MARGIN, cy); cy += 8;
 
   doc.setFontSize(10);
   doc.setFont("helvetica", "bold");
-  doc.text("Serviços contratados:", 14, cy); cy += 4;
+  doc.text("Serviços contratados:", MARGIN, cy); cy += 4;
 
   const serviceItems = data.items.filter((i) => (i.category || "").toLowerCase().includes("servi"));
   const itemsToShow = serviceItems.length > 0 ? serviceItems : data.items;
 
   autoTable(doc, {
     startY: cy,
+    margin: TABLE_MARGIN,
     head: [["#", "Descrição", "Unid.", "Qtd.", "Preço Unit.", "Total"]],
     body: itemsToShow.map((i, idx) => [
       String(idx + 1), i.description, i.unit || "un",
@@ -603,9 +625,11 @@ async function reportPrestacaoServico(data: ReportData) {
     alternateRowStyles: { fillColor: [245, 245, 245] },
   });
 
-  const fy = (doc as any).lastAutoTable.finalY + 25;
+  const tableEnd = (doc as any).lastAutoTable.finalY;
+  let fy = tableEnd + 25;
+  fy = ensureSpace(doc, fy, 15) === PAGE_TOP ? PAGE_TOP + 10 : fy;
   doc.setDrawColor(100);
-  doc.line(14, fy, 85, fy);
+  doc.line(MARGIN, fy, 85, fy);
   doc.line(120, fy, 195, fy);
   doc.setFontSize(8);
   doc.text("Contratada", 40, fy + 4);
@@ -624,12 +648,12 @@ async function reportPropostaComercial(data: ReportData) {
   cy += 2;
   doc.setFontSize(9);
   doc.setFont("helvetica", "normal");
-  doc.text(`A/C: ${data.client?.name || "—"}`, 14, cy); cy += 5;
-  doc.text(`Ref.: ${data.obra?.name || "—"}`, 14, cy); cy += 5;
-  doc.text(`Data: ${new Date().toLocaleDateString("pt-BR")}`, 14, cy); cy += 8;
+  doc.text(`A/C: ${data.client?.name || "—"}`, MARGIN, cy); cy += 5;
+  doc.text(`Ref.: ${data.obra?.name || "—"}`, MARGIN, cy); cy += 5;
+  doc.text(`Data: ${new Date().toLocaleDateString("pt-BR")}`, MARGIN, cy); cy += 8;
 
-  doc.text("Prezado(a) cliente,", 14, cy); cy += 5;
-  doc.text("Apresentamos a seguir nossa proposta para os serviços e materiais abaixo discriminados:", 14, cy); cy += 8;
+  doc.text("Prezado(a) cliente,", MARGIN, cy); cy += 5;
+  doc.text("Apresentamos a seguir nossa proposta para os serviços e materiais abaixo discriminados:", MARGIN, cy); cy += 8;
 
   const totalVenda = data.items.reduce((s, i) => {
     const bdi = i.bdi ?? 0;
@@ -638,6 +662,7 @@ async function reportPropostaComercial(data: ReportData) {
 
   autoTable(doc, {
     startY: cy,
+    margin: TABLE_MARGIN,
     head: [["Item", "Descrição", "Unid.", "Qtd.", "Valor Unit.", "Total"]],
     body: data.items.map((i, idx) => {
       const bdi = i.bdi ?? 0;
@@ -654,15 +679,16 @@ async function reportPropostaComercial(data: ReportData) {
     alternateRowStyles: { fillColor: [245, 250, 245] },
   });
 
-  const fy = (doc as any).lastAutoTable.finalY + 8;
+  let fy = (doc as any).lastAutoTable.finalY + 8;
+  fy = ensureSpace(doc, fy, 35) === PAGE_TOP ? PAGE_TOP + 5 : fy;
   doc.setFontSize(8);
-  doc.text("Condições de pagamento: A combinar.", 14, fy);
-  doc.text("Prazo de validade da proposta: 30 dias.", 14, fy + 4);
-  doc.text("Atenciosamente,", 14, fy + 12);
+  doc.text("Condições de pagamento: A combinar.", MARGIN, fy);
+  doc.text("Prazo de validade da proposta: 30 dias.", MARGIN, fy + 4);
+  doc.text("Atenciosamente,", MARGIN, fy + 12);
 
   const sy = fy + 25;
   doc.setDrawColor(100);
-  doc.line(14, sy, 85, sy);
+  doc.line(MARGIN, sy, 85, sy);
   doc.setFontSize(8);
   doc.text(ci?.company_name || "Empresa", 30, sy + 4);
 
@@ -695,6 +721,7 @@ async function reportHistogramaRecursos(data: ReportData) {
 
   autoTable(doc, {
     startY: y,
+    margin: TABLE_MARGIN,
     head: [["Recurso (Unid.)", "Itens", "Qtd. Total", "Valor Total", "Principais itens"]],
     body,
     styles: { fontSize: 8, cellPadding: 2 },
@@ -703,11 +730,13 @@ async function reportHistogramaRecursos(data: ReportData) {
     columnStyles: { 4: { cellWidth: 100 } },
   });
 
-  const fy = (doc as any).lastAutoTable.finalY + 8;
+  let fy = (doc as any).lastAutoTable.finalY + 8;
+  fy = ensureSpace(doc, fy, 15);
+
   doc.setFontSize(10);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(155, 89, 182);
-  doc.text("Distribuição por Fase", 14, fy);
+  doc.text("Distribuição por Fase", MARGIN, fy);
   doc.setTextColor(0, 0, 0);
 
   const phases = getPhases(data.items);
@@ -723,6 +752,7 @@ async function reportHistogramaRecursos(data: ReportData) {
 
   autoTable(doc, {
     startY: fy + 3,
+    margin: TABLE_MARGIN,
     head: [["Fase", "Itens", "Qtd. Total", "Valor Total"]],
     body: phaseBody,
     styles: { fontSize: 8, cellPadding: 2 },
