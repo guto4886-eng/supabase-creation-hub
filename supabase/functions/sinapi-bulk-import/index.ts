@@ -24,9 +24,11 @@ Deno.serve(async (req) => {
     // For seed/clear actions, use custom header with anon key
     const seedKey = req.headers.get("x-seed-key") || "";
     const isSeedAction = action === "seed" || action === "clear_defaults";
+    console.log("Action:", action, "isSeed:", isSeedAction, "seedKeyLen:", seedKey.length, "anonKeyLen:", anonKey.length, "match:", seedKey === anonKey);
     
     if (isSeedAction) {
       if (seedKey !== anonKey) {
+        console.log("Seed key mismatch. seedKey first 20:", seedKey.substring(0, 20), "anonKey first 20:", anonKey.substring(0, 20));
         return new Response(JSON.stringify({ error: "Unauthorized for seed" }), {
           status: 403,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
