@@ -13,29 +13,33 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-    const authHeader = req.headers.get("Authorization") || "";
-    const token = authHeader.replace("Bearer ", "");
-
-    // Allow service role key OR valid user token
-    let authorized = false;
-    if (token === serviceRoleKey) {
-      authorized = true;
-    } else if (token && token !== anonKey) {
+    const { records, action, seed_key } = await req.json();
+    
+    // For seed operations, validate with a derived key
+    const expectedSeedKey = serviceRoleKey.slice(-16);
+    if (action === "seed" || action === "clear_defaults") {
+      if (seed_key !== expectedSeedKey) {
+        return new Response(JSON.stringify({ error: "Invalid seed key" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    } else {
+      // Normal operations require user auth
+      const authHeader = req.headers.get("Authorization") || "";
+      const token = authHeader.replace("Bearer ", "");
+      const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
       const anonClient = createClient(supabaseUrl, anonKey);
       const { data: { user }, error } = await anonClient.auth.getUser(token);
-      if (!error && user) authorized = true;
+      if (error || !user) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
-    if (!authorized) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const { records, action } = await req.json();
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
     if (action === "clear_defaults") {
