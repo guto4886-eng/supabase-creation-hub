@@ -116,10 +116,10 @@ export default function SinapiSearchModal({ onSelect, onClose }: Props) {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Digite código ou descrição (mín. 2 caracteres)..."
-                className={inputClass + " pl-9"}
+                className="w-full px-3 py-2.5 pl-9 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm"
               />
             </div>
-            <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className={inputClass + " w-auto min-w-[140px]"}>
+            <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="px-3 py-2.5 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm min-w-[140px]">
               <option value="">Todos</option>
               <option value="insumo">Insumo</option>
               <option value="composição">Composição</option>
