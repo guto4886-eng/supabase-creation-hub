@@ -5,6 +5,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const SEED_TOKEN = "sinapi_seed_2026_03_ref";
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -13,25 +15,25 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-    const { records, action, seed_key } = await req.json();
-    
-    // For seed operations, validate with a derived key
-    const expectedSeedKey = serviceRoleKey.slice(-16);
-    if (action === "seed" || action === "clear_defaults") {
-      if (seed_key !== expectedSeedKey) {
-        return new Response(JSON.stringify({ error: "Invalid seed key" }), {
+    const body = await req.json();
+    const { records, action, token: seedToken } = body;
+
+    const isSeedAction = action === "seed" || action === "clear_defaults";
+
+    if (isSeedAction) {
+      if (seedToken !== SEED_TOKEN) {
+        return new Response(JSON.stringify({ error: "Invalid seed token" }), {
           status: 403,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
     } else {
-      // Normal operations require user auth
       const authHeader = req.headers.get("Authorization") || "";
-      const token = authHeader.replace("Bearer ", "");
-      const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+      const authToken = authHeader.replace("Bearer ", "");
       const anonClient = createClient(supabaseUrl, anonKey);
-      const { data: { user }, error } = await anonClient.auth.getUser(token);
+      const { data: { user }, error } = await anonClient.auth.getUser(authToken);
       if (error || !user) {
         return new Response(JSON.stringify({ error: "Unauthorized" }), {
           status: 401,
@@ -45,7 +47,7 @@ Deno.serve(async (req) => {
     if (action === "clear_defaults") {
       const { error } = await adminClient.from("sinapi_items").delete().eq("is_default", true);
       if (error) throw error;
-      return new Response(JSON.stringify({ success: true, message: "Cleared" }), {
+      return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -66,7 +68,6 @@ Deno.serve(async (req) => {
       item_type: String(r.item_type || "insumo"),
       pricing_type: String(r.pricing_type || "sem_desoneracao"),
       state: String(r.state || "SP"),
-      price_origin: r.price_origin ? String(r.price_origin) : null,
       is_default: true,
       reference_date: r.reference_date ? String(r.reference_date) : null,
     }));
@@ -81,7 +82,7 @@ Deno.serve(async (req) => {
         .from("sinapi_items")
         .upsert(batch, { onConflict: "code,state,pricing_type,item_type", ignoreDuplicates: false });
       if (error) {
-        console.error(`Batch error at ${i}: ${error.message}`);
+        console.error(`Batch ${i}: ${error.message}`);
         errors += batch.length;
       } else {
         inserted += batch.length;
