@@ -2674,23 +2674,23 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                 <div>
                   <label className="block text-sm font-medium text-card-foreground mb-1">Fase da obra</label>
                   <select
-                    value={isCreatingPhase ? "__new__" : (budgetPhaseItems.some((p) => p.description === itemForm.category) ? itemForm.category : "")}
+                    value={isCreatingPhase ? "__new__" : selectedItemPhase}
                     onChange={(e) => {
                       const val = e.target.value;
                       if (val === "__new__") {
                         setIsCreatingPhase(true);
-                        setNewPhaseName(itemForm.category && !budgetPhaseItems.some((p) => p.description === itemForm.category) ? itemForm.category : "");
+                        setNewPhaseName("");
                         setSelectedItemPhase("");
                         setNewServiceName("");
                         setIsCreatingService(false);
-                        setItemForm((p) => ({ ...p, category: p.category && !budgetPhaseItems.some((bp) => bp.description === p.category) ? p.category : "", description: "" }));
+                        setItemForm((p) => ({ ...p, description: "" }));
                       } else {
                         setIsCreatingPhase(false);
                         setNewPhaseName("");
                         setSelectedItemPhase(val);
                         setNewServiceName("");
                         setIsCreatingService(false);
-                        setItemForm((p) => ({ ...p, category: val, description: "" }));
+                        setItemForm((p) => ({ ...p, description: "" }));
                       }
                     }}
                     className={inputClass}
@@ -2705,11 +2705,7 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                     <input
                       autoFocus
                       value={newPhaseName}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        setNewPhaseName(value);
-                        setItemForm((p) => ({ ...p, category: value }));
-                      }}
+                      onChange={(e) => setNewPhaseName(e.target.value)}
                       className={inputClass + " mt-1"}
                       placeholder="Digite o nome da nova fase..."
                     />
