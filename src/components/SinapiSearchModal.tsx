@@ -110,18 +110,23 @@ export default function SinapiSearchModal({ onSelect, onClose }: Props) {
         </div>
 
         <div className="p-5 space-y-3">
-          <div className="flex gap-3">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <div className="flex gap-3 items-stretch">
+            <div className="relative flex-1 min-w-0">
+              <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <input
                 autoFocus
+                autoComplete="off"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Digite código ou descrição (mín. 2 caracteres)..."
-                className="w-full px-3 py-2.5 pl-9 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm"
+                className="h-11 w-full rounded-xl border border-input bg-background pl-11 pr-4 text-base text-foreground caret-foreground placeholder:text-muted-foreground shadow-sm outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/30"
               />
             </div>
-            <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className={inputClass + " w-auto min-w-[140px]"}>
+            <select
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value)}
+              className="h-11 w-[170px] shrink-0 rounded-xl border border-input bg-background px-3 text-sm text-foreground outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/30"
+            >
               <option value="">Todos</option>
               <option value="insumo">Insumo</option>
               <option value="composição">Composição</option>
