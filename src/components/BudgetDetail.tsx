@@ -370,16 +370,27 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
     setAddingItem(true);
     setSelectedItemPhase("");
     setNewPhaseName("");
+    setIsCreatingPhase(false);
     setNewServiceName("");
+    setIsCreatingService(false);
     setItemForm({ description: "", category: "", quantity: "1", unit: "un", unit_price: "0" });
   };
   const openEditItem = (item: BudgetItem) => {
     setEditingItem(item);
     setAddingItem(true);
     setSelectedItemPhase(item.category || "");
+    setNewPhaseName("");
+    setIsCreatingPhase(false);
+    setNewServiceName("");
+    setIsCreatingService(false);
     setItemForm({ description: item.description, category: item.category || "", quantity: String(item.quantity ?? 1), unit: item.unit || "un", unit_price: String(item.unit_price ?? 0) });
   };
-  const closeItemForm = () => { setEditingItem(null); setAddingItem(false); };
+  const closeItemForm = () => {
+    setEditingItem(null);
+    setAddingItem(false);
+    setIsCreatingPhase(false);
+    setIsCreatingService(false);
+  };
 
   const fmt = (v: number | null | undefined) => (v != null ? v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "R$ 0,00");
   const totalCusto = items.filter((i) => (i.category || "").toLowerCase() !== "fase").reduce((s, i) => s + (i.total_price || 0), 0);
