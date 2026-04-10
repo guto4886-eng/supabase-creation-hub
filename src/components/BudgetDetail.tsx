@@ -367,6 +367,8 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
     setEditingItem(null);
     setAddingItem(true);
     setSelectedItemPhase("");
+    setNewPhaseName("");
+    setNewServiceName("");
     setItemForm({ description: "", category: "", quantity: "1", unit: "un", unit_price: "0" });
   };
   const openEditItem = (item: BudgetItem) => {
