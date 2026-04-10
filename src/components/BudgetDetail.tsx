@@ -250,12 +250,30 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
   };
 
   // Phase items (category = "Fase" or "fase") with root-level index only
-  const budgetPhaseItems = items
+  const importedPhaseItems = items
     .filter((i) => (i.category || "").toLowerCase() === "fase")
     .filter((i) => {
       const prefix = getDescPrefix(i.description);
       return prefix && !prefix.includes(".");
     });
+
+  // Custom phases: unique categories that are NOT "fase"/"serviço"/empty
+  const standardCategories = ["fase", "serviço", "servico", ""];
+  const customPhaseNames = [...new Set(
+    items
+      .map((i) => i.category || "")
+      .filter((c) => !standardCategories.includes(c.toLowerCase()))
+  )];
+  const customPhaseItems = customPhaseNames.map((name) => ({
+    id: `custom-${name}`,
+    description: name,
+  }));
+
+  // Combined phase list for the dropdown
+  const budgetPhaseItems = [
+    ...importedPhaseItems.map((p) => ({ id: p.id, description: p.description })),
+    ...customPhaseItems,
+  ];
 
   // Service items (category = "Serviço" or "servico")
   const budgetServiceItems = items.filter(
@@ -264,12 +282,19 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
 
   // Services filtered by selected phase root index
   const filteredServices = selectedItemPhase
-    ? budgetServiceItems.filter((s) => {
-        const sPrefix = getDescPrefix(s.description);
-        const selectedPhaseItem = budgetPhaseItems.find((p) => p.description === selectedItemPhase);
-        const phaseRoot = selectedPhaseItem ? getDescPrefix(selectedPhaseItem.description) : null;
-        return sPrefix && phaseRoot ? sPrefix.split(".")[0] === phaseRoot : false;
-      })
+    ? (() => {
+        // Check if it's an imported phase (with numeric prefix)
+        const selectedPhaseItem = importedPhaseItems.find((p) => p.description === selectedItemPhase);
+        if (selectedPhaseItem) {
+          const phaseRoot = getDescPrefix(selectedPhaseItem.description);
+          return budgetServiceItems.filter((s) => {
+            const sPrefix = getDescPrefix(s.description);
+            return sPrefix && phaseRoot ? sPrefix.split(".")[0] === phaseRoot : false;
+          });
+        }
+        // Custom phase: filter items with matching category
+        return items.filter((i) => i.category === selectedItemPhase && i.id !== `custom-${selectedItemPhase}`);
+      })()
     : budgetServiceItems;
 
   // Fetch client
