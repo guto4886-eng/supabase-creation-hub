@@ -1,5 +1,6 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
 import {
   addReportHeader, addPageFooter, fetchCompanyInfo, type CompanyInfo,
@@ -784,11 +785,97 @@ async function reportHistogramaRecursos(data: ReportData) {
   doc.save(`Histograma_Recursos_${data.budget.budget_code || data.budget.id}.pdf`);
 }
 
+// ─── Excel: Orçamento de custo ───
+async function excelOrcamentoCusto(data: ReportData) {
+  const ci = await getReportCompanyInfo(data);
+  const wb = XLSX.utils.book_new();
+  const rows: any[][] = [];
+
+  if (ci) {
+    if (ci.company_name) rows.push([ci.company_name]);
+    if (ci.document) rows.push([`CNPJ/CPF: ${ci.document}`]);
+    rows.push([]);
+  }
+  rows.push(["ORÇAMENTO DE CUSTO"]);
+  if (data.budget.budget_code) rows.push([`Código: ${data.budget.budget_code}`]);
+  if (data.obra?.name) rows.push([`Obra: ${data.obra.name}`]);
+  rows.push([]);
+
+  const phaseGroups = getBudgetPhaseGroups(data.items);
+
+  for (const phase of phaseGroups) {
+    const phaseTotal = phase.items.reduce((s, i) => s + (i.total_price || 0), 0);
+    rows.push([phase.label]);
+    rows.push(["#", "Descrição", "Unid.", "Qtd.", "Preço Unit.", "Total"]);
+    phase.items.forEach((i, idx) => {
+      rows.push([idx + 1, i.description, i.unit || "un", i.quantity || 0, i.unit_price || 0, i.total_price || 0]);
+    });
+    rows.push(["", "", "", "", "SUBTOTAL:", phaseTotal]);
+    rows.push([]);
+  }
+
+  const total = phaseGroups.reduce((sum, g) => sum + g.items.reduce((s, i) => s + (i.total_price || 0), 0), 0);
+  rows.push(["TOTAL GERAL:", total]);
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  XLSX.utils.book_append_sheet(wb, ws, "Custo");
+  XLSX.writeFile(wb, `Orcamento_Custo_${data.budget.budget_code || data.budget.id}.xlsx`);
+}
+
+// ─── Excel: Orçamento de venda ───
+async function excelOrcamentoVenda(data: ReportData) {
+  const ci = await getReportCompanyInfo(data);
+  const wb = XLSX.utils.book_new();
+  const rows: any[][] = [];
+  const bdiDefault = 0;
+
+  if (ci) {
+    if (ci.company_name) rows.push([ci.company_name]);
+    if (ci.document) rows.push([`CNPJ/CPF: ${ci.document}`]);
+    rows.push([]);
+  }
+  rows.push(["ORÇAMENTO DE VENDA"]);
+  if (data.budget.budget_code) rows.push([`Código: ${data.budget.budget_code}`]);
+  if (data.obra?.name) rows.push([`Obra: ${data.obra.name}`]);
+  rows.push([]);
+
+  const phaseGroups = getBudgetPhaseGroups(data.items);
+
+  for (const phase of phaseGroups) {
+    const phaseTotal = phase.items.reduce((s, i) => {
+      const bdi = i.bdi ?? bdiDefault;
+      return s + (i.unit_price || 0) * (1 + bdi / 100) * (i.quantity || 0);
+    }, 0);
+    rows.push([phase.label]);
+    rows.push(["#", "Descrição", "Unid.", "Qtd.", "Preço Unit.", "BDI %", "Preço c/ BDI", "Total"]);
+    phase.items.forEach((i, idx) => {
+      const bdi = i.bdi ?? bdiDefault;
+      const priceWithBdi = (i.unit_price || 0) * (1 + bdi / 100);
+      const totalWithBdi = priceWithBdi * (i.quantity || 0);
+      rows.push([idx + 1, i.description, i.unit || "un", i.quantity || 0, i.unit_price || 0, bdi, priceWithBdi, totalWithBdi]);
+    });
+    rows.push(["", "", "", "", "", "", "SUBTOTAL:", phaseTotal]);
+    rows.push([]);
+  }
+
+  const totalVenda = phaseGroups.reduce((sum, g) => sum + g.items.reduce((s, i) => {
+    const bdi = i.bdi ?? bdiDefault;
+    return s + (i.unit_price || 0) * (1 + bdi / 100) * (i.quantity || 0);
+  }, 0), 0);
+  rows.push(["TOTAL VENDA:", totalVenda]);
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  XLSX.utils.book_append_sheet(wb, ws, "Venda");
+  XLSX.writeFile(wb, `Orcamento_Venda_${data.budget.budget_code || data.budget.id}.xlsx`);
+}
+
 // ─── Dispatch ───
 export async function generateBudgetReport(reportName: string, data: ReportData) {
   const handlers: Record<string, (d: ReportData) => Promise<void>> = {
     "Orçamento de custo": reportOrcamentoCusto,
     "Orçamento de venda": reportOrcamentoVenda,
+    "Orçamento de custo (Excel)": excelOrcamentoCusto,
+    "Orçamento de venda (Excel)": excelOrcamentoVenda,
     "Relatórios de planejamento": reportPlanejamento,
     "Previsto x Realizado - Custo": reportPrevistoRealizadoCusto,
     "Previsto x Realizado de Insumos": reportPrevistoRealizadoInsumos,

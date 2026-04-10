@@ -64,7 +64,9 @@ const inputClass = "w-full px-3 py-2 rounded-lg border border-input bg-backgroun
 
 const RELATORIOS = [
   "Orçamento de custo",
+  "Orçamento de custo (Excel)",
   "Orçamento de venda",
+  "Orçamento de venda (Excel)",
   "Relatórios de planejamento",
   "Previsto x Realizado - Custo",
   "Previsto x Realizado de Insumos",
