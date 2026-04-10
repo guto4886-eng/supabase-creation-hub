@@ -68,7 +68,6 @@ Deno.serve(async (req) => {
       item_type: String(r.item_type || "insumo"),
       pricing_type: String(r.pricing_type || "sem_desoneracao"),
       state: String(r.state || "SP"),
-      price_origin: r.price_origin ? String(r.price_origin) : null,
       is_default: true,
       reference_date: r.reference_date ? String(r.reference_date) : null,
     }));
