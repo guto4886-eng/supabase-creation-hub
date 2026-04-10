@@ -779,14 +779,38 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                             <div className="flex items-center gap-6 flex-wrap text-sm">
                               <div className="flex items-center gap-2">
                                 <span className="text-muted-foreground text-xs">Quantidade</span>
-                                <span className="px-2 py-1 border border-input rounded bg-muted/30 text-foreground text-sm font-medium tabular-nums min-w-[70px] text-center">
-                                  {(item.quantity ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-                                </span>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  defaultValue={(item.quantity ?? 0).toFixed(2)}
+                                  onBlur={(e) => {
+                                    const newQty = parseFloat(e.target.value) || 0;
+                                    if (newQty !== (item.quantity ?? 0)) {
+                                      supabase.from("budget_items").update({ quantity: newQty }).eq("id", item.id).then(() => {
+                                        qc.invalidateQueries({ queryKey: ["budget_items", budgetId] });
+                                      });
+                                    }
+                                  }}
+                                  className="px-2 py-1 border border-input rounded bg-background text-foreground text-sm font-medium tabular-nums min-w-[70px] text-center focus:outline-none focus:ring-2 focus:ring-ring"
+                                />
                                 <span className="text-muted-foreground text-xs uppercase">{item.unit || "UN"}</span>
                               </div>
                               <div className="flex items-center gap-2">
                                 <span className="text-muted-foreground text-xs">Valor unitário:</span>
-                                <span className="font-medium text-foreground">{fmt(item.unit_price)}</span>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  defaultValue={(item.unit_price ?? 0).toFixed(2)}
+                                  onBlur={(e) => {
+                                    const newPrice = parseFloat(e.target.value) || 0;
+                                    if (newPrice !== (item.unit_price ?? 0)) {
+                                      supabase.from("budget_items").update({ unit_price: newPrice }).eq("id", item.id).then(() => {
+                                        qc.invalidateQueries({ queryKey: ["budget_items", budgetId] });
+                                      });
+                                    }
+                                  }}
+                                  className="px-2 py-1 border border-input rounded bg-background text-foreground text-sm font-medium tabular-nums min-w-[90px] text-center focus:outline-none focus:ring-2 focus:ring-ring"
+                                />
                               </div>
                               <div className="flex items-center gap-2">
                                 <span className="text-muted-foreground text-xs">Valor total:</span>
