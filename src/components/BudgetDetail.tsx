@@ -2661,7 +2661,12 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                   )}
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-card-foreground mb-1">Descrição *</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-sm font-medium text-card-foreground">Descrição *</label>
+                    <button type="button" onClick={() => setShowSinapiSearch(true)} className="text-xs text-primary hover:underline flex items-center gap-1">
+                      🔍 Buscar SINAPI
+                    </button>
+                  </div>
                   <input value={itemForm.description} onChange={(e) => setItemForm((p) => ({ ...p, description: e.target.value }))} required className={inputClass} />
                 </div>
                 <div className="grid grid-cols-3 gap-3">
