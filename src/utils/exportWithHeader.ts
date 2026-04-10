@@ -1,7 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import * as XLSX from "xlsx";
+import * as XLSX from "xlsx-js-style";
 import { addReportHeader as sharedAddReportHeader, addPageFooter } from "./pdfHeader";
 
 export interface CompanyInfo {
