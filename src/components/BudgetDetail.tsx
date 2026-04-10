@@ -2691,7 +2691,21 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                 </div>
               </form>
             </div>
-          </div>
+        {showSinapiSearch && (
+          <SinapiSearchModal
+            onSelect={(item) => {
+              setItemForm((p) => ({
+                ...p,
+                description: `${item.code} - ${item.description}`,
+                unit: item.unit,
+                unit_price: String(item.unit_price),
+              }));
+              setShowSinapiSearch(false);
+            }}
+            onClose={() => setShowSinapiSearch(false)}
+          />
+        )}
+      </div>
         )}
 
         {/* Import modal */}
