@@ -2,8 +2,10 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-seed-key",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+const SEED_TOKEN = "sinapi_seed_2026_03_ref";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -14,32 +16,24 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-    const publishableKey = Deno.env.get("SUPABASE_PUBLISHABLE_KEY") || anonKey;
 
     const body = await req.json();
-    const { records, action } = body;
-    
-    const authHeader = req.headers.get("Authorization") || "";
-    const token = authHeader.replace("Bearer ", "");
+    const { records, action, token: seedToken } = body;
 
-    // For seed/clear actions, use custom header with anon key
-    const seedKey = req.headers.get("x-seed-key") || "";
     const isSeedAction = action === "seed" || action === "clear_defaults";
-    console.log("Action:", action, "isSeed:", isSeedAction, "seedKeyLen:", seedKey.length, "anonKeyLen:", anonKey.length, "match:", seedKey === anonKey);
-    
+
     if (isSeedAction) {
-      // Accept the JWT anon key (publishable key) as seed authorization
-      const validKeys = [anonKey, publishableKey];
-      if (!validKeys.includes(seedKey)) {
-        console.log("Seed key mismatch. seedKey first 20:", seedKey.substring(0, 20), "anonKey first 20:", anonKey.substring(0, 20));
-        return new Response(JSON.stringify({ error: "Unauthorized for seed" }), {
+      if (seedToken !== SEED_TOKEN) {
+        return new Response(JSON.stringify({ error: "Invalid seed token" }), {
           status: 403,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
     } else {
+      const authHeader = req.headers.get("Authorization") || "";
+      const authToken = authHeader.replace("Bearer ", "");
       const anonClient = createClient(supabaseUrl, anonKey);
-      const { data: { user }, error } = await anonClient.auth.getUser(token);
+      const { data: { user }, error } = await anonClient.auth.getUser(authToken);
       if (error || !user) {
         return new Response(JSON.stringify({ error: "Unauthorized" }), {
           status: 401,
@@ -53,7 +47,7 @@ Deno.serve(async (req) => {
     if (action === "clear_defaults") {
       const { error } = await adminClient.from("sinapi_items").delete().eq("is_default", true);
       if (error) throw error;
-      return new Response(JSON.stringify({ success: true, message: "Cleared" }), {
+      return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -89,7 +83,7 @@ Deno.serve(async (req) => {
         .from("sinapi_items")
         .upsert(batch, { onConflict: "code,state,pricing_type,item_type", ignoreDuplicates: false });
       if (error) {
-        console.error(`Batch error at ${i}: ${error.message}`);
+        console.error(`Batch ${i}: ${error.message}`);
         errors += batch.length;
       } else {
         inserted += batch.length;
