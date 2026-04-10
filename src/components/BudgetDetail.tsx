@@ -357,24 +357,30 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
 
       // If creating a new phase, first insert the phase item
       if (isCreatingPhase && newPhaseName.trim()) {
-        inserts.push({
-          budget_id: budgetId,
-          description: newPhaseName.trim(),
-          category: "fase",
-          quantity: 0,
-          unit: "vb",
-          unit_price: 0,
-        });
+        // Check if any imported phase exists — use "fase" category for consistency
+        const hasImportedPhases = importedPhaseItems.length > 0;
+        if (hasImportedPhases) {
+          inserts.push({
+            budget_id: budgetId,
+            description: newPhaseName.trim(),
+            category: "fase",
+            quantity: 0,
+            unit: "vb",
+            unit_price: 0,
+          });
+        }
       }
 
       // Determine the category for the main item
       let itemCategory: string | null = null;
-      if (isCreatingPhase) {
-        // New phase was just created; the service item belongs to it
-        itemCategory = "serviço";
+      if (isCreatingPhase && newPhaseName.trim()) {
+        const hasImportedPhases = importedPhaseItems.length > 0;
+        // If imported-style budget, use "serviço"; otherwise use the phase name as category
+        itemCategory = hasImportedPhases ? "serviço" : newPhaseName.trim();
       } else if (selectedItemPhase) {
-        // Existing phase selected
-        itemCategory = "serviço";
+        // Check if selected phase is an imported phase or custom
+        const isImported = importedPhaseItems.some((p) => p.description === selectedItemPhase);
+        itemCategory = isImported ? "serviço" : selectedItemPhase;
       } else {
         itemCategory = itemForm.category || null;
       }
