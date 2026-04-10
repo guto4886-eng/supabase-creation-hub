@@ -11,53 +11,48 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Verify caller is authenticated
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+
+    const authHeader = req.headers.get("Authorization") || "";
+    const token = authHeader.replace("Bearer ", "");
+
+    // Allow service role key OR valid user token
+    let authorized = false;
+    if (token === serviceRoleKey) {
+      authorized = true;
+    } else if (token && token !== anonKey) {
+      const anonClient = createClient(supabaseUrl, anonKey);
+      const { data: { user }, error } = await anonClient.auth.getUser(token);
+      if (!error && user) authorized = true;
+    }
+
+    if (!authorized) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
-    // Verify the user is authenticated
-    const anonClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!);
-    const token = authHeader.replace("Bearer ", "");
-    const { data: { user }, error: authError } = await anonClient.auth.getUser(token);
-    if (authError || !user) {
-      return new Response(JSON.stringify({ error: "Invalid token" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
     const { records, action } = await req.json();
-
-    // Use service role to bypass RLS for default items
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
     if (action === "clear_defaults") {
-      const { error } = await adminClient
-        .from("sinapi_items")
-        .delete()
-        .eq("is_default", true);
+      const { error } = await adminClient.from("sinapi_items").delete().eq("is_default", true);
       if (error) throw error;
-      return new Response(JSON.stringify({ success: true, message: "Cleared all default SINAPI items" }), {
+      return new Response(JSON.stringify({ success: true, message: "Cleared" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     if (!records || !Array.isArray(records) || records.length === 0) {
-      return new Response(JSON.stringify({ error: "No records provided" }), {
+      return new Response(JSON.stringify({ error: "No records" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Validate records
     const validRecords = records.map((r: Record<string, unknown>) => ({
       code: String(r.code || ""),
       description: String(r.description || ""),
@@ -72,7 +67,6 @@ Deno.serve(async (req) => {
       reference_date: r.reference_date ? String(r.reference_date) : null,
     }));
 
-    // Insert in sub-batches of 500
     let inserted = 0;
     let errors = 0;
     const BATCH = 500;
