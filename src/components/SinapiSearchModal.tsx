@@ -25,7 +25,6 @@ export default function SinapiSearchModal({ onSelect, onClose }: Props) {
   const [filterState, setFilterState] = useState("SP");
   const [filterPricing, setFilterPricing] = useState("sem_desoneracao");
 
-  // Load company settings for default state/pricing
   const { data: companySettings } = useQuery({
     queryKey: ["company_settings_sinapi_modal"],
     queryFn: async () => {
@@ -50,28 +49,29 @@ export default function SinapiSearchModal({ onSelect, onClose }: Props) {
   const { data: items = [], isLoading } = useQuery({
     queryKey: ["sinapi_search", search, filterType, filterState, filterPricing],
     queryFn: async () => {
-      if (search.trim().length < 2) return [];
       let query = supabase
         .from("sinapi_items")
         .select("*")
         .eq("state", filterState)
         .eq("pricing_type", filterPricing)
         .order("code")
-        .limit(50);
+        .limit(100);
 
       const s = search.trim();
-      if (/^\d+$/.test(s)) {
-        query = query.ilike("code", `%${s}%`);
-      } else {
-        query = query.ilike("description", `%${s}%`);
+      if (s) {
+        if (/^\d+$/.test(s)) {
+          query = query.ilike("code", `%${s}%`);
+        } else {
+          query = query.ilike("description", `%${s}%`);
+        }
       }
+
       if (filterType) query = query.eq("item_type", filterType);
 
       const { data, error } = await query;
       if (error) throw error;
       return data || [];
     },
-    enabled: search.trim().length >= 2,
   });
 
   const { data: compositions = [] } = useQuery({
@@ -102,9 +102,11 @@ export default function SinapiSearchModal({ onSelect, onClose }: Props) {
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <span>{filterState}</span>
             <span>·</span>
-            <span>{PRICING_TYPES.find(p => p.value === filterPricing)?.label}</span>
+            <span>{PRICING_TYPES.find((p) => p.value === filterPricing)?.label}</span>
           </div>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
+            <X className="h-5 w-5" />
+          </button>
         </div>
 
         <div className="p-5 space-y-3">
@@ -119,7 +121,7 @@ export default function SinapiSearchModal({ onSelect, onClose }: Props) {
                 className="w-full px-3 py-2.5 pl-9 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm"
               />
             </div>
-            <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="px-3 py-2.5 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm min-w-[140px]">
+            <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className={inputClass + " w-auto min-w-[140px]"}>
               <option value="">Todos</option>
               <option value="insumo">Insumo</option>
               <option value="composição">Composição</option>
@@ -128,9 +130,13 @@ export default function SinapiSearchModal({ onSelect, onClose }: Props) {
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 pb-5">
-          {search.trim().length < 2 ? (
-            <p className="text-center py-8 text-sm text-muted-foreground">Digite ao menos 2 caracteres para buscar.</p>
-          ) : isLoading ? (
+          {!search.trim() && !isLoading && items.length > 0 && (
+            <p className="pb-3 text-xs text-muted-foreground">
+              Exibindo os primeiros 100 itens para {filterState} / {PRICING_TYPES.find((p) => p.value === filterPricing)?.label}. Digite código ou descrição para refinar a busca.
+            </p>
+          )}
+
+          {isLoading ? (
             <div className="flex items-center justify-center py-8">
               <div className="animate-spin h-6 w-6 border-3 border-primary border-t-transparent rounded-full" />
             </div>
