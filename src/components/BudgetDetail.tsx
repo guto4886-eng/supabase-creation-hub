@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { X, Plus, Pencil, Trash2, FileText, ChevronDown, Settings, Upload, ClipboardList, Download } from "lucide-react";
 import BudgetImportModal from "./BudgetImportModal";
+import SinapiSearchModal from "./SinapiSearchModal";
 import { fetchCompanyInfo, type CompanyInfo } from "@/utils/exportWithHeader";
 import { generateBudgetReport } from "@/utils/budgetReports";
 import { addReportHeader, addPageFooter } from "@/utils/pdfHeader";
@@ -130,6 +131,7 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
   const [addingItem, setAddingItem] = useState(false);
   const [itemForm, setItemForm] = useState({ description: "", category: "", quantity: "1", unit: "un", unit_price: "0" });
   const [showImport, setShowImport] = useState(false);
+  const [showSinapiSearch, setShowSinapiSearch] = useState(false);
   const [selectedPhase, setSelectedPhase] = useState<string | null>(null);
   const [expandedAbc, setExpandedAbc] = useState<string | null>(null);
   const [activeMeasurement, setActiveMeasurement] = useState<string | null>(null);
