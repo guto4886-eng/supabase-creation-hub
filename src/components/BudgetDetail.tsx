@@ -2626,13 +2626,15 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                 <div>
                   <label className="block text-sm font-medium text-card-foreground mb-1">Fase da obra</label>
                   <select
-                    value={itemForm.category === "__new__" ? "__new__" : itemForm.category}
+                    value={newPhaseName ? "__new__" : (budgetPhaseItems.some(p => p.description === itemForm.category) ? itemForm.category : "")}
                     onChange={(e) => {
                       const val = e.target.value;
                       if (val === "__new__") {
-                        setSelectedItemPhase("");
-                        setItemForm((p) => ({ ...p, category: "__new__", description: "" }));
+                        setNewPhaseName("");
+                        setNewServiceName("");
+                        setItemForm((p) => ({ ...p, category: "", description: "" }));
                       } else {
+                        setNewPhaseName("");
                         setSelectedItemPhase(val);
                         setItemForm((p) => ({ ...p, category: val, description: "" }));
                       }
@@ -2645,29 +2647,30 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                     ))}
                     <option value="__new__">＋ Cadastrar nova fase...</option>
                   </select>
-                  {itemForm.category === "__new__" && (
+                  {newPhaseName !== undefined && (newPhaseName || (!budgetPhaseItems.some(p => p.description === itemForm.category) && itemForm.category && itemForm.category !== "__new__")) ? (
                     <input
                       autoFocus
-                      value={newPhaseName}
-                      onChange={(e) => setNewPhaseName(e.target.value)}
-                      onBlur={() => {
-                        if (newPhaseName.trim()) setItemForm((p) => ({ ...p, category: newPhaseName.trim() }));
+                      value={newPhaseName || itemForm.category}
+                      onChange={(e) => {
+                        setNewPhaseName(e.target.value);
+                        setItemForm((p) => ({ ...p, category: e.target.value }));
                       }}
                       className={inputClass + " mt-1"}
                       placeholder="Digite o nome da nova fase..."
                     />
-                  )}
+                  ) : null}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-card-foreground mb-1">Serviço</label>
                   <select
-                    value={itemForm.description === "__new_svc__" ? "__new_svc__" : (filteredServices.some(s => s.description === itemForm.description) ? itemForm.description : "")}
+                    value={newServiceName ? "__new_svc__" : (filteredServices.some(s => s.description === itemForm.description) ? itemForm.description : "")}
                     onChange={(e) => {
                       const val = e.target.value;
                       if (val === "__new_svc__") {
                         setNewServiceName("");
-                        setItemForm((p) => ({ ...p, description: "__new_svc__" }));
+                        setItemForm((p) => ({ ...p, description: "" }));
                       } else {
+                        setNewServiceName("");
                         setItemForm((p) => ({ ...p, description: val }));
                       }
                     }}
@@ -2679,19 +2682,19 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                     ))}
                     <option value="__new_svc__">＋ Cadastrar novo serviço...</option>
                   </select>
-                  {itemForm.description === "__new_svc__" && (
+                  {(newServiceName !== undefined && (newServiceName || (!filteredServices.some(s => s.description === itemForm.description) && itemForm.description && itemForm.description !== "__new_svc__"))) ? (
                     <input
                       autoFocus
-                      value={newServiceName}
-                      onChange={(e) => setNewServiceName(e.target.value)}
-                      onBlur={() => {
-                        if (newServiceName.trim()) setItemForm((p) => ({ ...p, description: newServiceName.trim() }));
+                      value={newServiceName || itemForm.description}
+                      onChange={(e) => {
+                        setNewServiceName(e.target.value);
+                        setItemForm((p) => ({ ...p, description: e.target.value }));
                       }}
                       className={inputClass + " mt-1"}
                       placeholder="Digite a descrição do novo serviço..."
                     />
-                  )}
-                  {filteredServices.length === 0 && itemForm.description !== "__new_svc__" && (
+                  ) : null}
+                  {filteredServices.length === 0 && !newServiceName && !itemForm.description && (
                     <p className="text-xs text-muted-foreground mt-1">Nenhum serviço encontrado para esta fase.</p>
                   )}
                 </div>
@@ -2702,7 +2705,7 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                       🔍 Buscar SINAPI
                     </button>
                   </div>
-                  <input value={itemForm.description === "__new_svc__" ? "" : itemForm.description} onChange={(e) => setItemForm((p) => ({ ...p, description: e.target.value }))} required className={inputClass} />
+                  <input value={itemForm.description} onChange={(e) => setItemForm((p) => ({ ...p, description: e.target.value }))} required className={inputClass} />
                 </div>
                 <div className="grid grid-cols-3 gap-3">
                   <div>
