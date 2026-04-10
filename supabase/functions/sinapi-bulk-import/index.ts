@@ -72,15 +72,24 @@ Deno.serve(async (req) => {
       reference_date: r.reference_date ? String(r.reference_date) : null,
     }));
 
+    // Deduplicate records by unique key
+    const seen = new Set<string>();
+    const uniqueRecords = validRecords.filter((r: Record<string, string>) => {
+      const key = `${r.code}|${r.state}|${r.pricing_type}|${r.item_type}`;
+      if (seen.has(key) || !r.code) return false;
+      seen.add(key);
+      return true;
+    });
+
     let inserted = 0;
     let errors = 0;
     const BATCH = 500;
 
-    for (let i = 0; i < validRecords.length; i += BATCH) {
-      const batch = validRecords.slice(i, i + BATCH);
+    for (let i = 0; i < uniqueRecords.length; i += BATCH) {
+      const batch = uniqueRecords.slice(i, i + BATCH);
       const { error } = await adminClient
         .from("sinapi_items")
-        .upsert(batch, { onConflict: "code,state,pricing_type,item_type", ignoreDuplicates: false });
+        .upsert(batch, { onConflict: "code,state,pricing_type,item_type", ignoreDuplicates: true });
       if (error) {
         console.error(`Batch ${i}: ${error.message}`);
         errors += batch.length;
@@ -90,7 +99,7 @@ Deno.serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ success: true, inserted, errors, total: validRecords.length }),
+      JSON.stringify({ success: true, inserted, errors, total: uniqueRecords.length }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err) {
