@@ -785,39 +785,78 @@ async function reportHistogramaRecursos(data: ReportData) {
   doc.save(`Histograma_Recursos_${data.budget.budget_code || data.budget.id}.pdf`);
 }
 
+// ─── Excel helpers ───
+function xlsxSetColWidths(ws: XLSX.WorkSheet, widths: number[]) {
+  ws["!cols"] = widths.map(w => ({ wch: w }));
+}
+
+function xlsxBold(ws: XLSX.WorkSheet, cellRef: string) {
+  if (!ws[cellRef]) return;
+  if (!ws[cellRef].s) ws[cellRef].s = {};
+  ws[cellRef].s.font = { bold: true };
+}
+
+function xlsxNumFmt(ws: XLSX.WorkSheet, cellRef: string, fmt: string) {
+  if (!ws[cellRef]) return;
+  if (!ws[cellRef].s) ws[cellRef].s = {};
+  ws[cellRef].s.numFmt = fmt;
+}
+
 // ─── Excel: Orçamento de custo ───
 async function excelOrcamentoCusto(data: ReportData) {
   const ci = await getReportCompanyInfo(data);
   const wb = XLSX.utils.book_new();
   const rows: any[][] = [];
+  const boldRows: number[] = [];
+  const numCells: { r: number; c: number }[] = [];
 
+  let r = 0;
   if (ci) {
-    if (ci.company_name) rows.push([ci.company_name]);
-    if (ci.document) rows.push([`CNPJ/CPF: ${ci.document}`]);
-    rows.push([]);
+    if (ci.company_name) { rows.push([ci.company_name]); boldRows.push(r); r++; }
+    if (ci.document) { rows.push([`CNPJ/CPF: ${ci.document}`]); r++; }
+    rows.push([]); r++;
   }
-  rows.push(["ORÇAMENTO DE CUSTO"]);
-  if (data.budget.budget_code) rows.push([`Código: ${data.budget.budget_code}`]);
-  if (data.obra?.name) rows.push([`Obra: ${data.obra.name}`]);
-  rows.push([]);
+  rows.push(["ORÇAMENTO DE CUSTO"]); boldRows.push(r); r++;
+  if (data.budget.budget_code) { rows.push([`Código: ${data.budget.budget_code}`]); r++; }
+  if (data.obra?.name) { rows.push([`Obra: ${data.obra.name}`]); r++; }
+  rows.push([]); r++;
 
   const phaseGroups = getBudgetPhaseGroups(data.items);
 
   for (const phase of phaseGroups) {
     const phaseTotal = phase.items.reduce((s, i) => s + (i.total_price || 0), 0);
-    rows.push([phase.label]);
+    rows.push([phase.label]); boldRows.push(r); r++;
     rows.push(["#", "Descrição", "Unid.", "Qtd.", "Preço Unit.", "Total"]);
+    boldRows.push(r); r++;
     phase.items.forEach((i, idx) => {
       rows.push([idx + 1, i.description, i.unit || "un", i.quantity || 0, i.unit_price || 0, i.total_price || 0]);
+      numCells.push({ r, c: 3 }, { r, c: 4 }, { r, c: 5 });
+      r++;
     });
-    rows.push(["", "", "", "", "SUBTOTAL:", phaseTotal]);
-    rows.push([]);
+    rows.push(["", "", "", "", "SUBTOTAL", phaseTotal]);
+    boldRows.push(r);
+    numCells.push({ r, c: 5 });
+    r++;
+    rows.push([]); r++;
   }
 
   const total = phaseGroups.reduce((sum, g) => sum + g.items.reduce((s, i) => s + (i.total_price || 0), 0), 0);
-  rows.push(["TOTAL GERAL:", total]);
+  rows.push(["", "", "", "", "TOTAL GERAL", total]);
+  boldRows.push(r);
+  numCells.push({ r, c: 5 });
 
   const ws = XLSX.utils.aoa_to_sheet(rows);
+  xlsxSetColWidths(ws, [5, 40, 8, 10, 14, 14]);
+
+  // Apply number format to numeric cells
+  const numFmt = "#,##0.00";
+  for (const cell of numCells) {
+    const ref = XLSX.utils.encode_cell(cell);
+    if (ws[ref] && typeof ws[ref].v === "number") {
+      ws[ref].z = numFmt;
+    }
+  }
+
   XLSX.utils.book_append_sheet(wb, ws, "Custo");
   XLSX.writeFile(wb, `Orcamento_Custo_${data.budget.budget_code || data.budget.id}.xlsx`);
 }
@@ -827,17 +866,20 @@ async function excelOrcamentoVenda(data: ReportData) {
   const ci = await getReportCompanyInfo(data);
   const wb = XLSX.utils.book_new();
   const rows: any[][] = [];
+  const boldRows: number[] = [];
+  const numCells: { r: number; c: number }[] = [];
   const bdiDefault = 0;
 
+  let r = 0;
   if (ci) {
-    if (ci.company_name) rows.push([ci.company_name]);
-    if (ci.document) rows.push([`CNPJ/CPF: ${ci.document}`]);
-    rows.push([]);
+    if (ci.company_name) { rows.push([ci.company_name]); boldRows.push(r); r++; }
+    if (ci.document) { rows.push([`CNPJ/CPF: ${ci.document}`]); r++; }
+    rows.push([]); r++;
   }
-  rows.push(["ORÇAMENTO DE VENDA"]);
-  if (data.budget.budget_code) rows.push([`Código: ${data.budget.budget_code}`]);
-  if (data.obra?.name) rows.push([`Obra: ${data.obra.name}`]);
-  rows.push([]);
+  rows.push(["ORÇAMENTO DE VENDA"]); boldRows.push(r); r++;
+  if (data.budget.budget_code) { rows.push([`Código: ${data.budget.budget_code}`]); r++; }
+  if (data.obra?.name) { rows.push([`Obra: ${data.obra.name}`]); r++; }
+  rows.push([]); r++;
 
   const phaseGroups = getBudgetPhaseGroups(data.items);
 
@@ -846,25 +888,43 @@ async function excelOrcamentoVenda(data: ReportData) {
       const bdi = i.bdi ?? bdiDefault;
       return s + (i.unit_price || 0) * (1 + bdi / 100) * (i.quantity || 0);
     }, 0);
-    rows.push([phase.label]);
+    rows.push([phase.label]); boldRows.push(r); r++;
     rows.push(["#", "Descrição", "Unid.", "Qtd.", "Preço Unit.", "BDI %", "Preço c/ BDI", "Total"]);
+    boldRows.push(r); r++;
     phase.items.forEach((i, idx) => {
       const bdi = i.bdi ?? bdiDefault;
       const priceWithBdi = (i.unit_price || 0) * (1 + bdi / 100);
       const totalWithBdi = priceWithBdi * (i.quantity || 0);
       rows.push([idx + 1, i.description, i.unit || "un", i.quantity || 0, i.unit_price || 0, bdi, priceWithBdi, totalWithBdi]);
+      numCells.push({ r, c: 3 }, { r, c: 4 }, { r, c: 6 }, { r, c: 7 });
+      r++;
     });
-    rows.push(["", "", "", "", "", "", "SUBTOTAL:", phaseTotal]);
-    rows.push([]);
+    rows.push(["", "", "", "", "", "", "SUBTOTAL", phaseTotal]);
+    boldRows.push(r);
+    numCells.push({ r, c: 7 });
+    r++;
+    rows.push([]); r++;
   }
 
   const totalVenda = phaseGroups.reduce((sum, g) => sum + g.items.reduce((s, i) => {
     const bdi = i.bdi ?? bdiDefault;
     return s + (i.unit_price || 0) * (1 + bdi / 100) * (i.quantity || 0);
   }, 0), 0);
-  rows.push(["TOTAL VENDA:", totalVenda]);
+  rows.push(["", "", "", "", "", "", "TOTAL VENDA", totalVenda]);
+  boldRows.push(r);
+  numCells.push({ r, c: 7 });
 
   const ws = XLSX.utils.aoa_to_sheet(rows);
+  xlsxSetColWidths(ws, [5, 40, 8, 10, 14, 8, 14, 16]);
+
+  const numFmt = "#,##0.00";
+  for (const cell of numCells) {
+    const ref = XLSX.utils.encode_cell(cell);
+    if (ws[ref] && typeof ws[ref].v === "number") {
+      ws[ref].z = numFmt;
+    }
+  }
+
   XLSX.utils.book_append_sheet(wb, ws, "Venda");
   XLSX.writeFile(wb, `Orcamento_Venda_${data.budget.budget_code || data.budget.id}.xlsx`);
 }
