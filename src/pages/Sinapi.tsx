@@ -1,48 +1,60 @@
-import React, { useState, useRef } from "react";
+import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import { Search, Upload, Trash2, FileSpreadsheet, ChevronDown, ChevronRight, Database, X, AlertTriangle, CheckCircle } from "lucide-react";
-import * as XLSX from "xlsx-js-style";
+import { Search, Trash2, ChevronDown, ChevronRight, Database, Loader2 } from "lucide-react";
 
 const inputClass = "w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm";
 
-function normalizeHeader(h: any): string {
-  if (!h) return "";
-  return String(h).trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-}
-
-function parseNum(v: any): number {
-  if (v == null || v === "") return 0;
-  if (typeof v === "number") return v;
-  let s = String(v).trim().replace(/[R$\s]/g, "");
-  const lastComma = s.lastIndexOf(",");
-  const lastDot = s.lastIndexOf(".");
-  if (lastComma > lastDot) s = s.replace(/\./g, "").replace(",", ".");
-  else s = s.replace(/,/g, "");
-  const n = parseFloat(s);
-  return isNaN(n) ? 0 : n;
-}
+const STATES = ["AC","AL","AM","AP","BA","CE","DF","ES","GO","MA","MG","MS","MT","PA","PB","PE","PI","PR","RJ","RN","RO","RR","RS","SC","SE","SP","TO"];
+const PRICING_TYPES = [
+  { value: "sem_desoneracao", label: "Sem Desoneração" },
+  { value: "com_desoneracao", label: "Com Desoneração" },
+  { value: "sem_encargos", label: "Sem Encargos" },
+];
 
 export default function Sinapi() {
   const { user } = useAuth();
   const qc = useQueryClient();
-  const fileRef = useRef<HTMLInputElement>(null);
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState<string>("");
+  const [filterState, setFilterState] = useState<string>("SP");
+  const [filterPricing, setFilterPricing] = useState<string>("sem_desoneracao");
   const [filterCategory, setFilterCategory] = useState<string>("");
   const [expandedItem, setExpandedItem] = useState<string | null>(null);
-  const [showImport, setShowImport] = useState(false);
-  const [importing, setImporting] = useState(false);
-  const [importResult, setImportResult] = useState<{ success: number; errors: number } | null>(null);
+
+  // Load company settings to get default state/pricing
+  const { data: companySettings } = useQuery({
+    queryKey: ["company_settings_sinapi"],
+    queryFn: async () => {
+      if (!user) return null;
+      const { data } = await supabase
+        .from("company_settings" as any)
+        .select("state, sinapi_pricing_type")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      return data as any;
+    },
+    enabled: !!user,
+  });
+
+  // Set defaults from company settings
+  React.useEffect(() => {
+    if (companySettings) {
+      if (companySettings.state) setFilterState(companySettings.state);
+      if (companySettings.sinapi_pricing_type) setFilterPricing(companySettings.sinapi_pricing_type);
+    }
+  }, [companySettings]);
 
   const { data: items = [], isLoading } = useQuery({
-    queryKey: ["sinapi_items", search, filterType, filterCategory],
+    queryKey: ["sinapi_items", search, filterType, filterCategory, filterState, filterPricing],
     queryFn: async () => {
       let query = supabase
         .from("sinapi_items")
         .select("*")
+        .eq("state", filterState)
+        .eq("pricing_type", filterPricing)
         .order("code");
 
       if (search.trim()) {
@@ -89,123 +101,23 @@ export default function Sinapi() {
     },
   });
 
-  const deleteAll = useMutation({
-    mutationFn: async () => {
-      if (!user) throw new Error("Não autenticado");
-      const { error } = await supabase.from("sinapi_items").delete().eq("user_id", user.id);
+  // Count total default items for stats
+  const { data: statsData } = useQuery({
+    queryKey: ["sinapi_stats", filterState, filterPricing],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("sinapi_items")
+        .select("*", { count: "exact", head: true })
+        .eq("state", filterState)
+        .eq("pricing_type", filterPricing);
       if (error) throw error;
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["sinapi_items"] });
-      toast.success("Todos os itens SINAPI removidos!");
+      return { total: count || 0 };
     },
   });
 
-  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !user) return;
-
-    setImporting(true);
-    setImportResult(null);
-
-    const reader = new FileReader();
-    reader.onload = async (ev) => {
-      try {
-        const data = new Uint8Array(ev.target?.result as ArrayBuffer);
-        const wb = XLSX.read(data, { type: "array" });
-
-        let totalSuccess = 0;
-        let totalErrors = 0;
-
-        for (const sheetName of wb.SheetNames) {
-          const ws = wb.Sheets[sheetName];
-          const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
-          if (rows.length < 2) continue;
-
-          // Find header row
-          let headerIdx = 0;
-          for (let r = 0; r < Math.min(rows.length, 10); r++) {
-            const nonEmpty = (rows[r] || []).filter((c: any) => c !== "" && c != null).length;
-            if (nonEmpty >= 3) { headerIdx = r; break; }
-          }
-
-          const headers = (rows[headerIdx] || []).map((h: any) => normalizeHeader(h));
-          
-          // Find columns
-          const findCol = (names: string[]) => {
-            for (const n of names) {
-              const i = headers.findIndex(h => h.includes(n));
-              if (i !== -1) return i;
-            }
-            return -1;
-          };
-
-          const iCode = findCol(["codigo", "cod", "código"]);
-          const iDesc = findCol(["descricao", "descrição", "composicao", "composição"]);
-          const iUnit = findCol(["unidade", "un", "und"]);
-          const iPrice = findCol(["preco", "preço", "valor", "custo"]);
-          const iCategory = findCol(["classe", "grupo", "categoria", "capitulo", "capítulo"]);
-          const iType = findCol(["tipo"]);
-          const iState = findCol(["estado", "uf"]);
-          const iRef = findCol(["referencia", "referência", "data ref", "mes ref"]);
-
-          if (iCode === -1 || iDesc === -1) {
-            toast.error(`Aba "${sheetName}": Colunas código e descrição não encontradas.`);
-            continue;
-          }
-
-          const records: any[] = [];
-          for (let r = headerIdx + 1; r < rows.length; r++) {
-            const row = rows[r];
-            if (!row) continue;
-            const code = String(row[iCode] || "").trim();
-            const desc = String(row[iDesc] || "").trim();
-            if (!code || !desc) continue;
-
-            records.push({
-              user_id: user.id,
-              code,
-              description: desc,
-              unit: iUnit !== -1 ? String(row[iUnit] || "un").trim() || "un" : "un",
-              unit_price: iPrice !== -1 ? parseNum(row[iPrice]) : 0,
-              category: iCategory !== -1 ? String(row[iCategory] || "").trim() : null,
-              item_type: iType !== -1 ? (normalizeHeader(row[iType]).includes("comp") ? "composição" : "insumo") : "insumo",
-              state: iState !== -1 ? String(row[iState] || "SP").trim() : "SP",
-              reference_date: iRef !== -1 && row[iRef] ? String(row[iRef]).trim() : null,
-              is_default: false,
-            });
-          }
-
-          // Insert in batches
-          for (let i = 0; i < records.length; i += 50) {
-            const batch = records.slice(i, i + 50);
-            const { error } = await supabase.from("sinapi_items").insert(batch as any);
-            if (error) {
-              totalErrors += batch.length;
-              console.error("[SINAPI Import]", error.message);
-            } else {
-              totalSuccess += batch.length;
-            }
-          }
-        }
-
-        setImportResult({ success: totalSuccess, errors: totalErrors });
-        if (totalSuccess > 0) toast.success(`${totalSuccess} item(ns) SINAPI importado(s)!`);
-        if (totalErrors > 0) toast.error(`${totalErrors} item(ns) com erro.`);
-        qc.invalidateQueries({ queryKey: ["sinapi_items"] });
-      } catch (err) {
-        toast.error("Erro ao processar planilha SINAPI.");
-        console.error(err);
-      }
-      setImporting(false);
-    };
-    reader.readAsArrayBuffer(file);
-    if (fileRef.current) fileRef.current.value = "";
-  };
-
   const fmt = (v: number) => v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  const categories = [...new Set(items.map(i => (i as any).category).filter(Boolean))];
+  const categories = [...new Set(items.map((i: any) => i.category).filter(Boolean))];
 
   return (
     <div className="space-y-6">
@@ -214,70 +126,34 @@ export default function Sinapi() {
           <Database className="h-6 w-6 text-primary" />
           <h1 className="text-2xl font-bold text-foreground">Base SINAPI</h1>
         </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setShowImport(!showImport)}
-            className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90"
-          >
-            <Upload className="h-4 w-4" /> Importar planilha
-          </button>
-          {items.length > 0 && (
-            <button
-              onClick={() => { if (confirm("Remover TODOS os itens SINAPI importados?")) deleteAll.mutate(); }}
-              className="flex items-center gap-2 px-4 py-2 border border-destructive text-destructive rounded-lg text-sm font-medium hover:bg-destructive/10"
-            >
-              <Trash2 className="h-4 w-4" /> Limpar base
-            </button>
-          )}
+        <div className="text-xs text-muted-foreground">
+          Referência: 03/2026
         </div>
       </div>
 
-      {/* Import area */}
-      {showImport && (
-        <div className="border border-border rounded-xl p-5 bg-card space-y-4">
-          <div className="bg-muted/30 border border-border rounded-lg p-4 space-y-2">
-            <p className="text-sm font-medium text-foreground">📋 Instruções de importação SINAPI</p>
-            <p className="text-xs text-muted-foreground">
-              Importe a planilha SINAPI oficial (.xlsx, .xls, .csv). O sistema identifica automaticamente as colunas: 
-              Código, Descrição, Unidade, Preço, Classe/Categoria, Tipo (Insumo/Composição), Estado e Data de Referência.
-              Todas as abas da planilha serão processadas.
-            </p>
-          </div>
+      {/* Info banner */}
+      <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
+        <p className="text-sm text-foreground">
+          📋 Base SINAPI pré-carregada com preços para <strong>27 estados</strong> e <strong>3 regimes de encargos</strong>. 
+          Selecione abaixo o estado e regime desejado para visualizar os preços.
+        </p>
+      </div>
 
-          {!importing && !importResult && (
-            <div className="border-2 border-dashed border-border rounded-xl p-8 text-center">
-              <FileSpreadsheet className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-              <p className="text-sm text-muted-foreground mb-3">Selecione a planilha SINAPI</p>
-              <label className="cursor-pointer px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90">
-                Selecionar arquivo
-                <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleImportFile} className="hidden" />
-              </label>
-            </div>
-          )}
-
-          {importing && (
-            <div className="flex items-center justify-center py-8 gap-3">
-              <div className="animate-spin h-6 w-6 border-3 border-primary border-t-transparent rounded-full" />
-              <span className="text-sm text-muted-foreground">Importando itens SINAPI...</span>
-            </div>
-          )}
-
-          {importResult && (
-            <div className="space-y-3 text-center py-4">
-              <div className={`inline-flex items-center gap-2 px-4 py-3 rounded-lg text-sm font-medium ${
-                importResult.errors > 0 ? "bg-destructive/10 text-destructive" : "bg-primary/10 text-primary"
-              }`}>
-                {importResult.errors > 0 ? <AlertTriangle className="h-5 w-5" /> : <CheckCircle className="h-5 w-5" />}
-                {importResult.success} importado(s), {importResult.errors} erro(s)
-              </div>
-              <div className="flex justify-center gap-3">
-                <button onClick={() => { setImportResult(null); }} className="px-4 py-2 border border-border rounded-lg text-sm hover:bg-muted">Importar mais</button>
-                <button onClick={() => setShowImport(false)} className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90">Concluir</button>
-              </div>
-            </div>
-          )}
+      {/* State & Pricing filters */}
+      <div className="flex gap-3 flex-wrap">
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-medium text-foreground">Estado:</label>
+          <select value={filterState} onChange={(e) => setFilterState(e.target.value)} className={inputClass + " w-auto min-w-[100px]"}>
+            {STATES.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
         </div>
-      )}
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-medium text-foreground">Regime:</label>
+          <select value={filterPricing} onChange={(e) => setFilterPricing(e.target.value)} className={inputClass + " w-auto min-w-[180px]"}>
+            {PRICING_TYPES.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+          </select>
+        </div>
+      </div>
 
       {/* Search & Filters */}
       <div className="flex gap-3 flex-wrap">
@@ -305,19 +181,19 @@ export default function Sinapi() {
 
       {/* Stats */}
       <div className="flex gap-4 text-xs text-muted-foreground">
-        <span>{items.length} item(ns) exibidos (máx. 100)</span>
+        <span>{items.length} exibidos (máx. 100) — {statsData?.total || 0} total para {filterState} / {PRICING_TYPES.find(p => p.value === filterPricing)?.label}</span>
       </div>
 
       {/* Items table */}
       {isLoading ? (
         <div className="flex items-center justify-center py-12">
-          <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
       ) : items.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground">
           <Database className="h-12 w-12 mx-auto mb-3 opacity-50" />
-          <p className="text-sm">Nenhum item SINAPI encontrado.</p>
-          <p className="text-xs mt-1">Importe uma planilha SINAPI para começar.</p>
+          <p className="text-sm">Nenhum item SINAPI encontrado para {filterState} / {PRICING_TYPES.find(p => p.value === filterPricing)?.label}.</p>
+          <p className="text-xs mt-1">Verifique os filtros ou tente outra busca.</p>
         </div>
       ) : (
         <div className="border border-border rounded-lg overflow-hidden">
@@ -331,7 +207,6 @@ export default function Sinapi() {
                 <th className="text-right px-4 py-2.5 font-medium">Preço Unit.</th>
                 <th className="text-left px-4 py-2.5 font-medium">Tipo</th>
                 <th className="text-left px-4 py-2.5 font-medium">Categoria</th>
-                <th className="text-left px-4 py-2.5 font-medium">UF</th>
                 <th className="text-center px-4 py-2.5 font-medium w-10"></th>
               </tr>
             </thead>
@@ -356,7 +231,6 @@ export default function Sinapi() {
                       </span>
                     </td>
                     <td className="px-4 py-2 text-muted-foreground text-xs">{item.category || "—"}</td>
-                    <td className="px-4 py-2 text-muted-foreground text-xs">{item.state || "—"}</td>
                     <td className="px-4 py-2 text-center">
                       {!item.is_default && (
                         <button onClick={() => { if (confirm("Remover item?")) deleteItem.mutate(item.id); }} className="p-1 rounded hover:bg-destructive/10 text-destructive">
@@ -367,7 +241,7 @@ export default function Sinapi() {
                   </tr>
                   {expandedItem === item.id && compositions.length > 0 && (
                     <tr>
-                      <td colSpan={9} className="px-8 py-3 bg-muted/20">
+                      <td colSpan={8} className="px-8 py-3 bg-muted/20">
                         <p className="text-xs font-semibold text-primary mb-2">Composição — Insumos componentes</p>
                         <table className="w-full text-xs">
                           <thead>
