@@ -21,12 +21,11 @@ Deno.serve(async (req) => {
     const authHeader = req.headers.get("Authorization") || "";
     const token = authHeader.replace("Bearer ", "");
 
-    // For seed/clear actions, accept anon key as apikey header (server-to-server)
-    const apiKey = req.headers.get("apikey") || "";
+    // For seed/clear actions, accept anon key as bearer token (server-to-server)
     const isSeedAction = action === "seed" || action === "clear_defaults";
     
     if (isSeedAction) {
-      if (apiKey !== anonKey && token !== serviceRoleKey) {
+      if (token !== anonKey && token !== serviceRoleKey) {
         return new Response(JSON.stringify({ error: "Unauthorized for seed" }), {
           status: 403,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
