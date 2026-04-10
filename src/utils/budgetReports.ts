@@ -125,9 +125,7 @@ function getBudgetPhaseGroups(items: BudgetItem[]) {
     };
   }).filter((group) => group.items.length > 0);
 
-  if (numericPhaseGroups.length > 0) {
-    return numericPhaseGroups;
-  }
+  const consumedIds = new Set(numericPhaseGroups.flatMap((group) => group.items.map((item) => item.id)));
 
   const phaseCategoryNames = [...new Set(
     items
@@ -141,18 +139,18 @@ function getBudgetPhaseGroups(items: BudgetItem[]) {
   const namedPhaseGroups = phaseCategoryNames.map((phaseName) => ({
     key: `named-${phaseName}`,
     label: phaseName,
-    items: items.filter((item) => (item.category || "").trim() === phaseName),
+    items: items.filter((item) => !consumedIds.has(item.id) && (item.category || "").trim() === phaseName),
   })).filter((group) => group.items.length > 0);
 
-  if (namedPhaseGroups.length > 0) {
-    return namedPhaseGroups;
-  }
+  const uncategorizedItems = items.filter((item) => !consumedIds.has(item.id) && (item.category || "").toLowerCase() !== "fase");
 
-  return [{
+  const fallbackGroups = uncategorizedItems.length > 0 ? [{
     key: "all-items",
-    label: "Itens do orçamento",
-    items: items.filter((item) => (item.category || "").toLowerCase() !== "fase"),
-  }].filter((group) => group.items.length > 0);
+    label: numericPhaseGroups.length > 0 || namedPhaseGroups.length > 0 ? "Itens sem fase vinculada" : "Itens do orçamento",
+    items: uncategorizedItems,
+  }] : [];
+
+  return [...numericPhaseGroups, ...namedPhaseGroups, ...fallbackGroups];
 }
 
 // ─── 1. Orçamento de custo ───
