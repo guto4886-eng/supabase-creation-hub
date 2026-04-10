@@ -133,6 +133,7 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
   const [showImport, setShowImport] = useState(false);
   const [showSinapiSearch, setShowSinapiSearch] = useState(false);
   const [selectedPhase, setSelectedPhase] = useState<string | null>(null);
+  const [expandedAbc, setExpandedAbc] = useState<string | null>(null);
   const [newPhaseName, setNewPhaseName] = useState("");
   const [newServiceName, setNewServiceName] = useState("");
   const [activeMeasurement, setActiveMeasurement] = useState<string | null>(null);
