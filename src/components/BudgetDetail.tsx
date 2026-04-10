@@ -2680,12 +2680,11 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                   {itemForm.description === "__new_svc__" && (
                     <input
                       autoFocus
-                      value={(itemForm as any)._newService || ""}
-                      onChange={(e) => setItemForm((p) => ({ ...p, _newService: e.target.value } as any))}
+                      value={newServiceName}
+                      onChange={(e) => setNewServiceName(e.target.value)}
                       onBlur={() => {
-                        const v = (itemForm as any)._newService?.trim();
-                        if (v) setItemForm((p) => ({ ...p, description: v }));
-                      }}
+                        if (newServiceName.trim()) setItemForm((p) => ({ ...p, description: newServiceName.trim() }));
+                      }
                       className={inputClass + " mt-1"}
                       placeholder="Digite a descrição do novo serviço..."
                     />
