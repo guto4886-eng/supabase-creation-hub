@@ -2646,11 +2646,10 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                   {itemForm.category === "__new__" && (
                     <input
                       autoFocus
-                      value={itemForm._newPhase || ""}
-                      onChange={(e) => setItemForm((p) => ({ ...p, _newPhase: e.target.value } as any))}
+                      value={newPhaseName}
+                      onChange={(e) => setNewPhaseName(e.target.value)}
                       onBlur={() => {
-                        const v = (itemForm as any)._newPhase?.trim();
-                        if (v) setItemForm((p) => ({ ...p, category: v }));
+                        if (newPhaseName.trim()) setItemForm((p) => ({ ...p, category: newPhaseName.trim() }));
                       }}
                       className={inputClass + " mt-1"}
                       placeholder="Digite o nome da nova fase..."
