@@ -135,7 +135,9 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
   const [selectedPhase, setSelectedPhase] = useState<string | null>(null);
   const [expandedAbc, setExpandedAbc] = useState<string | null>(null);
   const [newPhaseName, setNewPhaseName] = useState("");
+  const [isCreatingPhase, setIsCreatingPhase] = useState(false);
   const [newServiceName, setNewServiceName] = useState("");
+  const [isCreatingService, setIsCreatingService] = useState(false);
   const [activeMeasurement, setActiveMeasurement] = useState<string | null>(null);
   const [planSelectedPhase, setPlanSelectedPhase] = useState<string | null>(null);
 
