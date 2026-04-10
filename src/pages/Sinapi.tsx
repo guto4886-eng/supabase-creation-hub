@@ -30,11 +30,11 @@ export default function Sinapi() {
     queryFn: async () => {
       if (!user) return null;
       const { data } = await supabase
-        .from("company_settings" as any)
+        .from("company_settings")
         .select("state, sinapi_pricing_type")
         .eq("user_id", user.id)
         .maybeSingle();
-      return data as any;
+      return data;
     },
     enabled: !!user,
   });
