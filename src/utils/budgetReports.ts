@@ -181,7 +181,7 @@ async function reportOrcamentoCusto(data: ReportData) {
       headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: "bold" },
       alternateRowStyles: { fillColor: [245, 245, 245] },
       foot: [["", "", "", "", "SUBTOTAL:", fmt(phaseTotal)]],
-      footStyles: { fillColor: [230, 230, 230], fontStyle: "bold" },
+      footStyles: { fillColor: [230, 230, 230], fontStyle: "bold", textColor: [0, 0, 0] as [number, number, number] },
     });
     startY = (doc as any).lastAutoTable.finalY + 6;
   }
@@ -237,7 +237,7 @@ async function reportOrcamentoVenda(data: ReportData) {
       headStyles: { fillColor: [39, 174, 96], textColor: 255, fontStyle: "bold" },
       alternateRowStyles: { fillColor: [245, 250, 245] },
       foot: [["", "", "", "", "", "", "SUBTOTAL:", fmt(phaseTotal)]],
-      footStyles: { fillColor: [230, 250, 230], fontStyle: "bold" },
+      footStyles: { fillColor: [230, 250, 230], fontStyle: "bold", textColor: [0, 0, 0] as [number, number, number] },
     });
     startY = (doc as any).lastAutoTable.finalY + 6;
   }
