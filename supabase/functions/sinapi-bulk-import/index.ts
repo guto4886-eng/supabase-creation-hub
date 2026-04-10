@@ -28,7 +28,9 @@ Deno.serve(async (req) => {
     console.log("Action:", action, "isSeed:", isSeedAction, "seedKeyLen:", seedKey.length, "anonKeyLen:", anonKey.length, "match:", seedKey === anonKey);
     
     if (isSeedAction) {
-      if (seedKey !== anonKey) {
+      // Accept the JWT anon key (publishable key) as seed authorization
+      const validKeys = [anonKey, publishableKey];
+      if (!validKeys.includes(seedKey)) {
         console.log("Seed key mismatch. seedKey first 20:", seedKey.substring(0, 20), "anonKey first 20:", anonKey.substring(0, 20));
         return new Response(JSON.stringify({ error: "Unauthorized for seed" }), {
           status: 403,
