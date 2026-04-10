@@ -785,147 +785,350 @@ async function reportHistogramaRecursos(data: ReportData) {
   doc.save(`Histograma_Recursos_${data.budget.budget_code || data.budget.id}.pdf`);
 }
 
-// ─── Excel helpers ───
-function xlsxSetColWidths(ws: XLSX.WorkSheet, widths: number[]) {
-  ws["!cols"] = widths.map(w => ({ wch: w }));
+// ─── Excel style constants ───
+const FONT_DEFAULT = { name: "Arial", sz: 10 };
+const FONT_HEADER = { name: "Arial", sz: 12, bold: true };
+const FONT_TITLE = { name: "Arial", sz: 14, bold: true };
+const FONT_PHASE = { name: "Arial", sz: 11, bold: true, color: { rgb: "FFFFFF" } };
+const FONT_COL_HEADER = { name: "Arial", sz: 9, bold: true, color: { rgb: "FFFFFF" } };
+const FONT_ITEM = { name: "Arial", sz: 9 };
+const FONT_SUBTOTAL = { name: "Arial", sz: 10, bold: true };
+const FONT_TOTAL = { name: "Arial", sz: 11, bold: true, color: { rgb: "FFFFFF" } };
+const FONT_INFO = { name: "Arial", sz: 9 };
+const FONT_INFO_LABEL = { name: "Arial", sz: 9, bold: true };
+
+const FILL_PHASE_CUSTO = { fgColor: { rgb: "2980B9" } };
+const FILL_PHASE_VENDA = { fgColor: { rgb: "27AE60" } };
+const FILL_COL_HEADER = { fgColor: { rgb: "34495E" } };
+const FILL_SUBTOTAL = { fgColor: { rgb: "ECF0F1" } };
+const FILL_TOTAL_CUSTO = { fgColor: { rgb: "2C3E50" } };
+const FILL_TOTAL_VENDA = { fgColor: { rgb: "1E8449" } };
+const FILL_ALT_ROW = { fgColor: { rgb: "F8F9FA" } };
+const FILL_HEADER_BG = { fgColor: { rgb: "F2F4F6" } };
+
+const BORDER_THIN = {
+  top: { style: "thin", color: { rgb: "BDC3C7" } },
+  bottom: { style: "thin", color: { rgb: "BDC3C7" } },
+  left: { style: "thin", color: { rgb: "BDC3C7" } },
+  right: { style: "thin", color: { rgb: "BDC3C7" } },
+} as const;
+
+const BORDER_MEDIUM = {
+  top: { style: "medium", color: { rgb: "2C3E50" } },
+  bottom: { style: "medium", color: { rgb: "2C3E50" } },
+  left: { style: "medium", color: { rgb: "2C3E50" } },
+  right: { style: "medium", color: { rgb: "2C3E50" } },
+} as const;
+
+const BORDER_BOTTOM_THICK = {
+  ...BORDER_THIN,
+  bottom: { style: "medium", color: { rgb: "2C3E50" } },
+} as const;
+
+const ALIGN_LEFT = { horizontal: "left" as const, vertical: "center" as const, wrapText: true };
+const ALIGN_CENTER = { horizontal: "center" as const, vertical: "center" as const };
+const ALIGN_RIGHT = { horizontal: "right" as const, vertical: "center" as const };
+const NUM_FMT_BRL = '#,##0.00';
+const NUM_FMT_QTY = '#,##0.00';
+const NUM_FMT_PCT = '0.00"%"';
+
+type CellStyle = {
+  font?: any;
+  fill?: any;
+  border?: any;
+  alignment?: any;
+  numFmt?: string;
+};
+
+function setCellStyled(ws: XLSX.WorkSheet, row: number, col: number, value: any, style: CellStyle) {
+  const ref = XLSX.utils.encode_cell({ r: row, c: col });
+  ws[ref] = { v: value, t: typeof value === "number" ? "n" : "s", s: style };
+  if (style.numFmt && typeof value === "number") {
+    ws[ref].z = style.numFmt;
+  }
 }
 
-function xlsxBold(ws: XLSX.WorkSheet, cellRef: string) {
-  if (!ws[cellRef]) return;
-  if (!ws[cellRef].s) ws[cellRef].s = {};
-  ws[cellRef].s.font = { bold: true };
+function setMerge(ws: XLSX.WorkSheet, sr: number, sc: number, er: number, ec: number) {
+  if (!ws["!merges"]) ws["!merges"] = [];
+  ws["!merges"].push({ s: { r: sr, c: sc }, e: { r: er, c: ec } });
 }
 
-function xlsxNumFmt(ws: XLSX.WorkSheet, cellRef: string, fmt: string) {
-  if (!ws[cellRef]) return;
-  if (!ws[cellRef].s) ws[cellRef].s = {};
-  ws[cellRef].s.numFmt = fmt;
+function updateRange(ws: XLSX.WorkSheet, maxRow: number, maxCol: number) {
+  ws["!ref"] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: maxRow, c: maxCol } });
 }
 
-// ─── Excel: Orçamento de custo ───
+// ─── Excel: Build company header block ───
+function buildExcelHeader(
+  ws: XLSX.WorkSheet,
+  ci: any,
+  data: ReportData,
+  title: string,
+  maxCol: number,
+): number {
+  let r = 0;
+
+  // Row 0: Company name
+  const companyName = ci?.company_name || "EMPRESA";
+  setCellStyled(ws, r, 0, companyName, { font: FONT_TITLE, alignment: ALIGN_LEFT, border: BORDER_THIN, fill: FILL_HEADER_BG });
+  for (let c = 1; c <= maxCol; c++) setCellStyled(ws, r, c, "", { fill: FILL_HEADER_BG, border: BORDER_THIN });
+  setMerge(ws, r, 0, r, maxCol);
+  r++;
+
+  // Row 1: CNPJ
+  if (ci?.document) {
+    setCellStyled(ws, r, 0, `CNPJ: ${ci.document}`, { font: FONT_INFO, alignment: ALIGN_LEFT, border: BORDER_THIN, fill: FILL_HEADER_BG });
+    for (let c = 1; c <= maxCol; c++) setCellStyled(ws, r, c, "", { fill: FILL_HEADER_BG, border: BORDER_THIN });
+    setMerge(ws, r, 0, r, maxCol);
+    r++;
+  }
+
+  // Row 2: Address
+  const addrParts = [ci?.address, ci?.city, ci?.state].filter(Boolean);
+  if (addrParts.length > 0) {
+    setCellStyled(ws, r, 0, addrParts.join(" - "), { font: FONT_INFO, alignment: ALIGN_LEFT, border: BORDER_THIN, fill: FILL_HEADER_BG });
+    for (let c = 1; c <= maxCol; c++) setCellStyled(ws, r, c, "", { fill: FILL_HEADER_BG, border: BORDER_THIN });
+    setMerge(ws, r, 0, r, maxCol);
+    r++;
+  }
+
+  // Row 3: Phone + Email
+  const contactParts = [ci?.phone ? `Tel: ${ci.phone}` : null, ci?.email].filter(Boolean);
+  if (contactParts.length > 0) {
+    setCellStyled(ws, r, 0, contactParts.join("  |  "), { font: FONT_INFO, alignment: ALIGN_LEFT, border: BORDER_THIN, fill: FILL_HEADER_BG });
+    for (let c = 1; c <= maxCol; c++) setCellStyled(ws, r, c, "", { fill: FILL_HEADER_BG, border: BORDER_THIN });
+    setMerge(ws, r, 0, r, maxCol);
+    r++;
+  }
+
+  // Empty row separator
+  r++;
+
+  // Title row
+  setCellStyled(ws, r, 0, title, { font: { ...FONT_TITLE, color: { rgb: "2C3E50" } }, alignment: ALIGN_CENTER, border: BORDER_MEDIUM });
+  for (let c = 1; c <= maxCol; c++) setCellStyled(ws, r, c, "", { border: BORDER_MEDIUM });
+  setMerge(ws, r, 0, r, maxCol);
+  r++;
+
+  // Empty row
+  r++;
+
+  // Budget info block
+  const infoRows: [string, string][] = [];
+  if (data.budget.budget_code) infoRows.push(["Código:", data.budget.budget_code]);
+  if (data.obra?.name) infoRows.push(["Obra:", data.obra.name]);
+  if (data.client?.name) infoRows.push(["Cliente:", data.client.name]);
+  if (data.client?.document) infoRows.push(["CPF/CNPJ Cliente:", data.client.document]);
+  if (data.obra?.address) {
+    const obraAddr = [data.obra.address, data.obra.address_number, data.obra.neighborhood, data.obra.city, data.obra.state].filter(Boolean).join(", ");
+    infoRows.push(["Endereço da Obra:", obraAddr]);
+  }
+  infoRows.push(["Data:", new Date().toLocaleDateString("pt-BR")]);
+  if (data.obra?.resp_tecnico) infoRows.push(["Resp. Técnico:", data.obra.resp_tecnico]);
+
+  for (const [label, value] of infoRows) {
+    setCellStyled(ws, r, 0, label, { font: FONT_INFO_LABEL, alignment: ALIGN_LEFT, border: BORDER_THIN });
+    setCellStyled(ws, r, 1, value, { font: FONT_INFO, alignment: ALIGN_LEFT, border: BORDER_THIN });
+    for (let c = 2; c <= maxCol; c++) setCellStyled(ws, r, c, "", { border: BORDER_THIN });
+    setMerge(ws, r, 1, r, maxCol);
+    r++;
+  }
+
+  // Empty row before data
+  r++;
+
+  return r;
+}
+
+// ─── Excel: Orçamento de custo (Professional) ───
 async function excelOrcamentoCusto(data: ReportData) {
   const ci = await getReportCompanyInfo(data);
   const wb = XLSX.utils.book_new();
-  const rows: any[][] = [];
-  const boldRows: number[] = [];
-  const numCells: { r: number; c: number }[] = [];
+  const ws: XLSX.WorkSheet = {};
+  const maxCol = 7; // ITEM, FONTE, CÓDIGO, DESCRIÇÃO, UND, QTD, PREÇO UNIT, TOTAL
 
-  let r = 0;
-  if (ci) {
-    if (ci.company_name) { rows.push([ci.company_name]); boldRows.push(r); r++; }
-    if (ci.document) { rows.push([`CNPJ/CPF: ${ci.document}`]); r++; }
-    rows.push([]); r++;
-  }
-  rows.push(["ORÇAMENTO DE CUSTO"]); boldRows.push(r); r++;
-  if (data.budget.budget_code) { rows.push([`Código: ${data.budget.budget_code}`]); r++; }
-  if (data.obra?.name) { rows.push([`Obra: ${data.obra.name}`]); r++; }
-  rows.push([]); r++;
+  let r = buildExcelHeader(ws, ci, data, "ORÇAMENTO DE CUSTO", maxCol);
 
   const phaseGroups = getBudgetPhaseGroups(data.items);
+  let itemGlobalIdx = 0;
 
   for (const phase of phaseGroups) {
     const phaseTotal = phase.items.reduce((s, i) => s + (i.total_price || 0), 0);
-    rows.push([phase.label]); boldRows.push(r); r++;
-    rows.push(["#", "Descrição", "Unid.", "Qtd.", "Preço Unit.", "Total"]);
-    boldRows.push(r); r++;
-    phase.items.forEach((i, idx) => {
-      rows.push([idx + 1, i.description, i.unit || "un", i.quantity || 0, i.unit_price || 0, i.total_price || 0]);
-      numCells.push({ r, c: 3 }, { r, c: 4 }, { r, c: 5 });
+
+    // Phase header row
+    setCellStyled(ws, r, 0, phase.label, { font: FONT_PHASE, fill: FILL_PHASE_CUSTO, alignment: ALIGN_LEFT, border: BORDER_MEDIUM });
+    for (let c = 1; c < maxCol; c++) setCellStyled(ws, r, c, "", { fill: FILL_PHASE_CUSTO, border: BORDER_MEDIUM });
+    setCellStyled(ws, r, maxCol, phaseTotal, { font: FONT_PHASE, fill: FILL_PHASE_CUSTO, alignment: ALIGN_RIGHT, border: BORDER_MEDIUM, numFmt: NUM_FMT_BRL });
+    setMerge(ws, r, 0, r, maxCol - 1);
+    r++;
+
+    // Column headers
+    const colHeaders = ["ITEM", "FONTE", "CÓDIGO", "DESCRIÇÃO DOS SERVIÇOS", "UND.", "QTD.", "PREÇO UNIT. (R$)", "TOTAL (R$)"];
+    colHeaders.forEach((h, c) => {
+      setCellStyled(ws, r, c, h, { font: FONT_COL_HEADER, fill: FILL_COL_HEADER, alignment: c >= 5 ? ALIGN_RIGHT : ALIGN_CENTER, border: BORDER_THIN });
+    });
+    r++;
+
+    // Items
+    phase.items.forEach((item, idx) => {
+      itemGlobalIdx++;
+      const isAlt = idx % 2 === 1;
+      const rowFill = isAlt ? FILL_ALT_ROW : undefined;
+      const baseStyle = { font: FONT_ITEM, border: BORDER_THIN, ...(rowFill ? { fill: rowFill } : {}) };
+
+      const prefix = getPrefix(item.description);
+      setCellStyled(ws, r, 0, prefix || String(itemGlobalIdx), { ...baseStyle, alignment: ALIGN_CENTER });
+      setCellStyled(ws, r, 1, "", { ...baseStyle, alignment: ALIGN_CENTER }); // FONTE
+      setCellStyled(ws, r, 2, "", { ...baseStyle, alignment: ALIGN_CENTER }); // CÓDIGO
+      setCellStyled(ws, r, 3, item.description, { ...baseStyle, alignment: ALIGN_LEFT });
+      setCellStyled(ws, r, 4, item.unit || "un", { ...baseStyle, alignment: ALIGN_CENTER });
+      setCellStyled(ws, r, 5, item.quantity || 0, { ...baseStyle, alignment: ALIGN_RIGHT, numFmt: NUM_FMT_QTY });
+      setCellStyled(ws, r, 6, item.unit_price || 0, { ...baseStyle, alignment: ALIGN_RIGHT, numFmt: NUM_FMT_BRL });
+      setCellStyled(ws, r, 7, item.total_price || 0, { ...baseStyle, alignment: ALIGN_RIGHT, numFmt: NUM_FMT_BRL });
       r++;
     });
-    rows.push(["", "", "", "", "SUBTOTAL", phaseTotal]);
-    boldRows.push(r);
-    numCells.push({ r, c: 5 });
+
+    // Subtotal row
+    setCellStyled(ws, r, 0, "", { fill: FILL_SUBTOTAL, border: BORDER_BOTTOM_THICK });
+    for (let c = 1; c < 6; c++) setCellStyled(ws, r, c, "", { fill: FILL_SUBTOTAL, border: BORDER_BOTTOM_THICK });
+    setCellStyled(ws, r, 6, "SUBTOTAL:", { font: FONT_SUBTOTAL, fill: FILL_SUBTOTAL, alignment: ALIGN_RIGHT, border: BORDER_BOTTOM_THICK });
+    setCellStyled(ws, r, 7, phaseTotal, { font: FONT_SUBTOTAL, fill: FILL_SUBTOTAL, alignment: ALIGN_RIGHT, border: BORDER_BOTTOM_THICK, numFmt: NUM_FMT_BRL });
+    setMerge(ws, r, 0, r, 5);
     r++;
-    rows.push([]); r++;
+
+    // Empty row between phases
+    r++;
   }
 
+  // Grand total
   const total = phaseGroups.reduce((sum, g) => sum + g.items.reduce((s, i) => s + (i.total_price || 0), 0), 0);
-  rows.push(["", "", "", "", "TOTAL GERAL", total]);
-  boldRows.push(r);
-  numCells.push({ r, c: 5 });
+  setCellStyled(ws, r, 0, "", { fill: FILL_TOTAL_CUSTO, border: BORDER_MEDIUM });
+  for (let c = 1; c < 6; c++) setCellStyled(ws, r, c, "", { fill: FILL_TOTAL_CUSTO, border: BORDER_MEDIUM });
+  setCellStyled(ws, r, 6, "TOTAL GERAL:", { font: FONT_TOTAL, fill: FILL_TOTAL_CUSTO, alignment: ALIGN_RIGHT, border: BORDER_MEDIUM });
+  setCellStyled(ws, r, 7, total, { font: FONT_TOTAL, fill: FILL_TOTAL_CUSTO, alignment: ALIGN_RIGHT, border: BORDER_MEDIUM, numFmt: NUM_FMT_BRL });
+  setMerge(ws, r, 0, r, 5);
 
-  const ws = XLSX.utils.aoa_to_sheet(rows);
-  xlsxSetColWidths(ws, [5, 40, 8, 10, 14, 14]);
+  // Set column widths
+  ws["!cols"] = [
+    { wch: 8 },   // ITEM
+    { wch: 10 },  // FONTE
+    { wch: 12 },  // CÓDIGO
+    { wch: 50 },  // DESCRIÇÃO
+    { wch: 8 },   // UND
+    { wch: 12 },  // QTD
+    { wch: 16 },  // PREÇO UNIT
+    { wch: 16 },  // TOTAL
+  ];
 
-  // Apply number format to numeric cells
-  const numFmt = "#,##0.00";
-  for (const cell of numCells) {
-    const ref = XLSX.utils.encode_cell(cell);
-    if (ws[ref] && typeof ws[ref].v === "number") {
-      ws[ref].z = numFmt;
-    }
-  }
+  // Set row heights for header
+  ws["!rows"] = [];
 
-  XLSX.utils.book_append_sheet(wb, ws, "Custo");
+  // Freeze panes (freeze after title area)
+  // Print settings
+  updateRange(ws, r, maxCol);
+
+  XLSX.utils.book_append_sheet(wb, ws, "Orçamento de Custo");
   XLSX.writeFile(wb, `Orcamento_Custo_${data.budget.budget_code || data.budget.id}.xlsx`);
 }
 
-// ─── Excel: Orçamento de venda ───
+// ─── Excel: Orçamento de venda (Professional) ───
 async function excelOrcamentoVenda(data: ReportData) {
   const ci = await getReportCompanyInfo(data);
   const wb = XLSX.utils.book_new();
-  const rows: any[][] = [];
-  const boldRows: number[] = [];
-  const numCells: { r: number; c: number }[] = [];
+  const ws: XLSX.WorkSheet = {};
+  const maxCol = 9; // ITEM, FONTE, CÓDIGO, DESCRIÇÃO, UND, QTD, PREÇO UNIT, BDI%, PREÇO C/BDI, TOTAL
   const bdiDefault = 0;
 
-  let r = 0;
-  if (ci) {
-    if (ci.company_name) { rows.push([ci.company_name]); boldRows.push(r); r++; }
-    if (ci.document) { rows.push([`CNPJ/CPF: ${ci.document}`]); r++; }
-    rows.push([]); r++;
-  }
-  rows.push(["ORÇAMENTO DE VENDA"]); boldRows.push(r); r++;
-  if (data.budget.budget_code) { rows.push([`Código: ${data.budget.budget_code}`]); r++; }
-  if (data.obra?.name) { rows.push([`Obra: ${data.obra.name}`]); r++; }
-  rows.push([]); r++;
+  let r = buildExcelHeader(ws, ci, data, "ORÇAMENTO DE VENDA", maxCol);
 
   const phaseGroups = getBudgetPhaseGroups(data.items);
+  let itemGlobalIdx = 0;
 
   for (const phase of phaseGroups) {
     const phaseTotal = phase.items.reduce((s, i) => {
       const bdi = i.bdi ?? bdiDefault;
       return s + (i.unit_price || 0) * (1 + bdi / 100) * (i.quantity || 0);
     }, 0);
-    rows.push([phase.label]); boldRows.push(r); r++;
-    rows.push(["#", "Descrição", "Unid.", "Qtd.", "Preço Unit.", "BDI %", "Preço c/ BDI", "Total"]);
-    boldRows.push(r); r++;
-    phase.items.forEach((i, idx) => {
-      const bdi = i.bdi ?? bdiDefault;
-      const priceWithBdi = (i.unit_price || 0) * (1 + bdi / 100);
-      const totalWithBdi = priceWithBdi * (i.quantity || 0);
-      rows.push([idx + 1, i.description, i.unit || "un", i.quantity || 0, i.unit_price || 0, bdi, priceWithBdi, totalWithBdi]);
-      numCells.push({ r, c: 3 }, { r, c: 4 }, { r, c: 6 }, { r, c: 7 });
+
+    // Phase header row
+    setCellStyled(ws, r, 0, phase.label, { font: FONT_PHASE, fill: FILL_PHASE_VENDA, alignment: ALIGN_LEFT, border: BORDER_MEDIUM });
+    for (let c = 1; c < maxCol; c++) setCellStyled(ws, r, c, "", { fill: FILL_PHASE_VENDA, border: BORDER_MEDIUM });
+    setCellStyled(ws, r, maxCol, phaseTotal, { font: FONT_PHASE, fill: FILL_PHASE_VENDA, alignment: ALIGN_RIGHT, border: BORDER_MEDIUM, numFmt: NUM_FMT_BRL });
+    setMerge(ws, r, 0, r, maxCol - 1);
+    r++;
+
+    // Column headers
+    const colHeaders = ["ITEM", "FONTE", "CÓDIGO", "DESCRIÇÃO DOS SERVIÇOS", "UND.", "QTD.", "PREÇO UNIT. (R$)", "BDI %", "PREÇO C/ BDI (R$)", "TOTAL (R$)"];
+    colHeaders.forEach((h, c) => {
+      setCellStyled(ws, r, c, h, { font: FONT_COL_HEADER, fill: FILL_COL_HEADER, alignment: c >= 5 ? ALIGN_RIGHT : ALIGN_CENTER, border: BORDER_THIN });
+    });
+    r++;
+
+    // Items
+    phase.items.forEach((item, idx) => {
+      itemGlobalIdx++;
+      const isAlt = idx % 2 === 1;
+      const rowFill = isAlt ? FILL_ALT_ROW : undefined;
+      const baseStyle = { font: FONT_ITEM, border: BORDER_THIN, ...(rowFill ? { fill: rowFill } : {}) };
+
+      const bdi = item.bdi ?? bdiDefault;
+      const priceWithBdi = (item.unit_price || 0) * (1 + bdi / 100);
+      const totalWithBdi = priceWithBdi * (item.quantity || 0);
+
+      const prefix = getPrefix(item.description);
+      setCellStyled(ws, r, 0, prefix || String(itemGlobalIdx), { ...baseStyle, alignment: ALIGN_CENTER });
+      setCellStyled(ws, r, 1, "", { ...baseStyle, alignment: ALIGN_CENTER }); // FONTE
+      setCellStyled(ws, r, 2, "", { ...baseStyle, alignment: ALIGN_CENTER }); // CÓDIGO
+      setCellStyled(ws, r, 3, item.description, { ...baseStyle, alignment: ALIGN_LEFT });
+      setCellStyled(ws, r, 4, item.unit || "un", { ...baseStyle, alignment: ALIGN_CENTER });
+      setCellStyled(ws, r, 5, item.quantity || 0, { ...baseStyle, alignment: ALIGN_RIGHT, numFmt: NUM_FMT_QTY });
+      setCellStyled(ws, r, 6, item.unit_price || 0, { ...baseStyle, alignment: ALIGN_RIGHT, numFmt: NUM_FMT_BRL });
+      setCellStyled(ws, r, 7, bdi, { ...baseStyle, alignment: ALIGN_RIGHT, numFmt: '0.00' });
+      setCellStyled(ws, r, 8, priceWithBdi, { ...baseStyle, alignment: ALIGN_RIGHT, numFmt: NUM_FMT_BRL });
+      setCellStyled(ws, r, 9, totalWithBdi, { ...baseStyle, alignment: ALIGN_RIGHT, numFmt: NUM_FMT_BRL });
       r++;
     });
-    rows.push(["", "", "", "", "", "", "SUBTOTAL", phaseTotal]);
-    boldRows.push(r);
-    numCells.push({ r, c: 7 });
+
+    // Subtotal row
+    setCellStyled(ws, r, 0, "", { fill: FILL_SUBTOTAL, border: BORDER_BOTTOM_THICK });
+    for (let c = 1; c < 8; c++) setCellStyled(ws, r, c, "", { fill: FILL_SUBTOTAL, border: BORDER_BOTTOM_THICK });
+    setCellStyled(ws, r, 8, "SUBTOTAL:", { font: FONT_SUBTOTAL, fill: FILL_SUBTOTAL, alignment: ALIGN_RIGHT, border: BORDER_BOTTOM_THICK });
+    setCellStyled(ws, r, 9, phaseTotal, { font: FONT_SUBTOTAL, fill: FILL_SUBTOTAL, alignment: ALIGN_RIGHT, border: BORDER_BOTTOM_THICK, numFmt: NUM_FMT_BRL });
+    setMerge(ws, r, 0, r, 7);
     r++;
-    rows.push([]); r++;
+
+    // Empty row
+    r++;
   }
 
+  // Grand total
   const totalVenda = phaseGroups.reduce((sum, g) => sum + g.items.reduce((s, i) => {
     const bdi = i.bdi ?? bdiDefault;
     return s + (i.unit_price || 0) * (1 + bdi / 100) * (i.quantity || 0);
   }, 0), 0);
-  rows.push(["", "", "", "", "", "", "TOTAL VENDA", totalVenda]);
-  boldRows.push(r);
-  numCells.push({ r, c: 7 });
 
-  const ws = XLSX.utils.aoa_to_sheet(rows);
-  xlsxSetColWidths(ws, [5, 40, 8, 10, 14, 8, 14, 16]);
+  setCellStyled(ws, r, 0, "", { fill: FILL_TOTAL_VENDA, border: BORDER_MEDIUM });
+  for (let c = 1; c < 8; c++) setCellStyled(ws, r, c, "", { fill: FILL_TOTAL_VENDA, border: BORDER_MEDIUM });
+  setCellStyled(ws, r, 8, "TOTAL VENDA:", { font: FONT_TOTAL, fill: FILL_TOTAL_VENDA, alignment: ALIGN_RIGHT, border: BORDER_MEDIUM });
+  setCellStyled(ws, r, 9, totalVenda, { font: FONT_TOTAL, fill: FILL_TOTAL_VENDA, alignment: ALIGN_RIGHT, border: BORDER_MEDIUM, numFmt: NUM_FMT_BRL });
+  setMerge(ws, r, 0, r, 7);
 
-  const numFmt = "#,##0.00";
-  for (const cell of numCells) {
-    const ref = XLSX.utils.encode_cell(cell);
-    if (ws[ref] && typeof ws[ref].v === "number") {
-      ws[ref].z = numFmt;
-    }
-  }
+  // Column widths
+  ws["!cols"] = [
+    { wch: 8 },   // ITEM
+    { wch: 10 },  // FONTE
+    { wch: 12 },  // CÓDIGO
+    { wch: 45 },  // DESCRIÇÃO
+    { wch: 8 },   // UND
+    { wch: 12 },  // QTD
+    { wch: 16 },  // PREÇO UNIT
+    { wch: 10 },  // BDI %
+    { wch: 16 },  // PREÇO C/ BDI
+    { wch: 16 },  // TOTAL
+  ];
 
-  XLSX.utils.book_append_sheet(wb, ws, "Venda");
+  updateRange(ws, r, maxCol);
+
+  XLSX.utils.book_append_sheet(wb, ws, "Orçamento de Venda");
   XLSX.writeFile(wb, `Orcamento_Venda_${data.budget.budget_code || data.budget.id}.xlsx`);
 }
 
