@@ -108,30 +108,70 @@ function getServiceAndPhaseItems(items: BudgetItem[]) {
   return { phaseItems, serviceItems, rootPhases };
 }
 
+function getBudgetPhaseGroups(items: BudgetItem[]) {
+  const { rootPhases, serviceItems } = getServiceAndPhaseItems(items);
+
+  const numericPhaseGroups = rootPhases.map((phase) => {
+    const rootIdx = getPrefix(phase.description)!;
+    const children = serviceItems.filter((service) => {
+      const servicePrefix = getPrefix(service.description);
+      return servicePrefix ? servicePrefix.split(".")[0] === rootIdx : false;
+    });
+
+    return {
+      key: `numeric-${rootIdx}`,
+      label: phase.description,
+      items: children,
+    };
+  }).filter((group) => group.items.length > 0);
+
+  if (numericPhaseGroups.length > 0) {
+    return numericPhaseGroups;
+  }
+
+  const phaseCategoryNames = [...new Set(
+    items
+      .map((item) => (item.category || "").trim())
+      .filter((category) => {
+        const normalized = category.toLowerCase();
+        return !!category && !["fase", "serviço", "servico"].includes(normalized);
+      })
+  )];
+
+  const namedPhaseGroups = phaseCategoryNames.map((phaseName) => ({
+    key: `named-${phaseName}`,
+    label: phaseName,
+    items: items.filter((item) => (item.category || "").trim() === phaseName),
+  })).filter((group) => group.items.length > 0);
+
+  if (namedPhaseGroups.length > 0) {
+    return namedPhaseGroups;
+  }
+
+  return [{
+    key: "all-items",
+    label: "Itens do orçamento",
+    items: items.filter((item) => (item.category || "").toLowerCase() !== "fase"),
+  }].filter((group) => group.items.length > 0);
+}
+
 // ─── 1. Orçamento de custo ───
 async function reportOrcamentoCusto(data: ReportData) {
   const doc = new jsPDF({ orientation: "landscape" });
   const ci = await getReportCompanyInfo(data);
   let startY = await addReportHeader(doc, ci, "Orçamento de Custo", buildSubtitle(data.budget.budget_code, data.obra?.name));
 
-  const { serviceItems, rootPhases } = getServiceAndPhaseItems(data.items);
+  const phaseGroups = getBudgetPhaseGroups(data.items);
 
-  for (const phase of rootPhases) {
-    const rootIdx = getPrefix(phase.description)!;
-    const children = serviceItems.filter((s) => {
-      const sp = getPrefix(s.description);
-      return sp ? sp.split(".")[0] === rootIdx : false;
-    });
-    if (children.length === 0) continue;
-
-    const phaseTotal = children.reduce((s, i) => s + (i.total_price || 0), 0);
+  for (const phase of phaseGroups) {
+    const phaseTotal = phase.items.reduce((s, i) => s + (i.total_price || 0), 0);
 
     startY = ensureSpace(doc, startY, 20);
 
     doc.setFontSize(10);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(41, 128, 185);
-    doc.text(`${phase.description}  —  ${fmt(phaseTotal)}`, MARGIN, startY);
+    doc.text(`${phase.label}  —  ${fmt(phaseTotal)}`, MARGIN, startY);
     doc.setTextColor(0, 0, 0);
     startY += 2;
 
@@ -139,7 +179,7 @@ async function reportOrcamentoCusto(data: ReportData) {
       startY,
       margin: TABLE_MARGIN,
       head: [["#", "Descrição", "Unid.", "Qtd.", "Preço Unit.", "Total"]],
-      body: children.map((i, idx) => [
+      body: phase.items.map((i, idx) => [
         String(idx + 1), i.description, i.unit || "un",
         fmtNum(i.quantity), fmt(i.unit_price), fmt(i.total_price),
       ]),
@@ -152,7 +192,7 @@ async function reportOrcamentoCusto(data: ReportData) {
     startY = (doc as any).lastAutoTable.finalY + 6;
   }
 
-  const total = serviceItems.reduce((s, i) => s + (i.total_price || 0), 0);
+  const total = phaseGroups.reduce((sum, group) => sum + group.items.reduce((groupSum, item) => groupSum + (item.total_price || 0), 0), 0);
   startY = ensureSpace(doc, startY, 10);
   doc.setFontSize(11);
   doc.setFont("helvetica", "bold");
@@ -169,17 +209,10 @@ async function reportOrcamentoVenda(data: ReportData) {
   let startY = await addReportHeader(doc, ci, "Orçamento de Venda", buildSubtitle(data.budget.budget_code, data.obra?.name));
 
   const bdiDefault = 0;
-  const { serviceItems, rootPhases } = getServiceAndPhaseItems(data.items);
+  const phaseGroups = getBudgetPhaseGroups(data.items);
 
-  for (const phase of rootPhases) {
-    const rootIdx = getPrefix(phase.description)!;
-    const children = serviceItems.filter((s) => {
-      const sp = getPrefix(s.description);
-      return sp ? sp.split(".")[0] === rootIdx : false;
-    });
-    if (children.length === 0) continue;
-
-    const phaseTotal = children.reduce((s, i) => {
+  for (const phase of phaseGroups) {
+    const phaseTotal = phase.items.reduce((s, i) => {
       const bdi = i.bdi ?? bdiDefault;
       return s + (i.unit_price || 0) * (1 + bdi / 100) * (i.quantity || 0);
     }, 0);
@@ -189,7 +222,7 @@ async function reportOrcamentoVenda(data: ReportData) {
     doc.setFontSize(10);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(39, 174, 96);
-    doc.text(`${phase.description}  —  ${fmt(phaseTotal)}`, MARGIN, startY);
+    doc.text(`${phase.label}  —  ${fmt(phaseTotal)}`, MARGIN, startY);
     doc.setTextColor(0, 0, 0);
     startY += 2;
 
@@ -197,7 +230,7 @@ async function reportOrcamentoVenda(data: ReportData) {
       startY,
       margin: TABLE_MARGIN,
       head: [["#", "Descrição", "Unid.", "Qtd.", "Preço Unit.", "BDI %", "Preço c/ BDI", "Total"]],
-      body: children.map((i, idx) => {
+      body: phase.items.map((i, idx) => {
         const bdi = i.bdi ?? bdiDefault;
         const priceWithBdi = (i.unit_price || 0) * (1 + bdi / 100);
         const totalWithBdi = priceWithBdi * (i.quantity || 0);
@@ -215,10 +248,10 @@ async function reportOrcamentoVenda(data: ReportData) {
     startY = (doc as any).lastAutoTable.finalY + 6;
   }
 
-  const totalVenda = serviceItems.reduce((s, i) => {
-    const bdi = i.bdi ?? bdiDefault;
-    return s + (i.unit_price || 0) * (1 + bdi / 100) * (i.quantity || 0);
-  }, 0);
+  const totalVenda = phaseGroups.reduce((sum, group) => sum + group.items.reduce((groupSum, item) => {
+    const bdi = item.bdi ?? bdiDefault;
+    return groupSum + (item.unit_price || 0) * (1 + bdi / 100) * (item.quantity || 0);
+  }, 0), 0);
 
   startY = ensureSpace(doc, startY, 10);
   doc.setFontSize(11);
@@ -251,17 +284,10 @@ async function reportPlanejamento(data: ReportData) {
     return (item.unit_price || 0) * (1 + bdi / 100) * (item.quantity || 0);
   };
 
-  const { serviceItems, rootPhases } = getServiceAndPhaseItems(data.items);
-
-  const phaseData = rootPhases.map((phase) => {
-    const rootIdx = getPrefix(phase.description)!;
-    const children = serviceItems.filter((s) => {
-      const sp = getPrefix(s.description);
-      return sp ? sp.split(".")[0] === rootIdx : false;
-    });
-    const total = children.reduce((sum, s) => sum + getVendaTotal(s), 0);
-    return { rootIdx, label: phase.description, total, services: children };
-  }).filter((p) => p.services.length > 0).sort((a, b) => parseInt(a.rootIdx) - parseInt(b.rootIdx));
+  const phaseData = getBudgetPhaseGroups(data.items).map((phase, index) => {
+    const total = phase.items.reduce((sum, item) => sum + getVendaTotal(item), 0);
+    return { rootIdx: String(index + 1), label: phase.label, total, services: phase.items };
+  }).filter((p) => p.services.length > 0);
 
   const periodHeaders = periods.map((p: any) => p.period_label || new Date(p.period_date).toLocaleDateString("pt-BR"));
   const head = ["Serviço", "Total Venda (R$)", ...periodHeaders, "Acum. (R$)", "Saldo (R$)"];
