@@ -328,19 +328,54 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
   // Save item
   const saveItem = useMutation({
     mutationFn: async () => {
+      const inserts: any[] = [];
+
+      // If creating a new phase, first insert the phase item
+      if (isCreatingPhase && newPhaseName.trim()) {
+        inserts.push({
+          budget_id: budgetId,
+          description: newPhaseName.trim(),
+          category: "fase",
+          quantity: 0,
+          unit: "vb",
+          unit_price: 0,
+        });
+      }
+
+      // Determine the category for the main item
+      let itemCategory: string | null = null;
+      if (isCreatingPhase) {
+        // New phase was just created; the service item belongs to it
+        itemCategory = "serviço";
+      } else if (selectedItemPhase) {
+        // Existing phase selected
+        itemCategory = "serviço";
+      } else {
+        itemCategory = itemForm.category || null;
+      }
+
       const payload = {
         description: itemForm.description,
-        category: itemForm.category || null,
+        category: itemCategory,
         quantity: parseFloat(itemForm.quantity) || 1,
         unit: itemForm.unit || "un",
         unit_price: parseFloat(itemForm.unit_price) || 0,
       };
+
       if (editingItem) {
         const { error } = await supabase.from("budget_items").update(payload).eq("id", editingItem.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("budget_items").insert({ ...payload, budget_id: budgetId });
-        if (error) throw error;
+        // Insert phase first if needed
+        if (inserts.length > 0) {
+          const { error: phaseError } = await supabase.from("budget_items").insert(inserts);
+          if (phaseError) throw phaseError;
+        }
+        // Only insert the service/item if there's a description
+        if (payload.description.trim()) {
+          const { error } = await supabase.from("budget_items").insert({ ...payload, budget_id: budgetId });
+          if (error) throw error;
+        }
       }
     },
     onSuccess: () => {
@@ -2639,23 +2674,23 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                 <div>
                   <label className="block text-sm font-medium text-card-foreground mb-1">Fase da obra</label>
                   <select
-                    value={isCreatingPhase ? "__new__" : (budgetPhaseItems.some((p) => p.description === itemForm.category) ? itemForm.category : "")}
+                    value={isCreatingPhase ? "__new__" : selectedItemPhase}
                     onChange={(e) => {
                       const val = e.target.value;
                       if (val === "__new__") {
                         setIsCreatingPhase(true);
-                        setNewPhaseName(itemForm.category && !budgetPhaseItems.some((p) => p.description === itemForm.category) ? itemForm.category : "");
+                        setNewPhaseName("");
                         setSelectedItemPhase("");
                         setNewServiceName("");
                         setIsCreatingService(false);
-                        setItemForm((p) => ({ ...p, category: p.category && !budgetPhaseItems.some((bp) => bp.description === p.category) ? p.category : "", description: "" }));
+                        setItemForm((p) => ({ ...p, description: "" }));
                       } else {
                         setIsCreatingPhase(false);
                         setNewPhaseName("");
                         setSelectedItemPhase(val);
                         setNewServiceName("");
                         setIsCreatingService(false);
-                        setItemForm((p) => ({ ...p, category: val, description: "" }));
+                        setItemForm((p) => ({ ...p, description: "" }));
                       }
                     }}
                     className={inputClass}
@@ -2670,11 +2705,7 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                     <input
                       autoFocus
                       value={newPhaseName}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        setNewPhaseName(value);
-                        setItemForm((p) => ({ ...p, category: value }));
-                      }}
+                      onChange={(e) => setNewPhaseName(e.target.value)}
                       className={inputClass + " mt-1"}
                       placeholder="Digite o nome da nova fase..."
                     />
