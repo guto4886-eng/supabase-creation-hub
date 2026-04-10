@@ -2684,7 +2684,7 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                       onChange={(e) => setNewServiceName(e.target.value)}
                       onBlur={() => {
                         if (newServiceName.trim()) setItemForm((p) => ({ ...p, description: newServiceName.trim() }));
-                      }
+                      }}
                       className={inputClass + " mt-1"}
                       placeholder="Digite a descrição do novo serviço..."
                     />
