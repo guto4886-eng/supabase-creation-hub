@@ -2533,6 +2533,92 @@ export type Database = {
           },
         ]
       }
+      sinapi_compositions: {
+        Row: {
+          coefficient: number
+          component_code: string
+          component_description: string
+          component_price: number
+          component_unit: string
+          created_at: string
+          id: string
+          sinapi_item_id: string
+        }
+        Insert: {
+          coefficient?: number
+          component_code: string
+          component_description: string
+          component_price?: number
+          component_unit?: string
+          created_at?: string
+          id?: string
+          sinapi_item_id: string
+        }
+        Update: {
+          coefficient?: number
+          component_code?: string
+          component_description?: string
+          component_price?: number
+          component_unit?: string
+          created_at?: string
+          id?: string
+          sinapi_item_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sinapi_compositions_sinapi_item_id_fkey"
+            columns: ["sinapi_item_id"]
+            isOneToOne: false
+            referencedRelation: "sinapi_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sinapi_items: {
+        Row: {
+          category: string | null
+          code: string
+          created_at: string
+          description: string
+          id: string
+          is_default: boolean
+          item_type: string
+          reference_date: string | null
+          state: string | null
+          unit: string
+          unit_price: number
+          user_id: string
+        }
+        Insert: {
+          category?: string | null
+          code: string
+          created_at?: string
+          description: string
+          id?: string
+          is_default?: boolean
+          item_type?: string
+          reference_date?: string | null
+          state?: string | null
+          unit?: string
+          unit_price?: number
+          user_id: string
+        }
+        Update: {
+          category?: string | null
+          code?: string
+          created_at?: string
+          description?: string
+          id?: string
+          is_default?: boolean
+          item_type?: string
+          reference_date?: string | null
+          state?: string | null
+          unit?: string
+          unit_price?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       supplier_bank_accounts: {
         Row: {
           account: string | null
