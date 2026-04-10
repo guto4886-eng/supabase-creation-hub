@@ -142,15 +142,11 @@ function getBudgetPhaseGroups(items: BudgetItem[]) {
     items: items.filter((item) => !consumedIds.has(item.id) && (item.category || "").trim() === phaseName),
   })).filter((group) => group.items.length > 0);
 
-  const uncategorizedItems = items.filter((item) => !consumedIds.has(item.id) && (item.category || "").toLowerCase() !== "fase");
+  const namedConsumedIds = new Set(namedPhaseGroups.flatMap((group) => group.items.map((item) => item.id)));
+  const allConsumedIds = new Set([...consumedIds, ...namedConsumedIds]);
+  const uncategorizedItems = items.filter((item) => !allConsumedIds.has(item.id) && (item.category || "").toLowerCase() !== "fase");
 
-  const fallbackGroups = uncategorizedItems.length > 0 ? [{
-    key: "all-items",
-    label: numericPhaseGroups.length > 0 || namedPhaseGroups.length > 0 ? "Itens sem fase vinculada" : "Itens do orçamento",
-    items: uncategorizedItems,
-  }] : [];
-
-  return [...numericPhaseGroups, ...namedPhaseGroups, ...fallbackGroups];
+  return [...numericPhaseGroups, ...namedPhaseGroups];
 }
 
 // ─── 1. Orçamento de custo ───
