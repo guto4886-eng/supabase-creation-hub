@@ -134,6 +134,8 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
   const [showSinapiSearch, setShowSinapiSearch] = useState(false);
   const [selectedPhase, setSelectedPhase] = useState<string | null>(null);
   const [expandedAbc, setExpandedAbc] = useState<string | null>(null);
+  const [newPhaseName, setNewPhaseName] = useState("");
+  const [newServiceName, setNewServiceName] = useState("");
   const [activeMeasurement, setActiveMeasurement] = useState<string | null>(null);
   const [planSelectedPhase, setPlanSelectedPhase] = useState<string | null>(null);
 
@@ -365,6 +367,8 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
     setEditingItem(null);
     setAddingItem(true);
     setSelectedItemPhase("");
+    setNewPhaseName("");
+    setNewServiceName("");
     setItemForm({ description: "", category: "", quantity: "1", unit: "un", unit_price: "0" });
   };
   const openEditItem = (item: BudgetItem) => {
@@ -2622,11 +2626,16 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                 <div>
                   <label className="block text-sm font-medium text-card-foreground mb-1">Fase da obra</label>
                   <select
-                    value={itemForm.category}
+                    value={itemForm.category === "__new__" ? "__new__" : itemForm.category}
                     onChange={(e) => {
                       const val = e.target.value;
-                      setSelectedItemPhase(val);
-                      setItemForm((p) => ({ ...p, category: val, description: "" }));
+                      if (val === "__new__") {
+                        setSelectedItemPhase("");
+                        setItemForm((p) => ({ ...p, category: "__new__", description: "" }));
+                      } else {
+                        setSelectedItemPhase(val);
+                        setItemForm((p) => ({ ...p, category: val, description: "" }));
+                      }
                     }}
                     className={inputClass}
                   >
@@ -2634,29 +2643,55 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                     {budgetPhaseItems.map((p) => (
                       <option key={p.id} value={p.description}>{p.description}</option>
                     ))}
+                    <option value="__new__">＋ Cadastrar nova fase...</option>
                   </select>
-                  {budgetPhaseItems.length === 0 && (
+                  {itemForm.category === "__new__" && (
                     <input
-                      value={itemForm.category}
-                      onChange={(e) => setItemForm((p) => ({ ...p, category: e.target.value }))}
+                      autoFocus
+                      value={newPhaseName}
+                      onChange={(e) => setNewPhaseName(e.target.value)}
+                      onBlur={() => {
+                        if (newPhaseName.trim()) setItemForm((p) => ({ ...p, category: newPhaseName.trim() }));
+                      }}
                       className={inputClass + " mt-1"}
-                      placeholder="Nenhuma fase no orçamento. Digite manualmente..."
+                      placeholder="Digite o nome da nova fase..."
                     />
                   )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-card-foreground mb-1">Serviço</label>
                   <select
-                    value={itemForm.description}
-                    onChange={(e) => setItemForm((p) => ({ ...p, description: e.target.value }))}
+                    value={itemForm.description === "__new_svc__" ? "__new_svc__" : (filteredServices.some(s => s.description === itemForm.description) ? itemForm.description : "")}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === "__new_svc__") {
+                        setNewServiceName("");
+                        setItemForm((p) => ({ ...p, description: "__new_svc__" }));
+                      } else {
+                        setItemForm((p) => ({ ...p, description: val }));
+                      }
+                    }}
                     className={inputClass}
                   >
                     <option value="">Selecione o serviço...</option>
                     {filteredServices.map((s) => (
                       <option key={s.id} value={s.description}>{s.description}</option>
                     ))}
+                    <option value="__new_svc__">＋ Cadastrar novo serviço...</option>
                   </select>
-                  {filteredServices.length === 0 && (
+                  {itemForm.description === "__new_svc__" && (
+                    <input
+                      autoFocus
+                      value={newServiceName}
+                      onChange={(e) => setNewServiceName(e.target.value)}
+                      onBlur={() => {
+                        if (newServiceName.trim()) setItemForm((p) => ({ ...p, description: newServiceName.trim() }));
+                      }}
+                      className={inputClass + " mt-1"}
+                      placeholder="Digite a descrição do novo serviço..."
+                    />
+                  )}
+                  {filteredServices.length === 0 && itemForm.description !== "__new_svc__" && (
                     <p className="text-xs text-muted-foreground mt-1">Nenhum serviço encontrado para esta fase.</p>
                   )}
                 </div>
@@ -2667,7 +2702,7 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                       🔍 Buscar SINAPI
                     </button>
                   </div>
-                  <input value={itemForm.description} onChange={(e) => setItemForm((p) => ({ ...p, description: e.target.value }))} required className={inputClass} />
+                  <input value={itemForm.description === "__new_svc__" ? "" : itemForm.description} onChange={(e) => setItemForm((p) => ({ ...p, description: e.target.value }))} required className={inputClass} />
                 </div>
                 <div className="grid grid-cols-3 gap-3">
                   <div>
