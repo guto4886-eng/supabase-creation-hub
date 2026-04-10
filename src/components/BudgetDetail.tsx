@@ -2663,6 +2663,7 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                     onChange={(e) => {
                       const val = e.target.value;
                       if (val === "__new_svc__") {
+                        setNewServiceName("");
                         setItemForm((p) => ({ ...p, description: "__new_svc__" }));
                       } else {
                         setItemForm((p) => ({ ...p, description: val }));
