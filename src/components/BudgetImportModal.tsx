@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { X, Upload, FileSpreadsheet, CheckCircle, AlertTriangle } from "lucide-react";
-import * as XLSX from "xlsx";
+import * as XLSX from "xlsx-js-style";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useQueryClient } from "@tanstack/react-query";
