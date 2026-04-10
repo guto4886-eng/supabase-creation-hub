@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { X, Search, Database, ChevronDown, ChevronRight } from "lucide-react";
 
 interface Props {
@@ -10,18 +11,51 @@ interface Props {
 
 const inputClass = "w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm";
 
+const PRICING_TYPES = [
+  { value: "sem_desoneracao", label: "Sem Desoneração" },
+  { value: "com_desoneracao", label: "Com Desoneração" },
+  { value: "sem_encargos", label: "Sem Encargos" },
+];
+
 export default function SinapiSearchModal({ onSelect, onClose }: Props) {
+  const { user } = useAuth();
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState<string>("");
   const [expandedItem, setExpandedItem] = useState<string | null>(null);
+  const [filterState, setFilterState] = useState("SP");
+  const [filterPricing, setFilterPricing] = useState("sem_desoneracao");
+
+  // Load company settings for default state/pricing
+  const { data: companySettings } = useQuery({
+    queryKey: ["company_settings_sinapi_modal"],
+    queryFn: async () => {
+      if (!user) return null;
+      const { data } = await supabase
+        .from("company_settings" as any)
+        .select("state, sinapi_pricing_type")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      return data as any;
+    },
+    enabled: !!user,
+  });
+
+  useEffect(() => {
+    if (companySettings) {
+      if (companySettings.state) setFilterState(companySettings.state);
+      if (companySettings.sinapi_pricing_type) setFilterPricing(companySettings.sinapi_pricing_type);
+    }
+  }, [companySettings]);
 
   const { data: items = [], isLoading } = useQuery({
-    queryKey: ["sinapi_search", search, filterType],
+    queryKey: ["sinapi_search", search, filterType, filterState, filterPricing],
     queryFn: async () => {
       if (search.trim().length < 2) return [];
       let query = supabase
         .from("sinapi_items")
         .select("*")
+        .eq("state", filterState)
+        .eq("pricing_type", filterPricing)
         .order("code")
         .limit(50);
 
@@ -65,6 +99,11 @@ export default function SinapiSearchModal({ onSelect, onClose }: Props) {
             <Database className="h-5 w-5 text-primary" />
             Buscar na base SINAPI
           </h3>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span>{filterState}</span>
+            <span>·</span>
+            <span>{PRICING_TYPES.find(p => p.value === filterPricing)?.label}</span>
+          </div>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
         </div>
 
@@ -113,52 +152,32 @@ export default function SinapiSearchModal({ onSelect, onClose }: Props) {
                 </thead>
                 <tbody className="divide-y divide-border">
                   {items.map((item: any) => (
-                    <>
-                      <tr key={item.id} className="hover:bg-muted/30">
-                        <td className="px-3 py-2">
-                          {item.item_type === "composição" && (
-                            <button onClick={() => setExpandedItem(expandedItem === item.id ? null : item.id)} className="text-muted-foreground hover:text-foreground">
-                              {expandedItem === item.id ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-                            </button>
-                          )}
-                        </td>
-                        <td className="px-3 py-2 font-mono text-xs text-primary">{item.code}</td>
-                        <td className="px-3 py-2 text-foreground text-xs max-w-[300px]" title={item.description}>{item.description}</td>
-                        <td className="px-3 py-2 text-muted-foreground uppercase text-xs">{item.unit}</td>
-                        <td className="px-3 py-2 text-right font-medium text-xs">R$ {fmt(item.unit_price)}</td>
-                        <td className="px-3 py-2">
-                          <span className={`text-xs px-1.5 py-0.5 rounded ${item.item_type === "composição" ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" : "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200"}`}>
-                            {item.item_type}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2">
-                          <button
-                            onClick={() => onSelect({ code: item.code, description: item.description, unit: item.unit, unit_price: item.unit_price })}
-                            className="px-3 py-1 bg-primary text-primary-foreground rounded text-xs font-medium hover:opacity-90"
-                          >
-                            Usar
+                    <tr key={item.id} className="hover:bg-muted/30">
+                      <td className="px-3 py-2">
+                        {item.item_type === "composição" && (
+                          <button onClick={() => setExpandedItem(expandedItem === item.id ? null : item.id)} className="text-muted-foreground hover:text-foreground">
+                            {expandedItem === item.id ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                           </button>
-                        </td>
-                      </tr>
-                      {expandedItem === item.id && compositions.length > 0 && (
-                        <tr key={item.id + "-comp"}>
-                          <td colSpan={7} className="px-6 py-2 bg-muted/20">
-                            <p className="text-xs font-semibold text-primary mb-1">Composição</p>
-                            <div className="space-y-0.5">
-                              {compositions.map((c: any) => (
-                                <div key={c.id} className="flex gap-4 text-xs text-muted-foreground">
-                                  <span className="font-mono w-20">{c.component_code}</span>
-                                  <span className="flex-1">{c.component_description}</span>
-                                  <span className="w-10 uppercase">{c.component_unit}</span>
-                                  <span className="w-16 text-right">{fmt(c.coefficient)}</span>
-                                  <span className="w-24 text-right">R$ {fmt(c.component_price)}</span>
-                                </div>
-                              ))}
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 font-mono text-xs text-primary">{item.code}</td>
+                      <td className="px-3 py-2 text-foreground text-xs max-w-[300px]" title={item.description}>{item.description}</td>
+                      <td className="px-3 py-2 text-muted-foreground uppercase text-xs">{item.unit}</td>
+                      <td className="px-3 py-2 text-right font-medium text-xs">R$ {fmt(item.unit_price)}</td>
+                      <td className="px-3 py-2">
+                        <span className={`text-xs px-1.5 py-0.5 rounded ${item.item_type === "composição" ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" : "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200"}`}>
+                          {item.item_type}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2">
+                        <button
+                          onClick={() => onSelect({ code: item.code, description: item.description, unit: item.unit, unit_price: item.unit_price })}
+                          className="px-3 py-1 bg-primary text-primary-foreground rounded text-xs font-medium hover:opacity-90"
+                        >
+                          Usar
+                        </button>
+                      </td>
+                    </tr>
                   ))}
                 </tbody>
               </table>
