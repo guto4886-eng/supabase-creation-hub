@@ -23,6 +23,7 @@ import Plans from "@/pages/Plans";
 import Companies from "@/pages/Companies";
 import Fleet from "@/pages/Fleet";
 import Labor from "@/pages/Labor";
+import Sinapi from "@/pages/Sinapi";
 
 const queryClient = new QueryClient();
 
@@ -64,6 +65,7 @@ function App() {
                 <Route path="obras" element={<Obras />} />
                 <Route path="labor" element={<Labor />} />
                 <Route path="budgets" element={<Budgets />} />
+                <Route path="sinapi" element={<Sinapi />} />
                 <Route path="quotations" element={<Quotations />} />
                 <Route path="financial" element={<Financial />} />
                 <Route path="profile" element={<Profile />} />
