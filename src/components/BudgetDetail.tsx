@@ -135,7 +135,9 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
   const [selectedPhase, setSelectedPhase] = useState<string | null>(null);
   const [expandedAbc, setExpandedAbc] = useState<string | null>(null);
   const [newPhaseName, setNewPhaseName] = useState("");
+  const [isCreatingPhase, setIsCreatingPhase] = useState(false);
   const [newServiceName, setNewServiceName] = useState("");
+  const [isCreatingService, setIsCreatingService] = useState(false);
   const [activeMeasurement, setActiveMeasurement] = useState<string | null>(null);
   const [planSelectedPhase, setPlanSelectedPhase] = useState<string | null>(null);
 
@@ -368,16 +370,27 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
     setAddingItem(true);
     setSelectedItemPhase("");
     setNewPhaseName("");
+    setIsCreatingPhase(false);
     setNewServiceName("");
+    setIsCreatingService(false);
     setItemForm({ description: "", category: "", quantity: "1", unit: "un", unit_price: "0" });
   };
   const openEditItem = (item: BudgetItem) => {
     setEditingItem(item);
     setAddingItem(true);
     setSelectedItemPhase(item.category || "");
+    setNewPhaseName("");
+    setIsCreatingPhase(false);
+    setNewServiceName("");
+    setIsCreatingService(false);
     setItemForm({ description: item.description, category: item.category || "", quantity: String(item.quantity ?? 1), unit: item.unit || "un", unit_price: String(item.unit_price ?? 0) });
   };
-  const closeItemForm = () => { setEditingItem(null); setAddingItem(false); };
+  const closeItemForm = () => {
+    setEditingItem(null);
+    setAddingItem(false);
+    setIsCreatingPhase(false);
+    setIsCreatingService(false);
+  };
 
   const fmt = (v: number | null | undefined) => (v != null ? v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "R$ 0,00");
   const totalCusto = items.filter((i) => (i.category || "").toLowerCase() !== "fase").reduce((s, i) => s + (i.total_price || 0), 0);
@@ -2626,16 +2639,22 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                 <div>
                   <label className="block text-sm font-medium text-card-foreground mb-1">Fase da obra</label>
                   <select
-                    value={newPhaseName ? "__new__" : (budgetPhaseItems.some(p => p.description === itemForm.category) ? itemForm.category : "")}
+                    value={isCreatingPhase ? "__new__" : (budgetPhaseItems.some((p) => p.description === itemForm.category) ? itemForm.category : "")}
                     onChange={(e) => {
                       const val = e.target.value;
                       if (val === "__new__") {
-                        setNewPhaseName("");
+                        setIsCreatingPhase(true);
+                        setNewPhaseName(itemForm.category && !budgetPhaseItems.some((p) => p.description === itemForm.category) ? itemForm.category : "");
+                        setSelectedItemPhase("");
                         setNewServiceName("");
-                        setItemForm((p) => ({ ...p, category: "", description: "" }));
+                        setIsCreatingService(false);
+                        setItemForm((p) => ({ ...p, category: p.category && !budgetPhaseItems.some((bp) => bp.description === p.category) ? p.category : "", description: "" }));
                       } else {
+                        setIsCreatingPhase(false);
                         setNewPhaseName("");
                         setSelectedItemPhase(val);
+                        setNewServiceName("");
+                        setIsCreatingService(false);
                         setItemForm((p) => ({ ...p, category: val, description: "" }));
                       }
                     }}
@@ -2647,29 +2666,32 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                     ))}
                     <option value="__new__">＋ Cadastrar nova fase...</option>
                   </select>
-                  {newPhaseName !== undefined && (newPhaseName || (!budgetPhaseItems.some(p => p.description === itemForm.category) && itemForm.category && itemForm.category !== "__new__")) ? (
+                  {isCreatingPhase && (
                     <input
                       autoFocus
-                      value={newPhaseName || itemForm.category}
+                      value={newPhaseName}
                       onChange={(e) => {
-                        setNewPhaseName(e.target.value);
-                        setItemForm((p) => ({ ...p, category: e.target.value }));
+                        const value = e.target.value;
+                        setNewPhaseName(value);
+                        setItemForm((p) => ({ ...p, category: value }));
                       }}
                       className={inputClass + " mt-1"}
                       placeholder="Digite o nome da nova fase..."
                     />
-                  ) : null}
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-card-foreground mb-1">Serviço</label>
                   <select
-                    value={newServiceName ? "__new_svc__" : (filteredServices.some(s => s.description === itemForm.description) ? itemForm.description : "")}
+                    value={isCreatingService ? "__new_svc__" : (filteredServices.some((s) => s.description === itemForm.description) ? itemForm.description : "")}
                     onChange={(e) => {
                       const val = e.target.value;
                       if (val === "__new_svc__") {
-                        setNewServiceName("");
-                        setItemForm((p) => ({ ...p, description: "" }));
+                        setIsCreatingService(true);
+                        setNewServiceName(itemForm.description && !filteredServices.some((s) => s.description === itemForm.description) ? itemForm.description : "");
+                        setItemForm((p) => ({ ...p, description: p.description && !filteredServices.some((fs) => fs.description === p.description) ? p.description : "" }));
                       } else {
+                        setIsCreatingService(false);
                         setNewServiceName("");
                         setItemForm((p) => ({ ...p, description: val }));
                       }
@@ -2682,19 +2704,20 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
                     ))}
                     <option value="__new_svc__">＋ Cadastrar novo serviço...</option>
                   </select>
-                  {(newServiceName !== undefined && (newServiceName || (!filteredServices.some(s => s.description === itemForm.description) && itemForm.description && itemForm.description !== "__new_svc__"))) ? (
+                  {isCreatingService && (
                     <input
                       autoFocus
-                      value={newServiceName || itemForm.description}
+                      value={newServiceName}
                       onChange={(e) => {
-                        setNewServiceName(e.target.value);
-                        setItemForm((p) => ({ ...p, description: e.target.value }));
+                        const value = e.target.value;
+                        setNewServiceName(value);
+                        setItemForm((p) => ({ ...p, description: value }));
                       }}
                       className={inputClass + " mt-1"}
                       placeholder="Digite a descrição do novo serviço..."
                     />
-                  ) : null}
-                  {filteredServices.length === 0 && !newServiceName && !itemForm.description && (
+                  )}
+                  {filteredServices.length === 0 && !isCreatingService && !itemForm.description && (
                     <p className="text-xs text-muted-foreground mt-1">Nenhum serviço encontrado para esta fase.</p>
                   )}
                 </div>
