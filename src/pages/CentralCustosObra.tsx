@@ -250,20 +250,21 @@ export default function CentralCustosObra() {
               entries={entries} orcamentoPrevisto={orcamentoPrevisto} gastoTotal={gastoTotal}
               saldo={saldo} margem={margem} pctConsumido={pctConsumido} saude={saude}
               obraId={obraId} userId={user?.id || ""} employees={employees} onSaved={refresh}
+              phases={allPhases}
             />
           )}
           {tab === "custos" && (
-            <CustosTab entries={entries} obraId={obraId} userId={user?.id || ""} onChanged={refresh} />
+            <CustosTab entries={entries} obraId={obraId} userId={user?.id || ""} onChanged={refresh} phases={allPhases} />
           )}
           {tab === "funcionarios" && (
             <FuncionariosTab employees={employees} entries={entries} obraId={obraId} userId={user?.id || ""} onChanged={refresh} />
           )}
           {tab === "materiais" && <MateriaisTab entries={entries} />}
           {tab === "analytics" && (
-            <AnalyticsTab entries={entries} orcamentoPrevisto={orcamentoPrevisto} gastoTotal={gastoTotal} pctConsumido={pctConsumido} saude={saude} />
+            <AnalyticsTab entries={entries} orcamentoPrevisto={orcamentoPrevisto} gastoTotal={gastoTotal} pctConsumido={pctConsumido} saude={saude} phases={allPhases} />
           )}
           {tab === "relatorios" && (
-            <RelatoriosTab entries={entries} obra={obra} orcamentoPrevisto={orcamentoPrevisto} gastoTotal={gastoTotal} />
+            <RelatoriosTab entries={entries} obra={obra} orcamentoPrevisto={orcamentoPrevisto} gastoTotal={gastoTotal} phases={allPhases} />
           )}
           {tab === "arquivos" && <ArquivosTab obraId={obraId} userId={user?.id || ""} />}
           {tab === "config" && (
