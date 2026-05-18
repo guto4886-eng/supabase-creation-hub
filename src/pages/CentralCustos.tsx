@@ -516,6 +516,24 @@ function ProjectModal({
           </div>
 
           <div>
+            <label className="text-sm font-medium mb-1.5 block">
+              Orçamento Previsto (R$)
+            </label>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={orcamentoPrevisto}
+              onChange={(e) => setOrcamentoPrevisto(e.target.value)}
+              placeholder="Ex: 250000.00"
+              className="w-full h-11 px-3 rounded-xl border border-border bg-background focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none tabular-nums"
+            />
+            <p className="text-[11px] text-muted-foreground mt-1">
+              Meta orçamentária total da obra. Usado para calcular saldo, margem e alertas.
+            </p>
+          </div>
+
+          <div>
             <label className="text-sm font-medium mb-1.5 block">Imagem da Obra (opcional)</label>
             <input
               ref={fileRef}
