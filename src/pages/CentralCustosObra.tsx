@@ -886,30 +886,51 @@ function FuncionariosTab({ employees, entries, obraId, userId, onChanged }: any)
 /* ============== MATERIAIS ============== */
 function MateriaisTab({ entries }: any) {
   const [search, setSearch] = useState("");
+  const [groupMode, setGroupMode] = useState<"item" | "tag">("item");
+
   const materiais = useMemo(() => {
-    const map = new Map<string, { tag: string; total: number; qtd: number; valores: number[]; fornecedores: Record<string, number>; itens: Entry[] }>();
+    const map = new Map<string, { key: string; label: string; tags: string[]; total: number; qtd: number; valores: number[]; fornecedores: Record<string, number>; itens: Entry[] }>();
     entries.filter((e: Entry) => e.tipo === "material").forEach((e: Entry) => {
-      (e.tags?.length ? e.tags : ["outros"]).forEach((tag) => {
-        const m = map.get(tag) || { tag, total: 0, qtd: 0, valores: [], fornecedores: {}, itens: [] };
+      if (groupMode === "item") {
+        const key = (e.nome_item || "—").trim().toUpperCase();
+        const m = map.get(key) || { key, label: key, tags: e.tags || [], total: 0, qtd: 0, valores: [], fornecedores: {}, itens: [] };
         m.total += Number(e.valor_total || 0);
         m.qtd += Number(e.quantidade || 0);
         m.valores.push(Number(e.valor_unitario || 0));
         if (e.fornecedor) m.fornecedores[e.fornecedor] = (m.fornecedores[e.fornecedor] || 0) + Number(e.valor_total || 0);
         m.itens.push(e);
-        map.set(tag, m);
-      });
+        map.set(key, m);
+      } else {
+        (e.tags?.length ? e.tags : ["outros"]).forEach((tag) => {
+          const m = map.get(tag) || { key: tag, label: tag, tags: [tag], total: 0, qtd: 0, valores: [], fornecedores: {}, itens: [] };
+          m.total += Number(e.valor_total || 0);
+          m.qtd += Number(e.quantidade || 0);
+          m.valores.push(Number(e.valor_unitario || 0));
+          if (e.fornecedor) m.fornecedores[e.fornecedor] = (m.fornecedores[e.fornecedor] || 0) + Number(e.valor_total || 0);
+          m.itens.push(e);
+          map.set(tag, m);
+        });
+      }
     });
     return Array.from(map.values()).sort((a, b) => b.total - a.total);
-  }, [entries]);
+  }, [entries, groupMode]);
 
-  const filtered = materiais.filter((m) => !search || m.tag.toLowerCase().includes(search.toLowerCase()));
+  const filtered = materiais.filter((m) =>
+    !search ||
+    m.label.toLowerCase().includes(search.toLowerCase()) ||
+    m.tags.some((t) => t.toLowerCase().includes(search.toLowerCase()))
+  );
 
   return (
     <div className="space-y-4">
-      <div className="bg-card border border-border rounded-2xl p-3">
-        <div className="relative">
+      <div className="bg-card border border-border rounded-2xl p-3 flex flex-col md:flex-row gap-3 md:items-center">
+        <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar tag de material (ex: cimento)..." className="w-full h-10 pl-9 pr-3 rounded-xl border border-border bg-background text-sm" />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar material ou tag..." className="w-full h-10 pl-9 pr-3 rounded-xl border border-border bg-background text-sm" />
+        </div>
+        <div className="inline-flex rounded-xl border border-border overflow-hidden text-xs">
+          <button onClick={() => setGroupMode("item")} className={`px-3 h-10 ${groupMode === "item" ? "bg-primary text-primary-foreground" : "bg-background"}`}>Por item</button>
+          <button onClick={() => setGroupMode("tag")} className={`px-3 h-10 ${groupMode === "tag" ? "bg-primary text-primary-foreground" : "bg-background"}`}>Por tag</button>
         </div>
       </div>
       {filtered.length === 0 ? (
@@ -920,11 +941,21 @@ function MateriaisTab({ entries }: any) {
             const media = m.valores.length ? m.valores.reduce((s, v) => s + v, 0) / m.valores.length : 0;
             const topForn = Object.entries(m.fornecedores).sort((a, b) => b[1] - a[1])[0]?.[0];
             return (
-              <div key={m.tag} className="bg-card border border-border rounded-2xl p-5">
-                <div className="flex items-center gap-2 mb-3">
-                  <Tag className="h-4 w-4 text-primary" />
-                  <h3 className="font-semibold capitalize">#{m.tag}</h3>
+              <div key={m.key} className="bg-card border border-border rounded-2xl p-5">
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Tag className="h-4 w-4 text-primary shrink-0" />
+                    <h3 className="font-semibold truncate" title={m.label}>{groupMode === "tag" ? `#${m.label}` : m.label}</h3>
+                  </div>
+                  <span className="text-[10px] text-muted-foreground shrink-0">{m.itens.length} lanç.</span>
                 </div>
+                {groupMode === "item" && m.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mb-3">
+                    {m.tags.map((t) => (
+                      <span key={t} className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground">#{t}</span>
+                    ))}
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <div><p className="text-xs text-muted-foreground">Total gasto</p><p className="font-semibold tabular-nums">{formatBRL(m.total)}</p></div>
                   <div><p className="text-xs text-muted-foreground">Quantidade</p><p className="font-semibold tabular-nums">{m.qtd.toFixed(2)}</p></div>
