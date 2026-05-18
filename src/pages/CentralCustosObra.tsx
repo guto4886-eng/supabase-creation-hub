@@ -445,12 +445,16 @@ function VisaoGeralTab({
 }
 
 /* ============== QUICK ADD ============== */
-function QuickAddCost({ obraId, userId, employees, onSaved, editing, onCancelEdit }: any) {
+function QuickAddCost({ obraId, userId, employees, onSaved, editing, onCancelEdit, phases = DEFAULT_PHASES }: any) {
+  const qc = useQueryClient();
   const [form, setForm] = useState({
-    tipo: "material", nome_item: "", categoria: "", quantidade: 1, unidade: "un",
+    tipo: "material", fase: "", nome_item: "", categoria: "", quantidade: 1, unidade: "un",
     valor_unitario: 0, data: new Date().toISOString().slice(0, 10),
     forma_pagamento: "", fornecedor: "", funcionario_id: "", observacao: "",
   });
+  const [phaseSearch, setPhaseSearch] = useState("");
+  const [phaseOpen, setPhaseOpen] = useState(false);
+  const [newPhaseName, setNewPhaseName] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
 
