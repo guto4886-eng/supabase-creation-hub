@@ -5,7 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import { formatBRL, COST_TYPES, PAYMENT_METHODS, UNITS, normalizeTags } from "@/utils/ccTags";
+import { formatBRL, COST_TYPES, PAYMENT_METHODS, UNITS, normalizeTags, DEFAULT_PHASES, phaseColor, phaseIcon, type Phase } from "@/utils/ccTags";
 import {
   ArrowLeft, Plus, Download, FileText, Wallet, TrendingUp, Target, AlertTriangle,
   Activity, Trash2, Copy, Pencil, Upload, Search, Calendar, Tag, Users, Package,
@@ -34,6 +34,7 @@ type Entry = {
   funcionario_id: string | null;
   observacao: string | null;
   comprovante_url: string | null;
+  fase: string | null;
   created_at: string;
 };
 
@@ -142,6 +143,23 @@ export default function CentralCustosObra() {
     enabled: !!obraId,
   });
 
+  const { data: customPhases = [] } = useQuery<Phase[]>({
+    queryKey: ["cc-phases", user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("cc_phases" as any)
+        .select("nome,cor,icone")
+        .order("nome");
+      return (data || []) as any;
+    },
+    enabled: !!user?.id,
+  });
+
+  const allPhases: Phase[] = useMemo(
+    () => [...DEFAULT_PHASES, ...customPhases.filter((c) => !DEFAULT_PHASES.some((d) => d.nome.toLowerCase() === c.nome.toLowerCase()))],
+    [customPhases]
+  );
+
   const orcamentoPrevisto = Number(settings?.orcamento_previsto || obra?.total_budget || 0);
   const gastoTotal = entries.reduce((s, e) => s + Number(e.valor_total || 0), 0);
   const saldo = orcamentoPrevisto - gastoTotal;
@@ -154,6 +172,7 @@ export default function CentralCustosObra() {
     qc.invalidateQueries({ queryKey: ["cc-entries", obraId] });
     qc.invalidateQueries({ queryKey: ["cc-employees", obraId] });
     qc.invalidateQueries({ queryKey: ["cc-settings", obraId] });
+    qc.invalidateQueries({ queryKey: ["cc-phases"] });
     qc.invalidateQueries({ queryKey: ["cc-entries-all"] });
   };
 
@@ -231,20 +250,21 @@ export default function CentralCustosObra() {
               entries={entries} orcamentoPrevisto={orcamentoPrevisto} gastoTotal={gastoTotal}
               saldo={saldo} margem={margem} pctConsumido={pctConsumido} saude={saude}
               obraId={obraId} userId={user?.id || ""} employees={employees} onSaved={refresh}
+              phases={allPhases}
             />
           )}
           {tab === "custos" && (
-            <CustosTab entries={entries} obraId={obraId} userId={user?.id || ""} onChanged={refresh} />
+            <CustosTab entries={entries} obraId={obraId} userId={user?.id || ""} onChanged={refresh} phases={allPhases} />
           )}
           {tab === "funcionarios" && (
             <FuncionariosTab employees={employees} entries={entries} obraId={obraId} userId={user?.id || ""} onChanged={refresh} />
           )}
           {tab === "materiais" && <MateriaisTab entries={entries} />}
           {tab === "analytics" && (
-            <AnalyticsTab entries={entries} orcamentoPrevisto={orcamentoPrevisto} gastoTotal={gastoTotal} pctConsumido={pctConsumido} saude={saude} />
+            <AnalyticsTab entries={entries} orcamentoPrevisto={orcamentoPrevisto} gastoTotal={gastoTotal} pctConsumido={pctConsumido} saude={saude} phases={allPhases} />
           )}
           {tab === "relatorios" && (
-            <RelatoriosTab entries={entries} obra={obra} orcamentoPrevisto={orcamentoPrevisto} gastoTotal={gastoTotal} />
+            <RelatoriosTab entries={entries} obra={obra} orcamentoPrevisto={orcamentoPrevisto} gastoTotal={gastoTotal} phases={allPhases} />
           )}
           {tab === "arquivos" && <ArquivosTab obraId={obraId} userId={user?.id || ""} />}
           {tab === "config" && (
@@ -259,7 +279,7 @@ export default function CentralCustosObra() {
 /* ============== VISÃO GERAL ============== */
 function VisaoGeralTab({
   entries, orcamentoPrevisto, gastoTotal, saldo, margem, pctConsumido, saude,
-  obraId, userId, employees, onSaved,
+  obraId, userId, employees, onSaved, phases,
 }: any) {
   // Evolução por mês
   const evolution = useMemo(() => {
@@ -418,26 +438,30 @@ function VisaoGeralTab({
         </div>
 
         {/* Quick add */}
-        <QuickAddCost obraId={obraId} userId={userId} employees={employees} onSaved={onSaved} />
+        <QuickAddCost obraId={obraId} userId={userId} employees={employees} onSaved={onSaved} phases={phases} />
       </div>
     </div>
   );
 }
 
 /* ============== QUICK ADD ============== */
-function QuickAddCost({ obraId, userId, employees, onSaved, editing, onCancelEdit }: any) {
+function QuickAddCost({ obraId, userId, employees, onSaved, editing, onCancelEdit, phases = DEFAULT_PHASES }: any) {
+  const qc = useQueryClient();
   const [form, setForm] = useState({
-    tipo: "material", nome_item: "", categoria: "", quantidade: 1, unidade: "un",
+    tipo: "material", fase: "", nome_item: "", categoria: "", quantidade: 1, unidade: "un",
     valor_unitario: 0, data: new Date().toISOString().slice(0, 10),
     forma_pagamento: "", fornecedor: "", funcionario_id: "", observacao: "",
   });
+  const [phaseSearch, setPhaseSearch] = useState("");
+  const [phaseOpen, setPhaseOpen] = useState(false);
+  const [newPhaseName, setNewPhaseName] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (editing) {
       setForm({
-        tipo: editing.tipo, nome_item: editing.nome_item, categoria: editing.categoria || "",
+        tipo: editing.tipo, fase: editing.fase || "", nome_item: editing.nome_item, categoria: editing.categoria || "",
         quantidade: editing.quantidade, unidade: editing.unidade,
         valor_unitario: editing.valor_unitario, data: editing.data,
         forma_pagamento: editing.forma_pagamento || "", fornecedor: editing.fornecedor || "",
@@ -448,8 +472,29 @@ function QuickAddCost({ obraId, userId, employees, onSaved, editing, onCancelEdi
 
   const valorTotal = Number(form.quantidade || 0) * Number(form.valor_unitario || 0);
 
+  const filteredPhases = useMemo(() => {
+    const q = phaseSearch.toLowerCase().trim();
+    return (phases as Phase[]).filter((p) => !q || p.nome.toLowerCase().includes(q));
+  }, [phases, phaseSearch]);
+
+  const createPhase = async (name: string) => {
+    const nome = name.trim();
+    if (!nome) return;
+    const { error } = await supabase.from("cc_phases" as any).insert({ user_id: userId, nome });
+    if (error) {
+      if (error.code !== "23505") return toast.error(error.message);
+    }
+    toast.success(`Fase "${nome}" adicionada`);
+    setForm({ ...form, fase: nome });
+    setPhaseSearch("");
+    setNewPhaseName("");
+    setPhaseOpen(false);
+    qc.invalidateQueries({ queryKey: ["cc-phases"] });
+  };
+
   const save = async () => {
     if (!form.nome_item) { toast.error("Informe o nome do item"); return; }
+    if (!form.fase) { toast.error("Selecione a fase da obra"); return; }
     setSaving(true);
     try {
       let comprovante_url: string | null = editing?.comprovante_url || null;
@@ -461,7 +506,7 @@ function QuickAddCost({ obraId, userId, employees, onSaved, editing, onCancelEdi
       }
       const payload: any = {
         user_id: userId, obra_id: obraId,
-        tipo: form.tipo, nome_item: form.nome_item,
+        tipo: form.tipo, fase: form.fase, nome_item: form.nome_item,
         categoria: form.categoria || null,
         tags: normalizeTags(form.nome_item, form.categoria),
         quantidade: Number(form.quantidade), unidade: form.unidade,
@@ -507,6 +552,77 @@ function QuickAddCost({ obraId, userId, employees, onSaved, editing, onCancelEdi
         <select className={inputCls} value={form.tipo} onChange={(e) => setForm({ ...form, tipo: e.target.value })}>
           {COST_TYPES.map((t) => <option key={t.value} value={t.value}>{t.icon} {t.label}</option>)}
         </select>
+
+        {/* Seletor de Fase (pesquisável + criar nova) */}
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setPhaseOpen((v) => !v)}
+            className={`${inputCls} flex items-center justify-between text-left`}
+          >
+            {form.fase ? (
+              <span className="flex items-center gap-2 truncate">
+                <span className="h-2.5 w-2.5 rounded-full" style={{ background: phaseColor(form.fase, phases) }} />
+                <span>{phaseIcon(form.fase, phases)}</span>
+                <span className="truncate">{form.fase}</span>
+              </span>
+            ) : (
+              <span className="text-muted-foreground">Fase da obra *</span>
+            )}
+            <Tag className="h-3.5 w-3.5 text-muted-foreground" />
+          </button>
+          {phaseOpen && (
+            <>
+              <div className="fixed inset-0 z-30" onClick={() => setPhaseOpen(false)} />
+              <div className="absolute z-40 mt-1 w-full bg-popover border border-border rounded-xl shadow-lg overflow-hidden">
+                <div className="p-2 border-b border-border">
+                  <input
+                    autoFocus
+                    value={phaseSearch}
+                    onChange={(e) => setPhaseSearch(e.target.value)}
+                    placeholder="Buscar fase..."
+                    className="w-full h-9 px-2 rounded-lg border border-border bg-background text-sm outline-none"
+                  />
+                </div>
+                <ul className="max-h-56 overflow-y-auto">
+                  {filteredPhases.map((p) => (
+                    <li key={p.nome}>
+                      <button
+                        type="button"
+                        onClick={() => { setForm({ ...form, fase: p.nome }); setPhaseOpen(false); setPhaseSearch(""); }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-accent text-left"
+                      >
+                        <span className="h-2.5 w-2.5 rounded-full" style={{ background: p.cor }} />
+                        <span>{p.icone}</span>
+                        <span>{p.nome}</span>
+                      </button>
+                    </li>
+                  ))}
+                  {filteredPhases.length === 0 && (
+                    <li className="px-3 py-3 text-xs text-muted-foreground">Nenhuma fase encontrada</li>
+                  )}
+                </ul>
+                <div className="p-2 border-t border-border flex gap-2">
+                  <input
+                    value={newPhaseName}
+                    onChange={(e) => setNewPhaseName(e.target.value)}
+                    placeholder="Nova fase..."
+                    className="flex-1 h-9 px-2 rounded-lg border border-border bg-background text-sm outline-none"
+                    onKeyDown={(e) => e.key === "Enter" && createPhase(newPhaseName)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => createPhase(newPhaseName || phaseSearch)}
+                    className="px-3 h-9 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:opacity-90 inline-flex items-center gap-1"
+                  >
+                    <Plus className="h-3 w-3" /> Nova Fase
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
         <input className={inputCls} placeholder="Nome do item" value={form.nome_item} onChange={(e) => setForm({ ...form, nome_item: e.target.value })} />
         <div className="grid grid-cols-3 gap-2">
           <input type="number" className={inputCls} placeholder="Qtd" value={form.quantidade} onChange={(e) => setForm({ ...form, quantidade: Number(e.target.value) })} />
@@ -551,14 +667,22 @@ function QuickAddCost({ obraId, userId, employees, onSaved, editing, onCancelEdi
 }
 
 /* ============== CUSTOS ============== */
-function CustosTab({ entries, obraId, userId, onChanged }: any) {
+function CustosTab({ entries, obraId, userId, onChanged, phases = DEFAULT_PHASES }: any) {
   const [search, setSearch] = useState("");
   const [tipoF, setTipoF] = useState("todos");
+  const [faseF, setFaseF] = useState("todas");
   const [editing, setEditing] = useState<Entry | null>(null);
 
+  const usedPhases = useMemo(() => {
+    const s = new Set<string>();
+    entries.forEach((e: Entry) => e.fase && s.add(e.fase));
+    return Array.from(s).sort();
+  }, [entries]);
+
   const filtered = entries.filter((e: Entry) => {
-    if (search && !`${e.nome_item} ${e.fornecedor || ""} ${e.categoria || ""}`.toLowerCase().includes(search.toLowerCase())) return false;
+    if (search && !`${e.nome_item} ${e.fornecedor || ""} ${e.categoria || ""} ${e.fase || ""}`.toLowerCase().includes(search.toLowerCase())) return false;
     if (tipoF !== "todos" && e.tipo !== tipoF) return false;
+    if (faseF !== "todas" && e.fase !== faseF) return false;
     return true;
   });
 
@@ -581,14 +705,18 @@ function CustosTab({ entries, obraId, userId, onChanged }: any) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
       <div className="lg:col-span-2 space-y-3">
-        <div className="bg-card border border-border rounded-2xl p-3 flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
+        <div className="bg-card border border-border rounded-2xl p-3 flex flex-col sm:flex-row gap-3 flex-wrap">
+          <div className="relative flex-1 min-w-[180px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar custo..." className="w-full h-10 pl-9 pr-3 rounded-xl border border-border bg-background text-sm" />
           </div>
           <select value={tipoF} onChange={(e) => setTipoF(e.target.value)} className="h-10 px-3 rounded-xl border border-border bg-background text-sm">
             <option value="todos">Todos tipos</option>
             {COST_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+          </select>
+          <select value={faseF} onChange={(e) => setFaseF(e.target.value)} className="h-10 px-3 rounded-xl border border-border bg-background text-sm">
+            <option value="todas">Todas as fases</option>
+            {usedPhases.map((f) => <option key={f} value={f}>{f}</option>)}
           </select>
         </div>
         {filtered.length === 0 ? (
@@ -599,12 +727,20 @@ function CustosTab({ entries, obraId, userId, onChanged }: any) {
           <ul className="space-y-2">
             {filtered.map((e: Entry) => {
               const type = COST_TYPES.find((t) => t.value === e.tipo);
+              const cor = phaseColor(e.fase, phases);
               return (
-                <li key={e.id} className="bg-card border border-border rounded-2xl p-4 hover:shadow-md transition-shadow flex items-center gap-3">
+                <li key={e.id} className="bg-card border border-border rounded-2xl p-4 hover:shadow-md transition-shadow flex items-center gap-3 relative overflow-hidden">
+                  <span className="absolute left-0 top-0 bottom-0 w-1" style={{ background: cor }} />
                   <div className="h-11 w-11 rounded-xl bg-muted flex items-center justify-center text-xl">{type?.icon}</div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="font-medium truncate">{e.nome_item}</p>
+                      {e.fase && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-md font-semibold inline-flex items-center gap-1"
+                          style={{ background: `${cor}20`, color: cor }}>
+                          {phaseIcon(e.fase, phases)} {e.fase}
+                        </span>
+                      )}
                       {e.tags?.slice(0, 2).map((t) => (
                         <span key={t} className="text-[10px] px-1.5 py-0.5 rounded-md bg-primary/10 text-primary">#{t}</span>
                       ))}
@@ -627,7 +763,7 @@ function CustosTab({ entries, obraId, userId, onChanged }: any) {
           </ul>
         )}
       </div>
-      <QuickAddCost obraId={obraId} userId={userId} employees={[]} onSaved={onChanged} editing={editing} onCancelEdit={() => setEditing(null)} />
+      <QuickAddCost obraId={obraId} userId={userId} employees={[]} onSaved={onChanged} editing={editing} onCancelEdit={() => setEditing(null)} phases={phases} />
     </div>
   );
 }
@@ -782,71 +918,218 @@ function MateriaisTab({ entries }: any) {
 }
 
 /* ============== ANALYTICS ============== */
-function AnalyticsTab({ entries, orcamentoPrevisto, gastoTotal, pctConsumido, saude }: any) {
-  const insights = useMemo(() => {
-    if (entries.length === 0) return [];
-    const materiais = entries.filter((e: Entry) => e.tipo === "material");
-    const maisCaro = [...entries].sort((a, b) => Number(b.valor_total) - Number(a.valor_total))[0];
-    const porCat: Record<string, number> = {};
-    entries.forEach((e: Entry) => { porCat[e.tipo] = (porCat[e.tipo] || 0) + Number(e.valor_total); });
-    const critica = Object.entries(porCat).sort((a, b) => b[1] - a[1])[0];
-    const meses = new Set(entries.map((e: Entry) => e.data?.slice(0, 7))).size || 1;
-    const media = gastoTotal / meses;
-    const previsao = gastoTotal + media * 3;
-    const estouro = orcamentoPrevisto > 0 && previsao > orcamentoPrevisto;
-    return [
-      { tone: "rose", label: "Item mais caro", value: `${maisCaro?.nome_item} — ${formatBRL(maisCaro?.valor_total || 0)}` },
-      { tone: "amber", label: "Categoria crítica", value: `${critica?.[0]} — ${formatBRL(critica?.[1] || 0)}` },
-      { tone: estouro ? "rose" : "emerald", label: "Previsão final estimada", value: `${formatBRL(previsao)} ${estouro ? "(risco de estouro)" : "(dentro do orçamento)"}` },
-      { tone: "indigo", label: "Média mensal de gasto", value: formatBRL(media) },
-      { tone: "blue", label: "Materiais lançados", value: `${materiais.length} itens` },
-    ];
-  }, [entries, gastoTotal, orcamentoPrevisto]);
+function AnalyticsTab({ entries, orcamentoPrevisto, gastoTotal, pctConsumido, saude, phases = DEFAULT_PHASES }: any) {
+  // Dados por fase
+  const porFase = useMemo(() => {
+    const map: Record<string, number> = {};
+    entries.forEach((e: Entry) => {
+      const k = e.fase || "Sem fase";
+      map[k] = (map[k] || 0) + Number(e.valor_total || 0);
+    });
+    return Object.entries(map)
+      .map(([nome, total]) => ({ nome, total, cor: phaseColor(nome === "Sem fase" ? null : nome, phases) }))
+      .sort((a, b) => b.total - a.total);
+  }, [entries, phases]);
+
+  const totalFases = porFase.reduce((s, p) => s + p.total, 0);
+
+  // Evolução por fase (mensal)
+  const evolucaoFase = useMemo(() => {
+    const meses = new Set<string>();
+    entries.forEach((e: Entry) => meses.add(e.data?.slice(0, 7)));
+    const sortedMeses = Array.from(meses).filter(Boolean).sort();
+    const topFases = porFase.slice(0, 5).map((p) => p.nome);
+    return sortedMeses.map((m) => {
+      const row: any = { mes: m.slice(5) + "/" + m.slice(2, 4) };
+      topFases.forEach((f) => { row[f] = 0; });
+      entries.filter((e: Entry) => e.data?.slice(0, 7) === m).forEach((e: Entry) => {
+        const k = e.fase || "Sem fase";
+        if (topFases.includes(k)) row[k] = (row[k] || 0) + Number(e.valor_total || 0);
+      });
+      return row;
+    });
+  }, [entries, porFase]);
+
+  const topFases = porFase.slice(0, 5);
+
+  // Insights automáticos
+  const phaseInsights = useMemo(() => {
+    const out: Array<{ tone: "amber" | "rose" | "emerald" | "indigo"; icon: string; text: string }> = [];
+    if (entries.length === 0) return out;
+    // 1. Fase consumindo orçamento
+    if (orcamentoPrevisto > 0 && porFase[0]) {
+      const pct = (porFase[0].total / orcamentoPrevisto) * 100;
+      if (pct >= 50) out.push({ tone: "amber", icon: "🟡", text: `ALERTA: ${porFase[0].nome} consumiu ${pct.toFixed(0)}% do orçamento previsto.` });
+    }
+    // 2. Crescimento semanal por fase
+    const now = new Date();
+    const semanaAtual = entries.filter((e: Entry) => (now.getTime() - new Date(e.data).getTime()) / 86400000 <= 7);
+    const semanaAnterior = entries.filter((e: Entry) => {
+      const d = (now.getTime() - new Date(e.data).getTime()) / 86400000;
+      return d > 7 && d <= 14;
+    });
+    const sumByFase = (arr: Entry[]) => arr.reduce((m: any, e) => { const k = e.fase || "Sem fase"; m[k] = (m[k] || 0) + Number(e.valor_total); return m; }, {});
+    const a = sumByFase(semanaAtual), b = sumByFase(semanaAnterior);
+    Object.keys(a).forEach((k) => {
+      if (b[k] && a[k] > b[k] * 1.2) {
+        out.push({ tone: "rose", icon: "🔴", text: `RISCO: Custos de ${k} cresceram ${(((a[k] - b[k]) / b[k]) * 100).toFixed(0)}% esta semana.` });
+      }
+    });
+    // 3. Fase abaixo do previsto (economia)
+    const fasesComBaixoGasto = porFase.filter((p) => p.total > 0 && p.total < totalFases * 0.05);
+    fasesComBaixoGasto.slice(0, 1).forEach((p) => {
+      out.push({ tone: "emerald", icon: "🟢", text: `ECONOMIA: Fase de ${p.nome} ficou abaixo do previsto.` });
+    });
+    if (out.length === 0) {
+      out.push({ tone: "indigo", icon: "ℹ️", text: "Sem alertas críticos por fase no momento." });
+    }
+    return out.slice(0, 5);
+  }, [entries, porFase, orcamentoPrevisto, totalFases]);
 
   const score = Math.max(0, Math.min(100, Math.round(100 - pctConsumido)));
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-      <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {insights.map((i, idx) => (
-          <div key={idx} className={`rounded-2xl border border-border bg-card p-5 relative overflow-hidden`}>
-            <div className={`absolute top-0 right-0 w-24 h-24 rounded-full blur-2xl opacity-30 bg-${i.tone}-500`} />
-            <p className="text-xs text-muted-foreground relative">{i.label}</p>
-            <p className="text-base font-semibold mt-1 relative">{i.value}</p>
-          </div>
-        ))}
+    <div className="space-y-4">
+      {/* Insights por fase */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        {phaseInsights.map((i, idx) => {
+          const toneCls = i.tone === "rose" ? "border-rose-500/40 bg-rose-500/5"
+            : i.tone === "amber" ? "border-amber-500/40 bg-amber-500/5"
+            : i.tone === "emerald" ? "border-emerald-500/40 bg-emerald-500/5"
+            : "border-indigo-500/40 bg-indigo-500/5";
+          return (
+            <div key={idx} className={`rounded-2xl border ${toneCls} p-4 flex gap-3`}>
+              <span className="text-xl">{i.icon}</span>
+              <p className="text-sm font-medium">{i.text}</p>
+            </div>
+          );
+        })}
       </div>
-      <div className="bg-card border border-border rounded-2xl p-5">
-        <h3 className="font-semibold mb-1">Saúde Financeira</h3>
-        <p className="text-xs text-muted-foreground mb-4">Score automático</p>
-        <div className="relative w-full aspect-square max-w-[220px] mx-auto">
-          <svg viewBox="0 0 120 120" className="w-full h-full -rotate-90">
-            <circle cx="60" cy="60" r="50" stroke="hsl(var(--muted))" strokeWidth="12" fill="none" />
-            <circle
-              cx="60" cy="60" r="50" fill="none" strokeWidth="12" strokeLinecap="round"
-              stroke={saude === "saudavel" ? "#10b981" : saude === "atencao" ? "#f59e0b" : "#ef4444"}
-              strokeDasharray={`${(score / 100) * 314} 314`}
-            />
-          </svg>
-          <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <p className="text-4xl font-bold tabular-nums">{score}</p>
-            <p className="text-xs text-muted-foreground">/ 100</p>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Donut Gastos por Fase */}
+        <div className="bg-card border border-border rounded-2xl p-5">
+          <h3 className="font-semibold mb-1">Gastos por Fase</h3>
+          <p className="text-xs text-muted-foreground mb-4">Distribuição percentual</p>
+          <div className="h-64">
+            {porFase.length === 0 ? <EmptyChart label="Sem dados" /> : (
+              <ResponsiveContainer>
+                <PieChart>
+                  <Pie data={porFase} dataKey="total" nameKey="nome" innerRadius={55} outerRadius={85} paddingAngle={2}>
+                    {porFase.map((p, i) => <Cell key={i} fill={p.cor} />)}
+                  </Pie>
+                  <Tooltip formatter={(v: any) => formatBRL(Number(v))} contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 12 }} />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+          <div className="space-y-1 mt-2 text-xs max-h-40 overflow-y-auto">
+            {porFase.slice(0, 8).map((p) => (
+              <div key={p.nome} className="flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full" style={{ background: p.cor }} />
+                  {p.nome}
+                </span>
+                <span className="font-medium tabular-nums">{totalFases > 0 ? ((p.total / totalFases) * 100).toFixed(1) : 0}%</span>
+              </div>
+            ))}
           </div>
         </div>
-        <p className={`text-center mt-3 text-sm font-medium ${saude === "saudavel" ? "text-emerald-600" : saude === "atencao" ? "text-amber-600" : "text-rose-600"}`}>
-          {saude === "saudavel" ? "🟢 Obra saudável" : saude === "atencao" ? "🟡 Atenção" : "🔴 Risco financeiro"}
-        </p>
+
+        {/* Evolução por etapa */}
+        <div className="lg:col-span-2 bg-card border border-border rounded-2xl p-5">
+          <h3 className="font-semibold mb-1">Evolução Financeira por Etapa</h3>
+          <p className="text-xs text-muted-foreground mb-4">Top 5 fases ao longo dos meses</p>
+          <div className="h-64">
+            {evolucaoFase.length === 0 ? <EmptyChart label="Sem lançamentos" /> : (
+              <ResponsiveContainer>
+                <LineChart data={evolucaoFase}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="mes" fontSize={11} stroke="hsl(var(--muted-foreground))" />
+                  <YAxis fontSize={11} stroke="hsl(var(--muted-foreground))" tickFormatter={(v) => `R$${(v/1000).toFixed(0)}k`} />
+                  <Tooltip formatter={(v: any) => formatBRL(Number(v))} contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 12 }} />
+                  {topFases.map((p) => (
+                    <Line key={p.nome} type="monotone" dataKey={p.nome} stroke={p.cor} strokeWidth={2} dot={false} />
+                  ))}
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Ranking das fases mais caras */}
+      <div className="bg-card border border-border rounded-2xl p-5">
+        <h3 className="font-semibold mb-4">Ranking das Fases Mais Caras</h3>
+        {topFases.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Sem dados.</p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {topFases.map((p, i) => (
+              <div key={p.nome} className="rounded-2xl border border-border bg-card p-4 relative overflow-hidden">
+                <div className="absolute top-0 left-0 right-0 h-1" style={{ background: p.cor }} />
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold tabular-nums px-2 py-0.5 rounded-md" style={{ background: `${p.cor}20`, color: p.cor }}>#{i + 1}</span>
+                  <span className="text-lg">{phaseIcon(p.nome, phases)}</span>
+                  <p className="font-semibold truncate">{p.nome}</p>
+                </div>
+                <p className="text-2xl font-bold tabular-nums mt-2">{formatBRL(p.total)}</p>
+                <p className="text-xs text-muted-foreground">{totalFases > 0 ? ((p.total / totalFases) * 100).toFixed(1) : 0}% do total</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2 bg-card border border-border rounded-2xl p-5">
+          <h3 className="font-semibold mb-4">Resumo de saúde</h3>
+          <p className="text-sm text-muted-foreground">
+            Score automático calculado com base no consumo do orçamento.
+            Quanto mais próximo de 100, mais saudável a obra.
+          </p>
+        </div>
+        <div className="bg-card border border-border rounded-2xl p-5">
+          <h3 className="font-semibold mb-1">Saúde Financeira</h3>
+          <p className="text-xs text-muted-foreground mb-4">Score automático</p>
+          <div className="relative w-full aspect-square max-w-[200px] mx-auto">
+            <svg viewBox="0 0 120 120" className="w-full h-full -rotate-90">
+              <circle cx="60" cy="60" r="50" stroke="hsl(var(--muted))" strokeWidth="12" fill="none" />
+              <circle cx="60" cy="60" r="50" fill="none" strokeWidth="12" strokeLinecap="round"
+                stroke={saude === "saudavel" ? "#10b981" : saude === "atencao" ? "#f59e0b" : "#ef4444"}
+                strokeDasharray={`${(score / 100) * 314} 314`} />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <p className="text-4xl font-bold tabular-nums">{score}</p>
+              <p className="text-xs text-muted-foreground">/ 100</p>
+            </div>
+          </div>
+          <p className={`text-center mt-3 text-sm font-medium ${saude === "saudavel" ? "text-emerald-600" : saude === "atencao" ? "text-amber-600" : "text-rose-600"}`}>
+            {saude === "saudavel" ? "🟢 Obra saudável" : saude === "atencao" ? "🟡 Atenção" : "🔴 Risco financeiro"}
+          </p>
+        </div>
       </div>
     </div>
   );
 }
 
 /* ============== RELATÓRIOS ============== */
-function RelatoriosTab({ entries, obra, orcamentoPrevisto, gastoTotal }: any) {
+function RelatoriosTab({ entries, obra, orcamentoPrevisto, gastoTotal, phases = DEFAULT_PHASES }: any) {
+  const porFase = useMemo(() => {
+    const map: Record<string, number> = {};
+    entries.forEach((e: Entry) => {
+      const k = e.fase || "Sem fase";
+      map[k] = (map[k] || 0) + Number(e.valor_total || 0);
+    });
+    return Object.entries(map)
+      .map(([nome, total]) => ({ nome, total }))
+      .sort((a, b) => b.total - a.total);
+  }, [entries]);
+
   const exportCSV = () => {
-    const headers = ["Data", "Tipo", "Item", "Categoria", "Qtd", "Unidade", "Vl. Unit.", "Total", "Fornecedor", "Pagamento"];
+    const headers = ["Data", "Tipo", "Fase", "Item", "Categoria", "Qtd", "Unidade", "Vl. Unit.", "Total", "Fornecedor", "Pagamento"];
     const rows = entries.map((e: Entry) => [
-      e.data, e.tipo, e.nome_item, e.categoria || "", e.quantidade, e.unidade,
+      e.data, e.tipo, e.fase || "", e.nome_item, e.categoria || "", e.quantidade, e.unidade,
       e.valor_unitario, e.valor_total, e.fornecedor || "", e.forma_pagamento || "",
     ]);
     const csv = [headers, ...rows].map((r: any[]) => r.map((c: any) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
@@ -857,9 +1140,12 @@ function RelatoriosTab({ entries, obra, orcamentoPrevisto, gastoTotal }: any) {
     a.click();
   };
 
+  const totalFases = porFase.reduce((s, p) => s + p.total, 0);
+
   const reports = [
     { title: "Resumo Financeiro", desc: "Visão consolidada de orçamento, gasto e saldo" },
     { title: "Custos por Categoria", desc: "Distribuição de gastos por tipo" },
+    { title: "Custos por Fase da Obra", desc: "Total, percentual, evolução e gráficos por etapa" },
     { title: "Materiais", desc: "Consumo agrupado por tag" },
     { title: "Funcionários", desc: "Folha e custos de mão de obra" },
     { title: "Evolução Financeira", desc: "Linha do tempo mensal" },
@@ -893,6 +1179,42 @@ function RelatoriosTab({ entries, obra, orcamentoPrevisto, gastoTotal }: any) {
             <p className="text-xs text-muted-foreground mt-1">{r.desc}</p>
           </button>
         ))}
+      </div>
+
+      {/* Sessão: Custos por Fase da Obra */}
+      <div className="bg-card border border-border rounded-2xl p-5">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="font-semibold">Custos por Fase da Obra</h3>
+            <p className="text-xs text-muted-foreground">Total, percentual e comparativo</p>
+          </div>
+          <span className="text-sm font-semibold tabular-nums">{formatBRL(totalFases)}</span>
+        </div>
+        {porFase.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-6">Sem lançamentos com fase atribuída.</p>
+        ) : (
+          <ul className="space-y-2">
+            {porFase.map((p) => {
+              const cor = phaseColor(p.nome === "Sem fase" ? null : p.nome, phases);
+              const pct = totalFases > 0 ? (p.total / totalFases) * 100 : 0;
+              return (
+                <li key={p.nome} className="rounded-xl border border-border p-3">
+                  <div className="flex items-center justify-between text-sm mb-1.5">
+                    <span className="flex items-center gap-2 font-medium">
+                      <span className="h-2.5 w-2.5 rounded-full" style={{ background: cor }} />
+                      <span>{phaseIcon(p.nome === "Sem fase" ? null : p.nome, phases)}</span>
+                      {p.nome}
+                    </span>
+                    <span className="tabular-nums font-semibold">{formatBRL(p.total)} <span className="text-xs text-muted-foreground">({pct.toFixed(1)}%)</span></span>
+                  </div>
+                  <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                    <div className="h-full rounded-full" style={{ width: `${pct}%`, background: cor }} />
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </div>
     </div>
   );

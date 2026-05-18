@@ -66,6 +66,52 @@ export const PAYMENT_METHODS = [
 
 export const UNITS = ["un", "kg", "g", "m", "m²", "m³", "L", "saco", "pç", "h", "dia"];
 
+// Fases padrão da obra (subcategorias financeiras)
+export type Phase = { nome: string; cor: string; icone: string };
+
+export const DEFAULT_PHASES: Phase[] = [
+  { nome: "Terraplanagem", cor: "#92400e", icone: "🟤" },
+  { nome: "Drenagem", cor: "#0284c7", icone: "💧" },
+  { nome: "Pavimentação", cor: "#ea580c", icone: "🛣️" },
+  { nome: "Fundação", cor: "#475569", icone: "🏗️" },
+  { nome: "Estrutura", cor: "#7c3aed", icone: "🧱" },
+  { nome: "Alvenaria", cor: "#a16207", icone: "🧱" },
+  { nome: "Cobertura", cor: "#b91c1c", icone: "🏠" },
+  { nome: "Instalação Elétrica", cor: "#facc15", icone: "⚡" },
+  { nome: "Instalação Hidráulica", cor: "#0ea5e9", icone: "🚰" },
+  { nome: "Acabamento", cor: "#db2777", icone: "✨" },
+  { nome: "Pintura", cor: "#8b5cf6", icone: "🎨" },
+  { nome: "Urbanização", cor: "#16a34a", icone: "🌳" },
+  { nome: "Limpeza", cor: "#22c55e", icone: "🧹" },
+  { nome: "Ferramentas", cor: "#6b7280", icone: "🛠️" },
+  { nome: "Equipamentos", cor: "#334155", icone: "⚙️" },
+  { nome: "Transporte", cor: "#0891b2", icone: "🚚" },
+  { nome: "Segurança", cor: "#dc2626", icone: "🦺" },
+  { nome: "Administração da Obra", cor: "#1e40af", icone: "📋" },
+  { nome: "Alimentação", cor: "#f59e0b", icone: "🍱" },
+  { nome: "Locação de Máquinas", cor: "#9333ea", icone: "🚜" },
+  { nome: "Serviços Terceirizados", cor: "#0d9488", icone: "🧰" },
+  { nome: "Outros", cor: "#64748b", icone: "📌" },
+];
+
+const PALETTE = ["#6366f1","#10b981","#f59e0b","#ef4444","#06b6d4","#8b5cf6","#ec4899","#84cc16","#0ea5e9","#f97316","#14b8a6","#a855f7"];
+
+export function phaseColor(nome: string | null | undefined, customs: Phase[] = []): string {
+  if (!nome) return "#94a3b8";
+  const all = [...DEFAULT_PHASES, ...customs];
+  const found = all.find((p) => p.nome.toLowerCase() === nome.toLowerCase());
+  if (found) return found.cor;
+  let h = 0;
+  for (let i = 0; i < nome.length; i++) h = (h * 31 + nome.charCodeAt(i)) >>> 0;
+  return PALETTE[h % PALETTE.length];
+}
+
+export function phaseIcon(nome: string | null | undefined, customs: Phase[] = []): string {
+  if (!nome) return "📌";
+  const all = [...DEFAULT_PHASES, ...customs];
+  return all.find((p) => p.nome.toLowerCase() === nome.toLowerCase())?.icone || "🏷️";
+}
+
 export function formatBRL(value: number | null | undefined): string {
   const n = Number(value || 0);
   return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
