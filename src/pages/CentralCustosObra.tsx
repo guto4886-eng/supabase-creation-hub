@@ -753,7 +753,7 @@ function CustosTab({ entries, obraId, userId, onChanged, phases = DEFAULT_PHASES
               const type = COST_TYPES.find((t) => t.value === e.tipo);
               const cor = phaseColor(e.fase, phases);
               return (
-                <li key={e.id} className="bg-card border border-border rounded-2xl p-4 hover:shadow-md transition-shadow flex items-center gap-3 relative overflow-hidden">
+                <li key={e.id} onClick={() => setDetails(e)} className="bg-card border border-border rounded-2xl p-4 hover:shadow-md hover:border-primary/40 transition-all flex items-center gap-3 relative overflow-hidden cursor-pointer">
                   <span className="absolute left-0 top-0 bottom-0 w-1" style={{ background: cor }} />
                   <div className="h-11 w-11 rounded-xl bg-muted flex items-center justify-center text-xl">{type?.icon}</div>
                   <div className="flex-1 min-w-0">
@@ -771,12 +771,14 @@ function CustosTab({ entries, obraId, userId, onChanged, phases = DEFAULT_PHASES
                     </div>
                     <p className="text-xs text-muted-foreground">
                       {type?.label} • {new Date(e.data).toLocaleDateString("pt-BR")}
+                      {e.quantidade ? ` • ${e.quantidade} ${e.unidade || ""}` : ""}
                       {e.fornecedor && ` • ${e.fornecedor}`}
                       {e.forma_pagamento && ` • ${e.forma_pagamento}`}
                     </p>
                   </div>
                   <span className="font-semibold tabular-nums">{formatBRL(e.valor_total)}</span>
-                  <div className="flex gap-1">
+                  <div className="flex gap-1" onClick={(ev) => ev.stopPropagation()}>
+                    <button onClick={() => setDetails(e)} className="p-1.5 rounded-lg hover:bg-muted" title="Ver detalhes"><Info className="h-3.5 w-3.5" /></button>
                     <button onClick={() => setEditing(e)} className="p-1.5 rounded-lg hover:bg-muted" title="Editar"><Pencil className="h-3.5 w-3.5" /></button>
                     <button onClick={() => duplicate(e)} className="p-1.5 rounded-lg hover:bg-muted" title="Duplicar"><Copy className="h-3.5 w-3.5" /></button>
                     <button onClick={() => remove(e.id)} className="p-1.5 rounded-lg hover:bg-rose-500/10 text-rose-500" title="Excluir"><Trash2 className="h-3.5 w-3.5" /></button>
