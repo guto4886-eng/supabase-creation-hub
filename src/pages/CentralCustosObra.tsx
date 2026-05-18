@@ -5,7 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import { formatBRL, COST_TYPES, PAYMENT_METHODS, UNITS, normalizeTags } from "@/utils/ccTags";
+import { formatBRL, COST_TYPES, PAYMENT_METHODS, UNITS, normalizeTags, DEFAULT_PHASES, phaseColor, phaseIcon, type Phase } from "@/utils/ccTags";
 import {
   ArrowLeft, Plus, Download, FileText, Wallet, TrendingUp, Target, AlertTriangle,
   Activity, Trash2, Copy, Pencil, Upload, Search, Calendar, Tag, Users, Package,
