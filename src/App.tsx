@@ -65,6 +65,8 @@ function App() {
                 <Route path="purchases/quotations" element={<PurchaseQuotations />} />
                 <Route path="purchases/orders" element={<PurchaseOrders />} />
                 <Route path="obras" element={<Obras />} />
+                <Route path="central-custos" element={<CentralCustos />} />
+                <Route path="central-custos/:obraId" element={<CentralCustosObra />} />
                 <Route path="labor" element={<Labor />} />
                 <Route path="budgets" element={<Budgets />} />
                 <Route path="sinapi" element={<Sinapi />} />
