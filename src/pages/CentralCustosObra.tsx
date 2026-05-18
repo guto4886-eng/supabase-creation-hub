@@ -314,11 +314,16 @@ function VisaoGeralTab({
   }, [entries, gastoTotal]);
 
   const kpis = [
-    { icon: Target, label: "Orçamento Previsto", value: orcamentoPrevisto, color: "from-indigo-500/15 to-transparent", ico: "text-indigo-500" },
-    { icon: Wallet, label: "Gasto Total", value: gastoTotal, color: "from-rose-500/15 to-transparent", ico: "text-rose-500" },
-    { icon: TrendingUp, label: "Saldo Disponível", value: saldo, color: "from-emerald-500/15 to-transparent", ico: "text-emerald-500" },
-    { icon: AlertTriangle, label: "Previsão Final", value: previsaoFinal, color: "from-amber-500/15 to-transparent", ico: "text-amber-500" },
-    { icon: Activity, label: "Margem", value: margem, fmt: "pct", color: "from-blue-500/15 to-transparent", ico: "text-blue-500" },
+    { icon: Target, label: "Orçamento Previsto", value: orcamentoPrevisto, color: "from-indigo-500/15 to-transparent", ico: "text-indigo-500",
+      tip: "Valor definido manualmente na aba Configurações como meta orçamentária da obra." },
+    { icon: Wallet, label: "Gasto Total", value: gastoTotal, color: "from-rose-500/15 to-transparent", ico: "text-rose-500",
+      tip: "Soma de todos os lançamentos de custo registrados nesta obra (campo valor_total)." },
+    { icon: TrendingUp, label: "Saldo Disponível", value: saldo, color: "from-emerald-500/15 to-transparent", ico: "text-emerald-500",
+      tip: "Orçamento Previsto − Gasto Total. Valor que ainda resta da meta definida." },
+    { icon: AlertTriangle, label: "Previsão Final", value: previsaoFinal, color: "from-amber-500/15 to-transparent", ico: "text-amber-500",
+      tip: "Projeção estimada do custo final da obra.\n\nFórmula:\n• meses = nº de meses distintos com lançamentos\n• média mensal = Gasto Total ÷ meses\n• Previsão Final = Gasto Total + (média mensal × 3)\n\nOu seja: pega o ritmo médio de gasto e projeta mais 3 meses à frente." },
+    { icon: Activity, label: "Margem", value: margem, fmt: "pct", color: "from-blue-500/15 to-transparent", ico: "text-blue-500",
+      tip: "(Saldo ÷ Orçamento Previsto) × 100. Percentual do orçamento ainda disponível." },
   ];
 
   return (
@@ -333,8 +338,19 @@ function VisaoGeralTab({
           >
             <div className={`absolute inset-0 bg-gradient-to-br ${k.color}`} />
             <div className="relative">
-              <div className={`inline-flex p-2 rounded-xl bg-background/60 ${k.ico}`}>
-                <k.icon className="h-4 w-4" />
+              <div className="flex items-start justify-between">
+                <div className={`inline-flex p-2 rounded-xl bg-background/60 ${k.ico}`}>
+                  <k.icon className="h-4 w-4" />
+                </div>
+                {k.tip && (
+                  <span
+                    title={k.tip}
+                    className="cursor-help text-muted-foreground hover:text-foreground transition-colors"
+                    aria-label={`Como é calculado: ${k.label}`}
+                  >
+                    <Info className="h-3.5 w-3.5" />
+                  </span>
+                )}
               </div>
               <p className="text-xs text-muted-foreground mt-3">{k.label}</p>
               <p className="text-lg lg:text-xl font-bold mt-1 tabular-nums">
