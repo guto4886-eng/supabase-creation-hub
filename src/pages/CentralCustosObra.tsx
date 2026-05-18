@@ -838,7 +838,7 @@ function RelatoriosTab({ entries, obra, orcamentoPrevisto, gastoTotal }: any) {
       e.data, e.tipo, e.nome_item, e.categoria || "", e.quantidade, e.unidade,
       e.valor_unitario, e.valor_total, e.fornecedor || "", e.forma_pagamento || "",
     ]);
-    const csv = [headers, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const csv = [headers, ...rows].map((r: any[]) => r.map((c: any) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
     const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
