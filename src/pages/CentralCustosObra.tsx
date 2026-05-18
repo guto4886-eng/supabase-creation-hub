@@ -34,6 +34,7 @@ type Entry = {
   funcionario_id: string | null;
   observacao: string | null;
   comprovante_url: string | null;
+  fase: string | null;
   created_at: string;
 };
 
