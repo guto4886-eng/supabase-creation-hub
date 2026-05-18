@@ -552,6 +552,77 @@ function QuickAddCost({ obraId, userId, employees, onSaved, editing, onCancelEdi
         <select className={inputCls} value={form.tipo} onChange={(e) => setForm({ ...form, tipo: e.target.value })}>
           {COST_TYPES.map((t) => <option key={t.value} value={t.value}>{t.icon} {t.label}</option>)}
         </select>
+
+        {/* Seletor de Fase (pesquisável + criar nova) */}
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setPhaseOpen((v) => !v)}
+            className={`${inputCls} flex items-center justify-between text-left`}
+          >
+            {form.fase ? (
+              <span className="flex items-center gap-2 truncate">
+                <span className="h-2.5 w-2.5 rounded-full" style={{ background: phaseColor(form.fase, phases) }} />
+                <span>{phaseIcon(form.fase, phases)}</span>
+                <span className="truncate">{form.fase}</span>
+              </span>
+            ) : (
+              <span className="text-muted-foreground">Fase da obra *</span>
+            )}
+            <Tag className="h-3.5 w-3.5 text-muted-foreground" />
+          </button>
+          {phaseOpen && (
+            <>
+              <div className="fixed inset-0 z-30" onClick={() => setPhaseOpen(false)} />
+              <div className="absolute z-40 mt-1 w-full bg-popover border border-border rounded-xl shadow-lg overflow-hidden">
+                <div className="p-2 border-b border-border">
+                  <input
+                    autoFocus
+                    value={phaseSearch}
+                    onChange={(e) => setPhaseSearch(e.target.value)}
+                    placeholder="Buscar fase..."
+                    className="w-full h-9 px-2 rounded-lg border border-border bg-background text-sm outline-none"
+                  />
+                </div>
+                <ul className="max-h-56 overflow-y-auto">
+                  {filteredPhases.map((p) => (
+                    <li key={p.nome}>
+                      <button
+                        type="button"
+                        onClick={() => { setForm({ ...form, fase: p.nome }); setPhaseOpen(false); setPhaseSearch(""); }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-accent text-left"
+                      >
+                        <span className="h-2.5 w-2.5 rounded-full" style={{ background: p.cor }} />
+                        <span>{p.icone}</span>
+                        <span>{p.nome}</span>
+                      </button>
+                    </li>
+                  ))}
+                  {filteredPhases.length === 0 && (
+                    <li className="px-3 py-3 text-xs text-muted-foreground">Nenhuma fase encontrada</li>
+                  )}
+                </ul>
+                <div className="p-2 border-t border-border flex gap-2">
+                  <input
+                    value={newPhaseName}
+                    onChange={(e) => setNewPhaseName(e.target.value)}
+                    placeholder="Nova fase..."
+                    className="flex-1 h-9 px-2 rounded-lg border border-border bg-background text-sm outline-none"
+                    onKeyDown={(e) => e.key === "Enter" && createPhase(newPhaseName)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => createPhase(newPhaseName || phaseSearch)}
+                    className="px-3 h-9 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:opacity-90 inline-flex items-center gap-1"
+                  >
+                    <Plus className="h-3 w-3" /> Nova Fase
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
         <input className={inputCls} placeholder="Nome do item" value={form.nome_item} onChange={(e) => setForm({ ...form, nome_item: e.target.value })} />
         <div className="grid grid-cols-3 gap-2">
           <input type="number" className={inputCls} placeholder="Qtd" value={form.quantidade} onChange={(e) => setForm({ ...form, quantidade: Number(e.target.value) })} />
