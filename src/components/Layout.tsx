@@ -32,6 +32,7 @@ const navItems: NavItem[] = [
     ],
   },
   { to: "/obras", label: "Obras", icon: Building2 },
+  { to: "/central-custos", label: "Central de Custos", icon: LineChart, badge: "NOVO" },
   { to: "/labor", label: "Mão de Obra", icon: HardHat },
   { to: "/budgets", label: "Orçamentos", icon: FileText },
   { to: "/sinapi", label: "Base SINAPI", icon: Database },
