@@ -1361,3 +1361,106 @@ function ConfigTab({ obraId, userId, settings, onSaved }: any) {
 function EmptyChart({ label }: { label: string }) {
   return <div className="h-full flex items-center justify-center text-sm text-muted-foreground">{label}</div>;
 }
+
+function OrcamentoInlineEditor({
+  obraId, userId, value, onSaved,
+}: { obraId: string; userId: string; value: number; onSaved: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [input, setInput] = useState<string>(value ? String(value) : "");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setInput(value ? String(value) : "");
+  }, [value]);
+
+  const save = async () => {
+    if (!userId || !obraId) return;
+    const num = input === "" ? null : Number(input);
+    if (num != null && (isNaN(num) || num < 0)) return toast.error("Valor inválido");
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from("cc_obra_settings" as any)
+        .upsert(
+          { obra_id: obraId, user_id: userId, orcamento_previsto: num },
+          { onConflict: "obra_id" }
+        );
+      if (error) throw error;
+      toast.success("Orçamento atualizado");
+      setEditing(false);
+      onSaved();
+    } catch (e: any) {
+      toast.error(e.message || "Erro ao salvar");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const isEmpty = !value || value <= 0;
+
+  return (
+    <div
+      className={`rounded-2xl border p-3 min-w-[260px] ${
+        isEmpty
+          ? "border-amber-500/40 bg-amber-500/5"
+          : "border-border bg-card"
+      }`}
+    >
+      <div className="flex items-center justify-between mb-1.5">
+        <div className="flex items-center gap-1.5">
+          <Target className="h-3.5 w-3.5 text-indigo-500" />
+          <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
+            Orçamento Previsto
+          </span>
+        </div>
+        {!editing && (
+          <button
+            onClick={() => setEditing(true)}
+            className="text-[11px] text-primary hover:underline inline-flex items-center gap-1"
+          >
+            <Pencil className="h-3 w-3" /> {isEmpty ? "Definir" : "Editar"}
+          </button>
+        )}
+      </div>
+
+      {editing ? (
+        <div className="flex items-center gap-2">
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            autoFocus
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") save(); if (e.key === "Escape") setEditing(false); }}
+            placeholder="0,00"
+            className="flex-1 h-9 px-2 rounded-lg border border-border bg-background text-sm tabular-nums focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none"
+          />
+          <button
+            onClick={save}
+            disabled={saving}
+            className="h-9 px-3 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90 disabled:opacity-50"
+          >
+            {saving ? "..." : "Salvar"}
+          </button>
+          <button
+            onClick={() => { setEditing(false); setInput(value ? String(value) : ""); }}
+            className="h-9 px-2 rounded-lg text-xs text-muted-foreground hover:bg-accent"
+          >
+            Cancelar
+          </button>
+        </div>
+      ) : (
+        <p className={`text-xl font-bold tabular-nums ${isEmpty ? "text-amber-700 dark:text-amber-400" : ""}`}>
+          {isEmpty ? "Não definido" : formatBRL(value)}
+        </p>
+      )}
+      {isEmpty && !editing && (
+        <p className="text-[11px] text-amber-700/80 dark:text-amber-400/80 mt-1">
+          Defina para habilitar saldo, margem e alertas.
+        </p>
+      )}
+    </div>
+  );
+}
+
