@@ -461,7 +461,7 @@ function QuickAddCost({ obraId, userId, employees, onSaved, editing, onCancelEdi
   useEffect(() => {
     if (editing) {
       setForm({
-        tipo: editing.tipo, nome_item: editing.nome_item, categoria: editing.categoria || "",
+        tipo: editing.tipo, fase: editing.fase || "", nome_item: editing.nome_item, categoria: editing.categoria || "",
         quantidade: editing.quantidade, unidade: editing.unidade,
         valor_unitario: editing.valor_unitario, data: editing.data,
         forma_pagamento: editing.forma_pagamento || "", fornecedor: editing.fornecedor || "",
@@ -472,8 +472,29 @@ function QuickAddCost({ obraId, userId, employees, onSaved, editing, onCancelEdi
 
   const valorTotal = Number(form.quantidade || 0) * Number(form.valor_unitario || 0);
 
+  const filteredPhases = useMemo(() => {
+    const q = phaseSearch.toLowerCase().trim();
+    return (phases as Phase[]).filter((p) => !q || p.nome.toLowerCase().includes(q));
+  }, [phases, phaseSearch]);
+
+  const createPhase = async (name: string) => {
+    const nome = name.trim();
+    if (!nome) return;
+    const { error } = await supabase.from("cc_phases" as any).insert({ user_id: userId, nome });
+    if (error) {
+      if (error.code !== "23505") return toast.error(error.message);
+    }
+    toast.success(`Fase "${nome}" adicionada`);
+    setForm({ ...form, fase: nome });
+    setPhaseSearch("");
+    setNewPhaseName("");
+    setPhaseOpen(false);
+    qc.invalidateQueries({ queryKey: ["cc-phases"] });
+  };
+
   const save = async () => {
     if (!form.nome_item) { toast.error("Informe o nome do item"); return; }
+    if (!form.fase) { toast.error("Selecione a fase da obra"); return; }
     setSaving(true);
     try {
       let comprovante_url: string | null = editing?.comprovante_url || null;
@@ -485,7 +506,7 @@ function QuickAddCost({ obraId, userId, employees, onSaved, editing, onCancelEdi
       }
       const payload: any = {
         user_id: userId, obra_id: obraId,
-        tipo: form.tipo, nome_item: form.nome_item,
+        tipo: form.tipo, fase: form.fase, nome_item: form.nome_item,
         categoria: form.categoria || null,
         tags: normalizeTags(form.nome_item, form.categoria),
         quantidade: Number(form.quantidade), unidade: form.unidade,
