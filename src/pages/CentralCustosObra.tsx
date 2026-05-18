@@ -83,11 +83,22 @@ export default function CentralCustosObra() {
     queryKey: ["cc-obra", obraId],
     queryFn: async () => {
       const { data } = await supabase
-        .from("obras")
-        .select("id,name,city,state,start_date,expected_end_date,total_budget,category")
+        .from("cc_projects" as any)
+        .select("id,nome,data_inicio,imagem_url")
         .eq("id", obraId)
         .maybeSingle();
-      return data;
+      if (!data) return null;
+      const d = data as any;
+      return {
+        id: d.id,
+        name: d.nome,
+        start_date: d.data_inicio,
+        imagem_url: d.imagem_url,
+        city: null,
+        state: null,
+        expected_end_date: null,
+        total_budget: 0,
+      } as any;
     },
     enabled: !!obraId,
   });
