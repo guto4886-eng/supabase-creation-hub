@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -377,10 +377,25 @@ function ProjectModal({
   const [nome, setNome] = useState(project?.nome || "");
   const [dataInicio, setDataInicio] = useState(project?.data_inicio || new Date().toISOString().slice(0, 10));
   const [imagemUrl, setImagemUrl] = useState<string | null>(project?.imagem_url || null);
+  const [orcamentoPrevisto, setOrcamentoPrevisto] = useState<string>("");
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Carrega orçamento previsto existente ao editar
+  useEffect(() => {
+    if (!project) return;
+    (async () => {
+      const { data } = await supabase
+        .from("cc_obra_settings" as any)
+        .select("orcamento_previsto")
+        .eq("obra_id", project.id)
+        .maybeSingle();
+      const val = (data as any)?.orcamento_previsto;
+      if (val != null) setOrcamentoPrevisto(String(val));
+    })();
+  }, [project]);
 
   const upload = async (file: File) => {
     if (!user) return;
@@ -411,20 +426,36 @@ function ProjectModal({
     if (!user) return;
     setSaving(true);
     try {
+      const orcNum = orcamentoPrevisto === "" ? null : Number(orcamentoPrevisto);
+      let obraId = project?.id;
       if (project) {
         const { error } = await supabase
           .from("cc_projects" as any)
           .update({ nome: nome.trim(), data_inicio: dataInicio, imagem_url: imagemUrl })
           .eq("id", project.id);
         if (error) throw error;
-        toast.success("Obra atualizada");
       } else {
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from("cc_projects" as any)
-          .insert({ nome: nome.trim(), data_inicio: dataInicio, imagem_url: imagemUrl, user_id: user.id });
+          .insert({ nome: nome.trim(), data_inicio: dataInicio, imagem_url: imagemUrl, user_id: user.id })
+          .select("id")
+          .single();
         if (error) throw error;
-        toast.success("Obra criada");
+        obraId = (data as any)?.id;
       }
+
+      // Upsert orçamento previsto em cc_obra_settings
+      if (obraId && orcNum != null) {
+        const { error: sErr } = await supabase
+          .from("cc_obra_settings" as any)
+          .upsert(
+            { obra_id: obraId, user_id: user.id, orcamento_previsto: orcNum },
+            { onConflict: "obra_id" }
+          );
+        if (sErr) throw sErr;
+      }
+
+      toast.success(project ? "Obra atualizada" : "Obra criada");
       onSaved();
     } catch (e: any) {
       toast.error(e.message || "Erro ao salvar");
@@ -482,6 +513,24 @@ function ProjectModal({
               onChange={(e) => setDataInicio(e.target.value)}
               className="w-full h-11 px-3 rounded-xl border border-border bg-background focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none"
             />
+          </div>
+
+          <div>
+            <label className="text-sm font-medium mb-1.5 block">
+              Orçamento Previsto (R$)
+            </label>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={orcamentoPrevisto}
+              onChange={(e) => setOrcamentoPrevisto(e.target.value)}
+              placeholder="Ex: 250000.00"
+              className="w-full h-11 px-3 rounded-xl border border-border bg-background focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none tabular-nums"
+            />
+            <p className="text-[11px] text-muted-foreground mt-1">
+              Meta orçamentária total da obra. Usado para calcular saldo, margem e alertas.
+            </p>
           </div>
 
           <div>
