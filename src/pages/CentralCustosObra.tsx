@@ -179,7 +179,7 @@ export default function CentralCustosObra() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/30 p-4 lg:p-8">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-6">
         <div>
           <Link
             to="/central-custos"
@@ -205,6 +205,13 @@ export default function CentralCustosObra() {
             </span>
           </div>
         </div>
+
+        <OrcamentoInlineEditor
+          obraId={obraId}
+          userId={user?.id || ""}
+          value={orcamentoPrevisto}
+          onSaved={refresh}
+        />
       </div>
 
       {/* Tabs */}
