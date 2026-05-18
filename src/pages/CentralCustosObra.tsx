@@ -667,14 +667,22 @@ function QuickAddCost({ obraId, userId, employees, onSaved, editing, onCancelEdi
 }
 
 /* ============== CUSTOS ============== */
-function CustosTab({ entries, obraId, userId, onChanged }: any) {
+function CustosTab({ entries, obraId, userId, onChanged, phases = DEFAULT_PHASES }: any) {
   const [search, setSearch] = useState("");
   const [tipoF, setTipoF] = useState("todos");
+  const [faseF, setFaseF] = useState("todas");
   const [editing, setEditing] = useState<Entry | null>(null);
 
+  const usedPhases = useMemo(() => {
+    const s = new Set<string>();
+    entries.forEach((e: Entry) => e.fase && s.add(e.fase));
+    return Array.from(s).sort();
+  }, [entries]);
+
   const filtered = entries.filter((e: Entry) => {
-    if (search && !`${e.nome_item} ${e.fornecedor || ""} ${e.categoria || ""}`.toLowerCase().includes(search.toLowerCase())) return false;
+    if (search && !`${e.nome_item} ${e.fornecedor || ""} ${e.categoria || ""} ${e.fase || ""}`.toLowerCase().includes(search.toLowerCase())) return false;
     if (tipoF !== "todos" && e.tipo !== tipoF) return false;
+    if (faseF !== "todas" && e.fase !== faseF) return false;
     return true;
   });
 
@@ -697,14 +705,18 @@ function CustosTab({ entries, obraId, userId, onChanged }: any) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
       <div className="lg:col-span-2 space-y-3">
-        <div className="bg-card border border-border rounded-2xl p-3 flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
+        <div className="bg-card border border-border rounded-2xl p-3 flex flex-col sm:flex-row gap-3 flex-wrap">
+          <div className="relative flex-1 min-w-[180px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar custo..." className="w-full h-10 pl-9 pr-3 rounded-xl border border-border bg-background text-sm" />
           </div>
           <select value={tipoF} onChange={(e) => setTipoF(e.target.value)} className="h-10 px-3 rounded-xl border border-border bg-background text-sm">
             <option value="todos">Todos tipos</option>
             {COST_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+          </select>
+          <select value={faseF} onChange={(e) => setFaseF(e.target.value)} className="h-10 px-3 rounded-xl border border-border bg-background text-sm">
+            <option value="todas">Todas as fases</option>
+            {usedPhases.map((f) => <option key={f} value={f}>{f}</option>)}
           </select>
         </div>
         {filtered.length === 0 ? (
@@ -715,12 +727,20 @@ function CustosTab({ entries, obraId, userId, onChanged }: any) {
           <ul className="space-y-2">
             {filtered.map((e: Entry) => {
               const type = COST_TYPES.find((t) => t.value === e.tipo);
+              const cor = phaseColor(e.fase, phases);
               return (
-                <li key={e.id} className="bg-card border border-border rounded-2xl p-4 hover:shadow-md transition-shadow flex items-center gap-3">
+                <li key={e.id} className="bg-card border border-border rounded-2xl p-4 hover:shadow-md transition-shadow flex items-center gap-3 relative overflow-hidden">
+                  <span className="absolute left-0 top-0 bottom-0 w-1" style={{ background: cor }} />
                   <div className="h-11 w-11 rounded-xl bg-muted flex items-center justify-center text-xl">{type?.icon}</div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="font-medium truncate">{e.nome_item}</p>
+                      {e.fase && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-md font-semibold inline-flex items-center gap-1"
+                          style={{ background: `${cor}20`, color: cor }}>
+                          {phaseIcon(e.fase, phases)} {e.fase}
+                        </span>
+                      )}
                       {e.tags?.slice(0, 2).map((t) => (
                         <span key={t} className="text-[10px] px-1.5 py-0.5 rounded-md bg-primary/10 text-primary">#{t}</span>
                       ))}
@@ -743,7 +763,7 @@ function CustosTab({ entries, obraId, userId, onChanged }: any) {
           </ul>
         )}
       </div>
-      <QuickAddCost obraId={obraId} userId={userId} employees={[]} onSaved={onChanged} editing={editing} onCancelEdit={() => setEditing(null)} />
+      <QuickAddCost obraId={obraId} userId={userId} employees={[]} onSaved={onChanged} editing={editing} onCancelEdit={() => setEditing(null)} phases={phases} />
     </div>
   );
 }
