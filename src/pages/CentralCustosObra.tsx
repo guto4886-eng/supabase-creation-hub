@@ -9,7 +9,7 @@ import { formatBRL, COST_TYPES, PAYMENT_METHODS, UNITS, normalizeTags, DEFAULT_P
 import {
   ArrowLeft, Plus, Download, FileText, Wallet, TrendingUp, Target, AlertTriangle,
   Activity, Trash2, Copy, Pencil, Upload, Search, Calendar, Tag, Users, Package,
-  LineChart as LineIcon, FileBarChart, FolderOpen, Settings as SettingsIcon, Sparkles,
+  LineChart as LineIcon, FileBarChart, FolderOpen, Settings as SettingsIcon, Sparkles, Info,
 } from "lucide-react";
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
