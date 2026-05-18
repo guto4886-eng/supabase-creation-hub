@@ -377,10 +377,25 @@ function ProjectModal({
   const [nome, setNome] = useState(project?.nome || "");
   const [dataInicio, setDataInicio] = useState(project?.data_inicio || new Date().toISOString().slice(0, 10));
   const [imagemUrl, setImagemUrl] = useState<string | null>(project?.imagem_url || null);
+  const [orcamentoPrevisto, setOrcamentoPrevisto] = useState<string>("");
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Carrega orçamento previsto existente ao editar
+  useEffect(() => {
+    if (!project) return;
+    (async () => {
+      const { data } = await supabase
+        .from("cc_obra_settings" as any)
+        .select("orcamento_previsto")
+        .eq("obra_id", project.id)
+        .maybeSingle();
+      const val = (data as any)?.orcamento_previsto;
+      if (val != null) setOrcamentoPrevisto(String(val));
+    })();
+  }, [project]);
 
   const upload = async (file: File) => {
     if (!user) return;
