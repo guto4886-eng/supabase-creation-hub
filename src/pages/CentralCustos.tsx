@@ -426,20 +426,36 @@ function ProjectModal({
     if (!user) return;
     setSaving(true);
     try {
+      const orcNum = orcamentoPrevisto === "" ? null : Number(orcamentoPrevisto);
+      let obraId = project?.id;
       if (project) {
         const { error } = await supabase
           .from("cc_projects" as any)
           .update({ nome: nome.trim(), data_inicio: dataInicio, imagem_url: imagemUrl })
           .eq("id", project.id);
         if (error) throw error;
-        toast.success("Obra atualizada");
       } else {
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from("cc_projects" as any)
-          .insert({ nome: nome.trim(), data_inicio: dataInicio, imagem_url: imagemUrl, user_id: user.id });
+          .insert({ nome: nome.trim(), data_inicio: dataInicio, imagem_url: imagemUrl, user_id: user.id })
+          .select("id")
+          .single();
         if (error) throw error;
-        toast.success("Obra criada");
+        obraId = (data as any)?.id;
       }
+
+      // Upsert orçamento previsto em cc_obra_settings
+      if (obraId && orcNum != null) {
+        const { error: sErr } = await supabase
+          .from("cc_obra_settings" as any)
+          .upsert(
+            { obra_id: obraId, user_id: user.id, orcamento_previsto: orcNum },
+            { onConflict: "obra_id" }
+          );
+        if (sErr) throw sErr;
+      }
+
+      toast.success(project ? "Obra atualizada" : "Obra criada");
       onSaved();
     } catch (e: any) {
       toast.error(e.message || "Erro ao salvar");
