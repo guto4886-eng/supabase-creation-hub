@@ -790,7 +790,7 @@ function CustosTab({ entries, obraId, userId, onChanged, phases = DEFAULT_PHASES
         )}
       </div>
       <QuickAddCost obraId={obraId} userId={userId} employees={[]} onSaved={onChanged} editing={editing} onCancelEdit={() => setEditing(null)} phases={phases} />
-      <CostDetailsModal entry={details} phases={phases} onClose={() => setDetails(null)} onEdit={(e) => { setDetails(null); setEditing(e); }} onDuplicate={(e) => { setDetails(null); duplicate(e); }} onDelete={(id) => { setDetails(null); remove(id); }} />
+      <CostDetailsModal entry={details} phases={phases} onClose={() => setDetails(null)} onEdit={(e: Entry) => { setDetails(null); setEditing(e); }} onDuplicate={(e: Entry) => { setDetails(null); duplicate(e); }} onDelete={(id: string) => { setDetails(null); remove(id); }} />
     </div>
   );
 }
