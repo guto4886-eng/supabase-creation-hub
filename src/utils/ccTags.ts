@@ -16,7 +16,7 @@ const TAG_RULES: Array<{ tag: string; patterns: RegExp[] }> = [
   { tag: "madeira", patterns: [/madeira|tabua|sarrafo|caibro|pontalete|compensado/i] },
   { tag: "tubo", patterns: [/\btubo\b|cano\s*pvc|tigre|amanco/i] },
   { tag: "conexao", patterns: [/conex(ao|ão)|joelho|luva|tê\s*pvc|cotovelo/i] },
-  { tag: "fiacao", patterns: [/fio|cabo|fiacao|fiação|prysmian|nambei/i] },
+  { tag: "fiacao", patterns: [/(?<!meio[\s-])\bfio\b/i, /\bcabo\b/i, /fiacao|fiação/i, /prysmian|nambei/i] },
   { tag: "eletroduto", patterns: [/eletroduto/i] },
   { tag: "telha", patterns: [/telha/i] },
   { tag: "porcelanato", patterns: [/porcelanato|piso\s*ceramico|revestimento\s*ceramico/i] },
