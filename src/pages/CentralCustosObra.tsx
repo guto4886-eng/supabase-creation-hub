@@ -271,7 +271,7 @@ export default function CentralCustosObra() {
             <AnalyticsTab entries={entries} orcamentoPrevisto={orcamentoPrevisto} gastoTotal={gastoTotal} pctConsumido={pctConsumido} saude={saude} phases={allPhases} />
           )}
           {tab === "relatorios" && (
-            <RelatoriosTab entries={entries} obra={obra} orcamentoPrevisto={orcamentoPrevisto} gastoTotal={gastoTotal} phases={allPhases} />
+            <RelatoriosTab entries={entries} obra={obra} orcamentoPrevisto={orcamentoPrevisto} gastoTotal={gastoTotal} phases={allPhases} employees={employees} />
           )}
           {tab === "arquivos" && <ArquivosTab obraId={obraId} userId={user?.id || ""} />}
           {tab === "config" && (
