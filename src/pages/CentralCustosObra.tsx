@@ -1137,7 +1137,7 @@ function AnalyticsTab({ entries, orcamentoPrevisto, gastoTotal, pctConsumido, sa
 }
 
 /* ============== RELATÓRIOS ============== */
-function RelatoriosTab({ entries, obra, orcamentoPrevisto, gastoTotal, phases = DEFAULT_PHASES }: any) {
+function RelatoriosTab({ entries, obra, orcamentoPrevisto, gastoTotal, phases = DEFAULT_PHASES, employees = [] }: any) {
   const porFase = useMemo(() => {
     const map: Record<string, number> = {};
     entries.forEach((e: Entry) => {
@@ -1149,9 +1149,45 @@ function RelatoriosTab({ entries, obra, orcamentoPrevisto, gastoTotal, phases = 
       .sort((a, b) => b.total - a.total);
   }, [entries]);
 
+  // Filtros do relatório
+  const [fInicio, setFInicio] = useState("");
+  const [fFim, setFFim] = useState("");
+  const [fTipo, setFTipo] = useState("");
+  const [fFase, setFFase] = useState("");
+  const [fFornecedor, setFFornecedor] = useState("");
+  const [fPagamento, setFPagamento] = useState("");
+  const [generating, setGenerating] = useState<string | null>(null);
+
+  const filtered: Entry[] = useMemo(() => {
+    return entries.filter((e: Entry) => {
+      if (fInicio && (e.data || "") < fInicio) return false;
+      if (fFim && (e.data || "") > fFim) return false;
+      if (fTipo && e.tipo !== fTipo) return false;
+      if (fFase && (e.fase || "Sem fase") !== fFase) return false;
+      if (fFornecedor && !(e.fornecedor || "").toLowerCase().includes(fFornecedor.toLowerCase())) return false;
+      if (fPagamento && e.forma_pagamento !== fPagamento) return false;
+      return true;
+    });
+  }, [entries, fInicio, fFim, fTipo, fFase, fFornecedor, fPagamento]);
+
+  const filteredGasto = useMemo(() => filtered.reduce((s, e) => s + Number(e.valor_total || 0), 0), [filtered]);
+
+  const ctx = (): import("@/utils/ccPdfReports").ReportContext => ({
+    obraName: obra?.name || "Obra",
+    obraInicio: obra?.start_date,
+    orcamentoPrevisto,
+    gastoTotal: filteredGasto,
+    entries: filtered as any,
+    employees: employees as any,
+    phases,
+    periodoLabel: fInicio || fFim
+      ? `${fInicio ? new Date(fInicio + "T00:00:00").toLocaleDateString("pt-BR") : "..."} a ${fFim ? new Date(fFim + "T00:00:00").toLocaleDateString("pt-BR") : "..."}`
+      : "Todos os lançamentos",
+  });
+
   const exportCSV = () => {
     const headers = ["Data", "Tipo", "Fase", "Item", "Categoria", "Qtd", "Unidade", "Vl. Unit.", "Total", "Fornecedor", "Pagamento"];
-    const rows = entries.map((e: Entry) => [
+    const rows = filtered.map((e: Entry) => [
       e.data, e.tipo, e.fase || "", e.nome_item, e.categoria || "", e.quantidade, e.unidade,
       e.valor_unitario, e.valor_total, e.fornecedor || "", e.forma_pagamento || "",
     ]);
@@ -1163,45 +1199,135 @@ function RelatoriosTab({ entries, obra, orcamentoPrevisto, gastoTotal, phases = 
     a.click();
   };
 
+  const generate = async (id: string) => {
+    setGenerating(id);
+    try {
+      const mod = await import("@/utils/ccPdfReports");
+      const c = ctx();
+      switch (id) {
+        case "resumo": await mod.gerarResumoFinanceiro(c); break;
+        case "categoria": await mod.gerarCustosPorCategoria(c); break;
+        case "fase": await mod.gerarCustosPorFase(c); break;
+        case "materiais": await mod.gerarMateriais(c); break;
+        case "funcionarios": await mod.gerarFuncionarios(c); break;
+        case "evolucao": await mod.gerarEvolucao(c); break;
+        case "previsto": await mod.gerarPrevistoRealizado(c); break;
+      }
+      toast.success("Relatório PDF gerado");
+    } catch (e: any) {
+      toast.error(e.message || "Erro ao gerar PDF");
+    } finally {
+      setGenerating(null);
+    }
+  };
+
   const totalFases = porFase.reduce((s, p) => s + p.total, 0);
 
+  const tiposUnicos = useMemo(() => Array.from(new Set(entries.map((e: Entry) => e.tipo))) as string[], [entries]);
+  const pagamentosUnicos = useMemo(() => Array.from(new Set(entries.map((e: Entry) => e.forma_pagamento).filter(Boolean))) as string[], [entries]);
+  const fasesUnicas = useMemo(() => Array.from(new Set(entries.map((e: Entry) => e.fase || "Sem fase"))) as string[], [entries]);
+
   const reports = [
-    { title: "Resumo Financeiro", desc: "Visão consolidada de orçamento, gasto e saldo" },
-    { title: "Custos por Categoria", desc: "Distribuição de gastos por tipo" },
-    { title: "Custos por Fase da Obra", desc: "Total, percentual, evolução e gráficos por etapa" },
-    { title: "Materiais", desc: "Consumo agrupado por tag" },
-    { title: "Funcionários", desc: "Folha e custos de mão de obra" },
-    { title: "Evolução Financeira", desc: "Linha do tempo mensal" },
-    { title: "Previsto x Realizado", desc: "Comparativo orçado vs executado" },
+    { id: "resumo", title: "Resumo Financeiro", desc: "Visão consolidada de orçamento, gasto, saldo e saúde" },
+    { id: "categoria", title: "Custos por Categoria", desc: "Donut, ranking e detalhamento por tipo" },
+    { id: "fase", title: "Custos por Fase da Obra", desc: "Análise completa por etapa com alertas automáticos" },
+    { id: "materiais", title: "Materiais", desc: "Consumo agrupado por tag, fornecedores e evolução" },
+    { id: "funcionarios", title: "Funcionários", desc: "Folha total, ranking e custos da equipe" },
+    { id: "evolucao", title: "Evolução Financeira", desc: "Linha do tempo mensal, acumulado e projeção" },
+    { id: "previsto", title: "Previsto x Realizado", desc: "Comparativo por fase com status visual" },
   ];
+
+  const inputCls = "w-full h-9 px-2.5 rounded-lg border border-border bg-background text-sm focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none";
 
   return (
     <div className="space-y-4">
+      {/* Filtros */}
       <div className="bg-card border border-border rounded-2xl p-5">
-        <div className="flex items-center justify-between mb-2">
-          <h3 className="font-semibold">Exportar dados</h3>
-          <button onClick={exportCSV} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90">
-            <Download className="h-4 w-4" /> CSV completo
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <h3 className="font-semibold">Filtros do Relatório</h3>
+            <p className="text-xs text-muted-foreground">Afetam todos os relatórios e a exportação CSV abaixo</p>
+          </div>
+          <span className="text-xs text-muted-foreground tabular-nums">
+            {filtered.length} de {entries.length} lançamentos • {formatBRL(filteredGasto)}
+          </span>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
+          <div>
+            <label className="text-[11px] text-muted-foreground">Início</label>
+            <input type="date" value={fInicio} onChange={(e) => setFInicio(e.target.value)} className={inputCls} />
+          </div>
+          <div>
+            <label className="text-[11px] text-muted-foreground">Fim</label>
+            <input type="date" value={fFim} onChange={(e) => setFFim(e.target.value)} className={inputCls} />
+          </div>
+          <div>
+            <label className="text-[11px] text-muted-foreground">Categoria</label>
+            <select value={fTipo} onChange={(e) => setFTipo(e.target.value)} className={inputCls}>
+              <option value="">Todas</option>
+              {tiposUnicos.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-[11px] text-muted-foreground">Fase</label>
+            <select value={fFase} onChange={(e) => setFFase(e.target.value)} className={inputCls}>
+              <option value="">Todas</option>
+              {fasesUnicas.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-[11px] text-muted-foreground">Fornecedor</label>
+            <input value={fFornecedor} onChange={(e) => setFFornecedor(e.target.value)} placeholder="Buscar..." className={inputCls} />
+          </div>
+          <div>
+            <label className="text-[11px] text-muted-foreground">Pagamento</label>
+            <select value={fPagamento} onChange={(e) => setFPagamento(e.target.value)} className={inputCls}>
+              <option value="">Todos</option>
+              {pagamentosUnicos.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2 mt-3">
+          <button onClick={exportCSV} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-secondary text-secondary-foreground text-xs font-medium hover:opacity-90">
+            <Download className="h-3.5 w-3.5" /> Exportar CSV
+          </button>
+          <button onClick={() => window.print()} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border text-xs font-medium hover:bg-accent">
+            <FileText className="h-3.5 w-3.5" /> Imprimir tela
+          </button>
+          <button
+            onClick={() => { setFInicio(""); setFFim(""); setFTipo(""); setFFase(""); setFFornecedor(""); setFPagamento(""); }}
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border text-xs font-medium hover:bg-accent ml-auto"
+          >
+            Limpar filtros
           </button>
         </div>
-        <p className="text-sm text-muted-foreground">
-          {entries.length} lançamentos • Total {formatBRL(gastoTotal)} de {formatBRL(orcamentoPrevisto)}
-        </p>
       </div>
+
+      {/* Cards de relatórios PDF */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-        {reports.map((r) => (
-          <button
-            key={r.title}
-            onClick={() => toast.info("Geração de PDF premium em breve. Use o CSV por enquanto.")}
-            className="text-left bg-card border border-border rounded-2xl p-5 hover:shadow-md transition-shadow group"
-          >
-            <div className="inline-flex p-2 rounded-xl bg-primary/10 text-primary mb-3">
-              <FileText className="h-4 w-4" />
-            </div>
-            <h4 className="font-semibold group-hover:text-primary transition-colors">{r.title}</h4>
-            <p className="text-xs text-muted-foreground mt-1">{r.desc}</p>
-          </button>
-        ))}
+        {reports.map((r) => {
+          const isGen = generating === r.id;
+          return (
+            <button
+              key={r.id}
+              disabled={!!generating}
+              onClick={() => generate(r.id)}
+              className="text-left bg-card border border-border rounded-2xl p-5 hover:shadow-md hover:border-primary/40 transition-all group disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div className="inline-flex p-2 rounded-xl bg-primary/10 text-primary">
+                  <FileText className="h-4 w-4" />
+                </div>
+                <Download className="h-3.5 w-3.5 text-muted-foreground group-hover:text-primary transition-colors" />
+              </div>
+              <h4 className="font-semibold group-hover:text-primary transition-colors">{r.title}</h4>
+              <p className="text-xs text-muted-foreground mt-1">{r.desc}</p>
+              <p className="text-[11px] text-primary font-medium mt-3">
+                {isGen ? "Gerando PDF..." : "Gerar PDF premium →"}
+              </p>
+            </button>
+          );
+        })}
       </div>
 
       {/* Sessão: Custos por Fase da Obra */}
