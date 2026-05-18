@@ -790,6 +790,65 @@ function CustosTab({ entries, obraId, userId, onChanged, phases = DEFAULT_PHASES
         )}
       </div>
       <QuickAddCost obraId={obraId} userId={userId} employees={[]} onSaved={onChanged} editing={editing} onCancelEdit={() => setEditing(null)} phases={phases} />
+      <CostDetailsModal entry={details} phases={phases} onClose={() => setDetails(null)} onEdit={(e) => { setDetails(null); setEditing(e); }} onDuplicate={(e) => { setDetails(null); duplicate(e); }} onDelete={(id) => { setDetails(null); remove(id); }} />
+    </div>
+  );
+}
+
+function CostDetailsModal({ entry, phases, onClose, onEdit, onDuplicate, onDelete }: any) {
+  if (!entry) return null;
+  const type = COST_TYPES.find((t) => t.value === entry.tipo);
+  const cor = phaseColor(entry.fase, phases);
+  const Row = ({ label, value }: any) => (
+    <div className="flex justify-between gap-4 py-2 border-b border-border/60 text-sm">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="font-medium text-right break-words">{value ?? "—"}</span>
+    </div>
+  );
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-card border border-border rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="px-6 py-4 flex items-center gap-3" style={{ background: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))" }}>
+          <div className="h-11 w-11 rounded-xl bg-white/15 flex items-center justify-center text-xl">{type?.icon}</div>
+          <div className="flex-1 min-w-0">
+            <h3 className="font-semibold truncate">{entry.nome_item}</h3>
+            <p className="text-xs opacity-80">{type?.label} • {new Date(entry.data).toLocaleDateString("pt-BR")}</p>
+          </div>
+          <button onClick={onClose} className="px-2 py-1 rounded-lg hover:bg-white/10 text-sm">✕</button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-6 space-y-1">
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            <div className="bg-muted/40 rounded-xl p-3">
+              <p className="text-[11px] text-muted-foreground uppercase">Valor Total</p>
+              <p className="text-xl font-bold tabular-nums">{formatBRL(entry.valor_total)}</p>
+            </div>
+            <div className="bg-muted/40 rounded-xl p-3">
+              <p className="text-[11px] text-muted-foreground uppercase">Qtd × Unitário</p>
+              <p className="text-xl font-bold tabular-nums">{entry.quantidade} {entry.unidade || ""} <span className="text-sm font-normal text-muted-foreground">× {formatBRL(entry.valor_unitario)}</span></p>
+            </div>
+          </div>
+          <Row label="Tipo" value={type?.label} />
+          <Row label="Categoria" value={entry.categoria} />
+          <Row label="Fase" value={entry.fase ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold" style={{ background: `${cor}20`, color: cor }}>{phaseIcon(entry.fase, phases)} {entry.fase}</span> : null} />
+          <Row label="Quantidade" value={`${entry.quantidade} ${entry.unidade || ""}`} />
+          <Row label="Valor Unitário" value={formatBRL(entry.valor_unitario)} />
+          <Row label="Valor Total" value={formatBRL(entry.valor_total)} />
+          <Row label="Data" value={new Date(entry.data).toLocaleDateString("pt-BR")} />
+          <Row label="Forma de Pagamento" value={entry.forma_pagamento} />
+          <Row label="Fornecedor" value={entry.fornecedor} />
+          <Row label="Tags" value={entry.tags?.length ? <div className="flex flex-wrap gap-1 justify-end">{entry.tags.map((t: string) => <span key={t} className="text-[10px] px-1.5 py-0.5 rounded-md bg-primary/10 text-primary">#{t}</span>)}</div> : null} />
+          <Row label="Observação" value={entry.observacao} />
+          {entry.comprovante_url && (
+            <Row label="Comprovante" value={<a href={entry.comprovante_url} target="_blank" rel="noreferrer" className="text-primary underline">Abrir arquivo</a>} />
+          )}
+          <Row label="Cadastrado em" value={entry.created_at ? new Date(entry.created_at).toLocaleString("pt-BR") : null} />
+        </div>
+        <div className="px-6 py-3 border-t border-border bg-muted/30 flex justify-end gap-2">
+          <button onClick={() => onDelete(entry.id)} className="h-9 px-3 rounded-lg text-sm bg-rose-500/10 text-rose-600 hover:bg-rose-500/20 inline-flex items-center gap-1.5"><Trash2 className="h-3.5 w-3.5" /> Excluir</button>
+          <button onClick={() => onDuplicate(entry)} className="h-9 px-3 rounded-lg text-sm bg-muted hover:bg-muted/70 inline-flex items-center gap-1.5"><Copy className="h-3.5 w-3.5" /> Duplicar</button>
+          <button onClick={() => onEdit(entry)} className="h-9 px-3 rounded-lg text-sm bg-primary text-primary-foreground hover:opacity-90 inline-flex items-center gap-1.5"><Pencil className="h-3.5 w-3.5" /> Editar</button>
+        </div>
+      </div>
     </div>
   );
 }
