@@ -172,6 +172,7 @@ export default function CentralCustosObra() {
     qc.invalidateQueries({ queryKey: ["cc-entries", obraId] });
     qc.invalidateQueries({ queryKey: ["cc-employees", obraId] });
     qc.invalidateQueries({ queryKey: ["cc-settings", obraId] });
+    qc.invalidateQueries({ queryKey: ["cc-phases"] });
     qc.invalidateQueries({ queryKey: ["cc-entries-all"] });
   };
 
