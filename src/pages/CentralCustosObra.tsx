@@ -279,7 +279,7 @@ export default function CentralCustosObra() {
 /* ============== VISÃO GERAL ============== */
 function VisaoGeralTab({
   entries, orcamentoPrevisto, gastoTotal, saldo, margem, pctConsumido, saude,
-  obraId, userId, employees, onSaved,
+  obraId, userId, employees, onSaved, phases,
 }: any) {
   // Evolução por mês
   const evolution = useMemo(() => {
