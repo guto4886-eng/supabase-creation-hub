@@ -377,6 +377,7 @@ export type Database = {
           comprovante_url: string | null
           created_at: string
           data: string
+          fase: string | null
           forma_pagamento: string | null
           fornecedor: string | null
           funcionario_id: string | null
@@ -398,6 +399,7 @@ export type Database = {
           comprovante_url?: string | null
           created_at?: string
           data?: string
+          fase?: string | null
           forma_pagamento?: string | null
           fornecedor?: string | null
           funcionario_id?: string | null
@@ -419,6 +421,7 @@ export type Database = {
           comprovante_url?: string | null
           created_at?: string
           data?: string
+          fase?: string | null
           forma_pagamento?: string | null
           fornecedor?: string | null
           funcionario_id?: string | null
@@ -514,6 +517,33 @@ export type Database = {
           obra_publica?: boolean | null
           orcamento_previsto?: number | null
           updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      cc_phases: {
+        Row: {
+          cor: string | null
+          created_at: string
+          icone: string | null
+          id: string
+          nome: string
+          user_id: string
+        }
+        Insert: {
+          cor?: string | null
+          created_at?: string
+          icone?: string | null
+          id?: string
+          nome: string
+          user_id: string
+        }
+        Update: {
+          cor?: string | null
+          created_at?: string
+          icone?: string | null
+          id?: string
+          nome?: string
           user_id?: string
         }
         Relationships: []
