@@ -143,6 +143,23 @@ export default function CentralCustosObra() {
     enabled: !!obraId,
   });
 
+  const { data: customPhases = [] } = useQuery<Phase[]>({
+    queryKey: ["cc-phases", user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("cc_phases" as any)
+        .select("nome,cor,icone")
+        .order("nome");
+      return (data || []) as any;
+    },
+    enabled: !!user?.id,
+  });
+
+  const allPhases: Phase[] = useMemo(
+    () => [...DEFAULT_PHASES, ...customPhases.filter((c) => !DEFAULT_PHASES.some((d) => d.nome.toLowerCase() === c.nome.toLowerCase()))],
+    [customPhases]
+  );
+
   const orcamentoPrevisto = Number(settings?.orcamento_previsto || obra?.total_budget || 0);
   const gastoTotal = entries.reduce((s, e) => s + Number(e.valor_total || 0), 0);
   const saldo = orcamentoPrevisto - gastoTotal;
