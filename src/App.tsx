@@ -24,6 +24,8 @@ import Companies from "@/pages/Companies";
 import Fleet from "@/pages/Fleet";
 import Labor from "@/pages/Labor";
 import Sinapi from "@/pages/Sinapi";
+import CentralCustos from "@/pages/CentralCustos";
+import CentralCustosObra from "@/pages/CentralCustosObra";
 
 const queryClient = new QueryClient();
 
