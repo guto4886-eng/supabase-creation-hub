@@ -226,7 +226,12 @@ export default function Layout() {
                     }`}
                   >
                     <item.icon className="h-5 w-5" />
-                    {item.label}
+                    <span className="flex-1">{item.label}</span>
+                    {item.badge && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-gradient-to-r from-emerald-400 to-emerald-500 text-white">
+                        {item.badge}
+                      </span>
+                    )}
                   </Link>
                 );
               })}
