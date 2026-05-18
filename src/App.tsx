@@ -24,6 +24,8 @@ import Companies from "@/pages/Companies";
 import Fleet from "@/pages/Fleet";
 import Labor from "@/pages/Labor";
 import Sinapi from "@/pages/Sinapi";
+import CentralCustos from "@/pages/CentralCustos";
+import CentralCustosObra from "@/pages/CentralCustosObra";
 
 const queryClient = new QueryClient();
 
@@ -63,6 +65,8 @@ function App() {
                 <Route path="purchases/quotations" element={<PurchaseQuotations />} />
                 <Route path="purchases/orders" element={<PurchaseOrders />} />
                 <Route path="obras" element={<Obras />} />
+                <Route path="central-custos" element={<CentralCustos />} />
+                <Route path="central-custos/:obraId" element={<CentralCustosObra />} />
                 <Route path="labor" element={<Labor />} />
                 <Route path="budgets" element={<Budgets />} />
                 <Route path="sinapi" element={<Sinapi />} />

@@ -335,6 +335,189 @@ export type Database = {
           },
         ]
       }
+      cc_attachments: {
+        Row: {
+          comment: string | null
+          content_type: string | null
+          created_at: string
+          file_name: string
+          file_path: string
+          file_size: number | null
+          id: string
+          obra_id: string
+          user_id: string
+        }
+        Insert: {
+          comment?: string | null
+          content_type?: string | null
+          created_at?: string
+          file_name: string
+          file_path: string
+          file_size?: number | null
+          id?: string
+          obra_id: string
+          user_id: string
+        }
+        Update: {
+          comment?: string | null
+          content_type?: string | null
+          created_at?: string
+          file_name?: string
+          file_path?: string
+          file_size?: number | null
+          id?: string
+          obra_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      cc_cost_entries: {
+        Row: {
+          categoria: string | null
+          comprovante_url: string | null
+          created_at: string
+          data: string
+          forma_pagamento: string | null
+          fornecedor: string | null
+          funcionario_id: string | null
+          id: string
+          nome_item: string
+          obra_id: string
+          observacao: string | null
+          quantidade: number | null
+          tags: string[] | null
+          tipo: string
+          unidade: string | null
+          updated_at: string
+          user_id: string
+          valor_total: number
+          valor_unitario: number | null
+        }
+        Insert: {
+          categoria?: string | null
+          comprovante_url?: string | null
+          created_at?: string
+          data?: string
+          forma_pagamento?: string | null
+          fornecedor?: string | null
+          funcionario_id?: string | null
+          id?: string
+          nome_item: string
+          obra_id: string
+          observacao?: string | null
+          quantidade?: number | null
+          tags?: string[] | null
+          tipo?: string
+          unidade?: string | null
+          updated_at?: string
+          user_id: string
+          valor_total?: number
+          valor_unitario?: number | null
+        }
+        Update: {
+          categoria?: string | null
+          comprovante_url?: string | null
+          created_at?: string
+          data?: string
+          forma_pagamento?: string | null
+          fornecedor?: string | null
+          funcionario_id?: string | null
+          id?: string
+          nome_item?: string
+          obra_id?: string
+          observacao?: string | null
+          quantidade?: number | null
+          tags?: string[] | null
+          tipo?: string
+          unidade?: string | null
+          updated_at?: string
+          user_id?: string
+          valor_total?: number
+          valor_unitario?: number | null
+        }
+        Relationships: []
+      }
+      cc_employees: {
+        Row: {
+          created_at: string
+          data_entrada: string | null
+          funcao: string | null
+          id: string
+          nome: string
+          obra_id: string
+          status: string
+          updated_at: string
+          user_id: string
+          valor_diaria: number | null
+          valor_mensal: number | null
+        }
+        Insert: {
+          created_at?: string
+          data_entrada?: string | null
+          funcao?: string | null
+          id?: string
+          nome: string
+          obra_id: string
+          status?: string
+          updated_at?: string
+          user_id: string
+          valor_diaria?: number | null
+          valor_mensal?: number | null
+        }
+        Update: {
+          created_at?: string
+          data_entrada?: string | null
+          funcao?: string | null
+          id?: string
+          nome?: string
+          obra_id?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+          valor_diaria?: number | null
+          valor_mensal?: number | null
+        }
+        Relationships: []
+      }
+      cc_obra_settings: {
+        Row: {
+          alerta_estouro_pct: number | null
+          created_at: string
+          id: string
+          imagem_url: string | null
+          meta_margem: number | null
+          obra_id: string
+          obra_publica: boolean | null
+          orcamento_previsto: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          alerta_estouro_pct?: number | null
+          created_at?: string
+          id?: string
+          imagem_url?: string | null
+          meta_margem?: number | null
+          obra_id: string
+          obra_publica?: boolean | null
+          orcamento_previsto?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          alerta_estouro_pct?: number | null
+          created_at?: string
+          id?: string
+          imagem_url?: string | null
+          meta_margem?: number | null
+          obra_id?: string
+          obra_publica?: boolean | null
+          orcamento_previsto?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       client_contacts: {
         Row: {
           cellphone: string | null

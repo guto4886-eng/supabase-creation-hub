@@ -8,13 +8,14 @@ import HelpButton from "@/components/HelpButton";
 import {
   LayoutDashboard, Users, Truck, Building2, FileText,
   DollarSign, ShoppingCart, LogOut, Menu, X, Crown, UserCircle,
-  PackageCheck, ChevronDown, ClipboardList, FileSearch, FileBox, Settings, User, Car, HardHat, Database
+  PackageCheck, ChevronDown, ClipboardList, FileSearch, FileBox, Settings, User, Car, HardHat, Database, LineChart
 } from "lucide-react";
 
 type NavItem = {
   to: string;
   label: string;
   icon: any;
+  badge?: string;
   children?: { to: string; label: string; icon: any }[];
 };
 
@@ -31,6 +32,7 @@ const navItems: NavItem[] = [
     ],
   },
   { to: "/obras", label: "Obras", icon: Building2 },
+  { to: "/central-custos", label: "Central de Custos", icon: LineChart, badge: "NOVO" },
   { to: "/labor", label: "Mão de Obra", icon: HardHat },
   { to: "/budgets", label: "Orçamentos", icon: FileText },
   { to: "/sinapi", label: "Base SINAPI", icon: Database },
@@ -224,7 +226,12 @@ export default function Layout() {
                     }`}
                   >
                     <item.icon className="h-5 w-5" />
-                    {item.label}
+                    <span className="flex-1">{item.label}</span>
+                    {item.badge && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-gradient-to-r from-emerald-400 to-emerald-500 text-white">
+                        {item.badge}
+                      </span>
+                    )}
                   </Link>
                 );
               })}
