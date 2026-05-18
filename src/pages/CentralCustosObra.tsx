@@ -1140,9 +1140,12 @@ function RelatoriosTab({ entries, obra, orcamentoPrevisto, gastoTotal, phases = 
     a.click();
   };
 
+  const totalFases = porFase.reduce((s, p) => s + p.total, 0);
+
   const reports = [
     { title: "Resumo Financeiro", desc: "Visão consolidada de orçamento, gasto e saldo" },
     { title: "Custos por Categoria", desc: "Distribuição de gastos por tipo" },
+    { title: "Custos por Fase da Obra", desc: "Total, percentual, evolução e gráficos por etapa" },
     { title: "Materiais", desc: "Consumo agrupado por tag" },
     { title: "Funcionários", desc: "Folha e custos de mão de obra" },
     { title: "Evolução Financeira", desc: "Linha do tempo mensal" },
