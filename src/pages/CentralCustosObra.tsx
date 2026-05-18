@@ -438,7 +438,7 @@ function VisaoGeralTab({
         </div>
 
         {/* Quick add */}
-        <QuickAddCost obraId={obraId} userId={userId} employees={employees} onSaved={onSaved} />
+        <QuickAddCost obraId={obraId} userId={userId} employees={employees} onSaved={onSaved} phases={phases} />
       </div>
     </div>
   );
