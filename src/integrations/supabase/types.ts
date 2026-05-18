@@ -518,6 +518,39 @@ export type Database = {
         }
         Relationships: []
       }
+      cc_projects: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          data_inicio: string
+          id: string
+          imagem_url: string | null
+          nome: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          data_inicio?: string
+          id?: string
+          imagem_url?: string | null
+          nome: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          data_inicio?: string
+          id?: string
+          imagem_url?: string | null
+          nome?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       client_contacts: {
         Row: {
           cellphone: string | null
