@@ -1180,6 +1180,42 @@ function RelatoriosTab({ entries, obra, orcamentoPrevisto, gastoTotal, phases = 
           </button>
         ))}
       </div>
+
+      {/* Sessão: Custos por Fase da Obra */}
+      <div className="bg-card border border-border rounded-2xl p-5">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="font-semibold">Custos por Fase da Obra</h3>
+            <p className="text-xs text-muted-foreground">Total, percentual e comparativo</p>
+          </div>
+          <span className="text-sm font-semibold tabular-nums">{formatBRL(totalFases)}</span>
+        </div>
+        {porFase.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-6">Sem lançamentos com fase atribuída.</p>
+        ) : (
+          <ul className="space-y-2">
+            {porFase.map((p) => {
+              const cor = phaseColor(p.nome === "Sem fase" ? null : p.nome, phases);
+              const pct = totalFases > 0 ? (p.total / totalFases) * 100 : 0;
+              return (
+                <li key={p.nome} className="rounded-xl border border-border p-3">
+                  <div className="flex items-center justify-between text-sm mb-1.5">
+                    <span className="flex items-center gap-2 font-medium">
+                      <span className="h-2.5 w-2.5 rounded-full" style={{ background: cor }} />
+                      <span>{phaseIcon(p.nome === "Sem fase" ? null : p.nome, phases)}</span>
+                      {p.nome}
+                    </span>
+                    <span className="tabular-nums font-semibold">{formatBRL(p.total)} <span className="text-xs text-muted-foreground">({pct.toFixed(1)}%)</span></span>
+                  </div>
+                  <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                    <div className="h-full rounded-full" style={{ width: `${pct}%`, background: cor }} />
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }
