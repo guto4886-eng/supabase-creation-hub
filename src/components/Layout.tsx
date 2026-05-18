@@ -8,13 +8,14 @@ import HelpButton from "@/components/HelpButton";
 import {
   LayoutDashboard, Users, Truck, Building2, FileText,
   DollarSign, ShoppingCart, LogOut, Menu, X, Crown, UserCircle,
-  PackageCheck, ChevronDown, ClipboardList, FileSearch, FileBox, Settings, User, Car, HardHat, Database
+  PackageCheck, ChevronDown, ClipboardList, FileSearch, FileBox, Settings, User, Car, HardHat, Database, LineChart
 } from "lucide-react";
 
 type NavItem = {
   to: string;
   label: string;
   icon: any;
+  badge?: string;
   children?: { to: string; label: string; icon: any }[];
 };
 
