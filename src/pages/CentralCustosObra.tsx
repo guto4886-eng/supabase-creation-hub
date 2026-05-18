@@ -695,6 +695,7 @@ function CustosTab({ entries, obraId, userId, onChanged, phases = DEFAULT_PHASES
   const [tipoF, setTipoF] = useState("todos");
   const [faseF, setFaseF] = useState("todas");
   const [editing, setEditing] = useState<Entry | null>(null);
+  const [details, setDetails] = useState<Entry | null>(null);
 
   const usedPhases = useMemo(() => {
     const s = new Set<string>();
