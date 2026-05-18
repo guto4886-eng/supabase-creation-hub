@@ -10,6 +10,8 @@ const TAG_RULES: Array<{ tag: string; patterns: RegExp[] }> = [
   { tag: "argamassa", patterns: [/argamassa/i, /quartzolit/i, /votomassa/i] },
   { tag: "vergalhao", patterns: [/vergalhao|vergalhão/i, /\bca[-\s]?50\b/i, /aço\s*ca/i] },
   { tag: "ferro", patterns: [/\bferro\b/i, /barra\s*de\s*aco/i] },
+  { tag: "meio-fio", patterns: [/meio[\s-]?fio/i, /guia\s*de\s*concreto/i, /cord(ã|a)o/i] },
+  { tag: "paver", patterns: [/\bpaver\b/i, /piso\s*intertravado/i, /bloco\s*intertravado/i] },
   { tag: "tinta", patterns: [/tinta/i, /suvinil/i, /coral/i, /sherwin/i] },
   { tag: "madeira", patterns: [/madeira|tabua|sarrafo|caibro|pontalete|compensado/i] },
   { tag: "tubo", patterns: [/\btubo\b|cano\s*pvc|tigre|amanco/i] },
