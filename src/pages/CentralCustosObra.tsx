@@ -796,6 +796,57 @@ function CustosTab({ entries, obraId, userId, onChanged, phases = DEFAULT_PHASES
 }
 
 function CostDetailsModal({ entry, phases, onClose, onEdit, onDuplicate, onDelete }: any) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const closeBtnRef = useRef<HTMLButtonElement>(null);
+  const titleId = useId();
+
+  useEffect(() => {
+    if (!entry) return;
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    // Foco inicial em um botão de ação seguro
+    closeBtnRef.current?.focus();
+
+    const getFocusable = (): HTMLElement[] => {
+      if (!containerRef.current) return [];
+      return Array.from(
+        containerRef.current.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"]), input, select, textarea'
+        )
+      ).filter((el) => !el.hasAttribute("aria-hidden") && el.offsetParent !== null);
+    };
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onClose();
+        return;
+      }
+      if (e.key === "Tab") {
+        const focusables = getFocusable();
+        if (focusables.length === 0) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        const active = document.activeElement as HTMLElement | null;
+        if (e.shiftKey && active === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && active === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+
+    document.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+      previouslyFocused?.focus?.();
+    };
+  }, [entry, onClose]);
+
   if (!entry) return null;
   const type = COST_TYPES.find((t) => t.value === entry.tipo);
   const cor = phaseColor(entry.fase, phases);
@@ -806,15 +857,33 @@ function CostDetailsModal({ entry, phases, onClose, onEdit, onDuplicate, onDelet
     </div>
   );
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-card border border-border rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden shadow-2xl" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+      onClick={onClose}
+      role="presentation"
+    >
+      <div
+        ref={containerRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className="bg-card border border-border rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden shadow-2xl focus:outline-none"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="px-6 py-4 flex items-center gap-3" style={{ background: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))" }}>
-          <div className="h-11 w-11 rounded-xl bg-white/15 flex items-center justify-center text-xl">{type?.icon}</div>
+          <div className="h-11 w-11 rounded-xl bg-white/15 flex items-center justify-center text-xl" aria-hidden="true">{type?.icon}</div>
           <div className="flex-1 min-w-0">
-            <h3 className="font-semibold truncate">{entry.nome_item}</h3>
+            <h3 id={titleId} className="font-semibold truncate">{entry.nome_item}</h3>
             <p className="text-xs opacity-80">{type?.label} • {new Date(entry.data).toLocaleDateString("pt-BR")}</p>
           </div>
-          <button onClick={onClose} className="px-2 py-1 rounded-lg hover:bg-white/10 text-sm">✕</button>
+          <button
+            ref={closeBtnRef}
+            onClick={onClose}
+            aria-label="Fechar detalhes do lançamento"
+            className="px-2 py-1 rounded-lg hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-white/60 text-sm"
+          >
+            ✕
+          </button>
         </div>
         <div className="flex-1 overflow-y-auto p-6 space-y-1">
           <div className="grid grid-cols-2 gap-3 mb-4">
@@ -844,9 +913,9 @@ function CostDetailsModal({ entry, phases, onClose, onEdit, onDuplicate, onDelet
           <Row label="Cadastrado em" value={entry.created_at ? new Date(entry.created_at).toLocaleString("pt-BR") : null} />
         </div>
         <div className="px-6 py-3 border-t border-border bg-muted/30 flex justify-end gap-2">
-          <button onClick={() => onDelete(entry.id)} className="h-9 px-3 rounded-lg text-sm bg-rose-500/10 text-rose-600 hover:bg-rose-500/20 inline-flex items-center gap-1.5"><Trash2 className="h-3.5 w-3.5" /> Excluir</button>
-          <button onClick={() => onDuplicate(entry)} className="h-9 px-3 rounded-lg text-sm bg-muted hover:bg-muted/70 inline-flex items-center gap-1.5"><Copy className="h-3.5 w-3.5" /> Duplicar</button>
-          <button onClick={() => onEdit(entry)} className="h-9 px-3 rounded-lg text-sm bg-primary text-primary-foreground hover:opacity-90 inline-flex items-center gap-1.5"><Pencil className="h-3.5 w-3.5" /> Editar</button>
+          <button onClick={() => onDelete(entry.id)} className="h-9 px-3 rounded-lg text-sm bg-rose-500/10 text-rose-600 hover:bg-rose-500/20 focus-visible:ring-2 focus-visible:ring-rose-500/50 inline-flex items-center gap-1.5"><Trash2 className="h-3.5 w-3.5" aria-hidden="true" /> Excluir</button>
+          <button onClick={() => onDuplicate(entry)} className="h-9 px-3 rounded-lg text-sm bg-muted hover:bg-muted/70 focus-visible:ring-2 focus-visible:ring-primary/50 inline-flex items-center gap-1.5"><Copy className="h-3.5 w-3.5" aria-hidden="true" /> Duplicar</button>
+          <button onClick={() => onEdit(entry)} className="h-9 px-3 rounded-lg text-sm bg-primary text-primary-foreground hover:opacity-90 focus-visible:ring-2 focus-visible:ring-primary/70 inline-flex items-center gap-1.5"><Pencil className="h-3.5 w-3.5" aria-hidden="true" /> Editar</button>
         </div>
       </div>
     </div>
