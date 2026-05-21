@@ -790,15 +790,22 @@ function CustosTab({ entries, obraId, userId, onChanged, phases = DEFAULT_PHASES
         )}
       </div>
       <QuickAddCost obraId={obraId} userId={userId} employees={[]} onSaved={onChanged} editing={editing} onCancelEdit={() => setEditing(null)} phases={phases} />
-      <CostDetailsModal entry={details} phases={phases} onClose={() => setDetails(null)} onEdit={(e: Entry) => { setDetails(null); setEditing(e); }} onDuplicate={(e: Entry) => { setDetails(null); duplicate(e); }} onDelete={(id: string) => { setDetails(null); remove(id); }} />
+      <CostDetailsModal entry={details} phases={phases} onClose={() => setDetails(null)} onChanged={onChanged} onEdit={(e: Entry) => { setDetails(null); setEditing(e); }} onDuplicate={(e: Entry) => { setDetails(null); duplicate(e); }} onDelete={(id: string) => { setDetails(null); remove(id); }} />
     </div>
   );
 }
 
-function CostDetailsModal({ entry, phases, onClose, onEdit, onDuplicate, onDelete }: any) {
+function CostDetailsModal({ entry, phases, onClose, onEdit, onDuplicate, onDelete, onChanged }: any) {
   const containerRef = useRef<HTMLDivElement>(null);
   const closeBtnRef = useRef<HTMLButtonElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const titleId = useId();
+  const [comprovante, setComprovante] = useState<string | null>(entry?.comprovante_url ?? null);
+  const [uploading, setUploading] = useState(false);
+
+  useEffect(() => {
+    setComprovante(entry?.comprovante_url ?? null);
+  }, [entry?.id, entry?.comprovante_url]);
 
   useEffect(() => {
     if (!entry) return;
@@ -857,6 +864,68 @@ function CostDetailsModal({ entry, phases, onClose, onEdit, onDuplicate, onDelet
       <span className="font-medium text-right break-words">{value ?? "—"}</span>
     </div>
   );
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !entry) return;
+    setUploading(true);
+    try {
+      const safeName = file.name.replace(/[^\w.\-]+/g, "_");
+      const path = `${entry.user_id}/${entry.obra_id}/${Date.now()}-${safeName}`;
+      const { error: upErr } = await supabase.storage.from("cc-comprovantes").upload(path, file);
+      if (upErr) throw upErr;
+      const { error: dbErr } = await supabase
+        .from("cc_cost_entries" as any)
+        .update({ comprovante_url: path })
+        .eq("id", entry.id);
+      if (dbErr) throw dbErr;
+      // Apaga arquivo anterior, se houver
+      if (comprovante && comprovante !== path) {
+        await supabase.storage.from("cc-comprovantes").remove([comprovante]);
+      }
+      setComprovante(path);
+      toast.success("Comprovante atualizado");
+      onChanged?.();
+    } catch (err: any) {
+      toast.error(err.message || "Falha ao enviar comprovante");
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handleRemove = async () => {
+    if (!entry || !comprovante) return;
+    if (!confirm("Remover o comprovante deste lançamento?")) return;
+    setUploading(true);
+    try {
+      await supabase.storage.from("cc-comprovantes").remove([comprovante]);
+      const { error } = await supabase
+        .from("cc_cost_entries" as any)
+        .update({ comprovante_url: null })
+        .eq("id", entry.id);
+      if (error) throw error;
+      setComprovante(null);
+      toast.success("Comprovante removido");
+      onChanged?.();
+    } catch (err: any) {
+      toast.error(err.message || "Falha ao remover");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const openComprovante = async () => {
+    if (!comprovante) return;
+    const { data, error } = await supabase.storage
+      .from("cc-comprovantes")
+      .createSignedUrl(comprovante, 60 * 10);
+    if (error || !data?.signedUrl) {
+      toast.error("Não foi possível abrir o arquivo");
+      return;
+    }
+    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+  };
   return (
     <div
       className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
@@ -908,9 +977,56 @@ function CostDetailsModal({ entry, phases, onClose, onEdit, onDuplicate, onDelet
           <Row label="Fornecedor" value={entry.fornecedor} />
           <Row label="Tags" value={entry.tags?.length ? <div className="flex flex-wrap gap-1 justify-end">{entry.tags.map((t: string) => <span key={t} className="text-[10px] px-1.5 py-0.5 rounded-md bg-primary/10 text-primary">#{t}</span>)}</div> : null} />
           <Row label="Observação" value={entry.observacao} />
-          {entry.comprovante_url && (
-            <Row label="Comprovante" value={<a href={entry.comprovante_url} target="_blank" rel="noreferrer" className="text-primary underline">Abrir arquivo</a>} />
-          )}
+          <div className="py-2 border-b border-border/60 text-sm">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <span className="text-muted-foreground">Comprovante</span>
+              <div className="flex items-center gap-2">
+                {comprovante ? (
+                  <>
+                    <button
+                      onClick={openComprovante}
+                      className="text-primary underline text-sm hover:opacity-80"
+                    >
+                      Abrir arquivo
+                    </button>
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploading}
+                      className="h-8 px-2.5 rounded-lg text-xs bg-muted hover:bg-muted/70 inline-flex items-center gap-1 disabled:opacity-50"
+                    >
+                      <Upload className="h-3.5 w-3.5" aria-hidden="true" />
+                      {uploading ? "Enviando..." : "Substituir"}
+                    </button>
+                    <button
+                      onClick={handleRemove}
+                      disabled={uploading}
+                      className="h-8 px-2.5 rounded-lg text-xs bg-rose-500/10 text-rose-600 hover:bg-rose-500/20 inline-flex items-center gap-1 disabled:opacity-50"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                      Remover
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploading}
+                    className="h-8 px-2.5 rounded-lg text-xs bg-primary text-primary-foreground hover:opacity-90 inline-flex items-center gap-1 disabled:opacity-50"
+                  >
+                    <Upload className="h-3.5 w-3.5" aria-hidden="true" />
+                    {uploading ? "Enviando..." : "Anexar comprovante"}
+                  </button>
+                )}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*,application/pdf"
+                  className="hidden"
+                  onChange={handleUpload}
+                  aria-label="Selecionar arquivo de comprovante"
+                />
+              </div>
+            </div>
+          </div>
           <Row label="Cadastrado em" value={entry.created_at ? new Date(entry.created_at).toLocaleString("pt-BR") : null} />
         </div>
         <div className="px-6 py-3 border-t border-border bg-muted/30 flex justify-end gap-2">
