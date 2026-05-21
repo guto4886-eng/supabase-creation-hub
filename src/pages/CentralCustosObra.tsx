@@ -864,6 +864,68 @@ function CostDetailsModal({ entry, phases, onClose, onEdit, onDuplicate, onDelet
       <span className="font-medium text-right break-words">{value ?? "—"}</span>
     </div>
   );
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !entry) return;
+    setUploading(true);
+    try {
+      const safeName = file.name.replace(/[^\w.\-]+/g, "_");
+      const path = `${entry.user_id}/${entry.obra_id}/${Date.now()}-${safeName}`;
+      const { error: upErr } = await supabase.storage.from("cc-comprovantes").upload(path, file);
+      if (upErr) throw upErr;
+      const { error: dbErr } = await supabase
+        .from("cc_cost_entries" as any)
+        .update({ comprovante_url: path })
+        .eq("id", entry.id);
+      if (dbErr) throw dbErr;
+      // Apaga arquivo anterior, se houver
+      if (comprovante && comprovante !== path) {
+        await supabase.storage.from("cc-comprovantes").remove([comprovante]);
+      }
+      setComprovante(path);
+      toast.success("Comprovante atualizado");
+      onChanged?.();
+    } catch (err: any) {
+      toast.error(err.message || "Falha ao enviar comprovante");
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handleRemove = async () => {
+    if (!entry || !comprovante) return;
+    if (!confirm("Remover o comprovante deste lançamento?")) return;
+    setUploading(true);
+    try {
+      await supabase.storage.from("cc-comprovantes").remove([comprovante]);
+      const { error } = await supabase
+        .from("cc_cost_entries" as any)
+        .update({ comprovante_url: null })
+        .eq("id", entry.id);
+      if (error) throw error;
+      setComprovante(null);
+      toast.success("Comprovante removido");
+      onChanged?.();
+    } catch (err: any) {
+      toast.error(err.message || "Falha ao remover");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const openComprovante = async () => {
+    if (!comprovante) return;
+    const { data, error } = await supabase.storage
+      .from("cc-comprovantes")
+      .createSignedUrl(comprovante, 60 * 10);
+    if (error || !data?.signedUrl) {
+      toast.error("Não foi possível abrir o arquivo");
+      return;
+    }
+    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+  };
   return (
     <div
       className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
