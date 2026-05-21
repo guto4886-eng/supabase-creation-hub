@@ -620,11 +620,12 @@ export async function gerarResumoFinanceiro(ctx: ReportContext) {
   const top = [...ctx.entries].sort((a, b) => Number(b.valor_total) - Number(a.valor_total)).slice(0, 10);
   autoTable(doc, {
     startY: y,
-    head: [["Item", "Categoria", "Fase", "Valor", "% do Total"]],
+    head: [["Item", "Categoria", "Fase", "Qtd", "Valor", "% do Total"]],
     body: top.map((e) => [
       e.nome_item,
       e.tipo,
       e.fase || "—",
+      `${Number(e.quantidade || 0).toLocaleString("pt-BR")} ${e.unidade || ""}`.trim(),
       formatBRL(Number(e.valor_total)),
       ctx.gastoTotal > 0 ? `${((Number(e.valor_total) / ctx.gastoTotal) * 100).toFixed(1)}%` : "—",
     ]),
