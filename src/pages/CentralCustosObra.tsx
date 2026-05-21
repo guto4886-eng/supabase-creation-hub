@@ -808,11 +808,12 @@ function CostDetailsModal({ entry, phases, onClose, onEdit, onDuplicate, onDelet
 
     const getFocusable = (): HTMLElement[] => {
       if (!containerRef.current) return [];
-      return Array.from(
-        containerRef.current.querySelectorAll<HTMLElement>(
-          'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"]), input, select, textarea'
-        )
-      ).filter((el) => !el.hasAttribute("aria-hidden") && el.offsetParent !== null);
+      const nodes = containerRef.current.querySelectorAll(
+        'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"]), input, select, textarea'
+      );
+      return Array.from(nodes as NodeListOf<HTMLElement>).filter(
+        (el) => !el.hasAttribute("aria-hidden") && el.offsetParent !== null
+      );
     };
 
     const onKey = (e: KeyboardEvent) => {
