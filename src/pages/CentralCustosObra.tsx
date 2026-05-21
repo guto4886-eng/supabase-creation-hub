@@ -795,10 +795,17 @@ function CustosTab({ entries, obraId, userId, onChanged, phases = DEFAULT_PHASES
   );
 }
 
-function CostDetailsModal({ entry, phases, onClose, onEdit, onDuplicate, onDelete }: any) {
+function CostDetailsModal({ entry, phases, onClose, onEdit, onDuplicate, onDelete, onChanged }: any) {
   const containerRef = useRef<HTMLDivElement>(null);
   const closeBtnRef = useRef<HTMLButtonElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const titleId = useId();
+  const [comprovante, setComprovante] = useState<string | null>(entry?.comprovante_url ?? null);
+  const [uploading, setUploading] = useState(false);
+
+  useEffect(() => {
+    setComprovante(entry?.comprovante_url ?? null);
+  }, [entry?.id, entry?.comprovante_url]);
 
   useEffect(() => {
     if (!entry) return;
