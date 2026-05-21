@@ -977,9 +977,56 @@ function CostDetailsModal({ entry, phases, onClose, onEdit, onDuplicate, onDelet
           <Row label="Fornecedor" value={entry.fornecedor} />
           <Row label="Tags" value={entry.tags?.length ? <div className="flex flex-wrap gap-1 justify-end">{entry.tags.map((t: string) => <span key={t} className="text-[10px] px-1.5 py-0.5 rounded-md bg-primary/10 text-primary">#{t}</span>)}</div> : null} />
           <Row label="Observação" value={entry.observacao} />
-          {entry.comprovante_url && (
-            <Row label="Comprovante" value={<a href={entry.comprovante_url} target="_blank" rel="noreferrer" className="text-primary underline">Abrir arquivo</a>} />
-          )}
+          <div className="py-2 border-b border-border/60 text-sm">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <span className="text-muted-foreground">Comprovante</span>
+              <div className="flex items-center gap-2">
+                {comprovante ? (
+                  <>
+                    <button
+                      onClick={openComprovante}
+                      className="text-primary underline text-sm hover:opacity-80"
+                    >
+                      Abrir arquivo
+                    </button>
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploading}
+                      className="h-8 px-2.5 rounded-lg text-xs bg-muted hover:bg-muted/70 inline-flex items-center gap-1 disabled:opacity-50"
+                    >
+                      <Upload className="h-3.5 w-3.5" aria-hidden="true" />
+                      {uploading ? "Enviando..." : "Substituir"}
+                    </button>
+                    <button
+                      onClick={handleRemove}
+                      disabled={uploading}
+                      className="h-8 px-2.5 rounded-lg text-xs bg-rose-500/10 text-rose-600 hover:bg-rose-500/20 inline-flex items-center gap-1 disabled:opacity-50"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                      Remover
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploading}
+                    className="h-8 px-2.5 rounded-lg text-xs bg-primary text-primary-foreground hover:opacity-90 inline-flex items-center gap-1 disabled:opacity-50"
+                  >
+                    <Upload className="h-3.5 w-3.5" aria-hidden="true" />
+                    {uploading ? "Enviando..." : "Anexar comprovante"}
+                  </button>
+                )}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*,application/pdf"
+                  className="hidden"
+                  onChange={handleUpload}
+                  aria-label="Selecionar arquivo de comprovante"
+                />
+              </div>
+            </div>
+          </div>
           <Row label="Cadastrado em" value={entry.created_at ? new Date(entry.created_at).toLocaleString("pt-BR") : null} />
         </div>
         <div className="px-6 py-3 border-t border-border bg-muted/30 flex justify-end gap-2">
