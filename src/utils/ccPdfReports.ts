@@ -70,6 +70,30 @@ function hexToRgb(hex: string): [number, number, number] {
   return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
 }
 
+const MESES_PT = ["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
+
+function formatMonthYear(yyyyMm: string): string {
+  const [y, m] = yyyyMm.split("-");
+  const idx = Math.max(0, Math.min(11, Number(m) - 1));
+  return `${MESES_PT[idx]}/${y}`;
+}
+
+// Calcula o "mês de referência" do relatório a partir dos lançamentos.
+function getReferenciaMes(ctx: ReportContext): string {
+  // Se o usuário definiu um período explícito (e não é "Todos os lançamentos"), usa-o.
+  if (ctx.periodoLabel && ctx.periodoLabel !== "Todos os lançamentos") return ctx.periodoLabel;
+  const months = new Set<string>();
+  ctx.entries.forEach((e) => {
+    const k = (e.data || "").slice(0, 7);
+    if (k) months.add(k);
+  });
+  const sorted = Array.from(months).sort();
+  if (sorted.length === 0) return new Date().toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+  if (sorted.length === 1) return formatMonthYear(sorted[0]);
+  return `${formatMonthYear(sorted[0])} a ${formatMonthYear(sorted[sorted.length - 1])}`;
+}
+
+
 // ============ Capa ============
 function drawCover(doc: jsPDF, ctx: ReportContext, reportTitle: string) {
   // Fundo branco já é padrão. Faixa diagonal navy decorativa.
@@ -107,6 +131,13 @@ function drawCover(doc: jsPDF, ctx: ReportContext, reportTitle: string) {
   doc.setFontSize(11);
   doc.text(ctx.obraName, MARGIN, 60 + titleLines.length * 11);
 
+  // Faixa de referência (mês/ano) — destaque executivo
+  const referencia = getReferenciaMes(ctx);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  setText(doc, AMBER);
+  doc.text(`Levantamento referente a: ${referencia}`, MARGIN, 60 + titleLines.length * 11 + 7);
+
   // Bloco de metadados
   const blockY = 120;
   setFill(doc, LIGHT);
@@ -115,7 +146,7 @@ function drawCover(doc: jsPDF, ctx: ReportContext, reportTitle: string) {
   const items: Array<[string, string]> = [
     ["Obra", ctx.obraName],
     ["Início da obra", ctx.obraInicio ? new Date(ctx.obraInicio).toLocaleDateString("pt-BR") : "—"],
-    ["Período do relatório", ctx.periodoLabel || "Todos os lançamentos"],
+    ["Mês de referência", referencia],
     ["Total de lançamentos", String(ctx.entries.length)],
     ["Emitido em", new Date().toLocaleString("pt-BR")],
     ["Tipo do relatório", reportTitle],
@@ -186,7 +217,7 @@ function drawPageChrome(doc: jsPDF, ctx: ReportContext, reportTitle: string) {
     doc.text("TOCA A OBRA", MARGIN, 9);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
-    const center = `${reportTitle} · ${ctx.obraName}`;
+    const center = `${reportTitle} · ${ctx.obraName} · Ref.: ${getReferenciaMes(ctx)}`;
     doc.text(center, A4_W / 2, 9, { align: "center" });
     doc.text(new Date().toLocaleDateString("pt-BR"), A4_W - MARGIN, 9, { align: "right" });
 
