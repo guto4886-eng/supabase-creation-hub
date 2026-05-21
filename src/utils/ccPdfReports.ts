@@ -217,7 +217,7 @@ function drawPageChrome(doc: jsPDF, ctx: ReportContext, reportTitle: string) {
     doc.text("TOCA A OBRA", MARGIN, 9);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
-    const center = `${reportTitle} · ${ctx.obraName}`;
+    const center = `${reportTitle} · ${ctx.obraName} · Ref.: ${getReferenciaMes(ctx)}`;
     doc.text(center, A4_W / 2, 9, { align: "center" });
     doc.text(new Date().toLocaleDateString("pt-BR"), A4_W - MARGIN, 9, { align: "right" });
 
