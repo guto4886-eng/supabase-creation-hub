@@ -765,31 +765,48 @@ export async function gerarMateriais(ctx: ReportContext) {
 
   // Agrupa por tag principal
   const materials = ctx.entries.filter((e) => e.tipo === "material");
-  const byTag: Record<string, { qtd: number; total: number; lanc: number; fornecedores: Set<string> }> = {};
+  const byTag: Record<string, { qtd: number; total: number; lanc: number; fornecedores: Set<string>; unidades: Set<string> }> = {};
   materials.forEach((e) => {
     const tag = (e.tags && e.tags[0]) || e.nome_item.toLowerCase().split(" ")[0];
-    byTag[tag] = byTag[tag] || { qtd: 0, total: 0, lanc: 0, fornecedores: new Set() };
+    byTag[tag] = byTag[tag] || { qtd: 0, total: 0, lanc: 0, fornecedores: new Set(), unidades: new Set() };
     byTag[tag].qtd += Number(e.quantidade || 0);
     byTag[tag].total += Number(e.valor_total || 0);
     byTag[tag].lanc += 1;
     if (e.fornecedor) byTag[tag].fornecedores.add(e.fornecedor);
+    if (e.unidade) byTag[tag].unidades.add(e.unidade);
   });
   const list = Object.entries(byTag)
     .map(([tag, v], i) => ({ tag, ...v, color: PIE_COLORS[i % PIE_COLORS.length] }))
     .sort((a, b) => b.total - a.total);
 
+  // Agrupa por item (nome) — quantidades acumuladas por unidade
+  const byItem: Record<string, { nome: string; unidade: string; qtd: number; total: number; lanc: number; fornecedores: Set<string> }> = {};
+  materials.forEach((e) => {
+    const key = `${(e.nome_item || "—").trim().toUpperCase()}__${e.unidade || ""}`;
+    byItem[key] = byItem[key] || { nome: (e.nome_item || "—").trim(), unidade: e.unidade || "", qtd: 0, total: 0, lanc: 0, fornecedores: new Set() };
+    byItem[key].qtd += Number(e.quantidade || 0);
+    byItem[key].total += Number(e.valor_total || 0);
+    byItem[key].lanc += 1;
+    if (e.fornecedor) byItem[key].fornecedores.add(e.fornecedor);
+  });
+  const itemList = Object.values(byItem).sort((a, b) => b.total - a.total);
+
   // KPIs
   const totalMat = list.reduce((s, l) => s + l.total, 0);
   y = kpiRow(doc, y, [
     { label: "Total em Materiais", value: formatBRL(totalMat), tone: NAVY },
-    { label: "Itens Distintos", value: String(list.length), tone: AMBER },
+    { label: "Itens Distintos", value: String(itemList.length), tone: AMBER },
     { label: "Lançamentos", value: String(materials.length), tone: NAVY_DARK },
   ]);
 
-  // Top materiais
+  // Top materiais (por item, com quantidade)
   y = ensureSpace(doc, y, 70, ctx, title);
-  y = sectionTitle(doc, y, "Top Materiais por Custo");
-  drawBarsHorizontal(doc, MARGIN, y, CONTENT_W, 60, list.slice(0, 10).map((l) => ({ label: `#${l.tag}`, value: l.total, color: l.color })));
+  y = sectionTitle(doc, y, "Top Itens por Custo", "Quantidade acumulada e valor total");
+  drawBarsHorizontal(doc, MARGIN, y, CONTENT_W, 60, itemList.slice(0, 10).map((l, i) => ({
+    label: `${l.nome} — ${l.qtd.toLocaleString("pt-BR")} ${l.unidade}`.trim(),
+    value: l.total,
+    color: PIE_COLORS[i % PIE_COLORS.length],
+  })));
   y += 65;
 
   // Evolução mensal de materiais
@@ -798,18 +815,36 @@ export async function gerarMateriais(ctx: ReportContext) {
   drawLineChart(doc, MARGIN, y, CONTENT_W, 50, groupByMonth(materials));
   y += 55;
 
-  // Tabela detalhada
+  // Detalhamento por item (com quantidade)
   y = ensureSpace(doc, y, 60, ctx, title);
-  y = sectionTitle(doc, y, "Detalhamento Agrupado por Tag");
+  y = sectionTitle(doc, y, "Quantitativo por Item", "Ex.: Paver 260 m², Cimento 45 saco");
   autoTable(doc, {
     startY: y,
-    head: [["Tag", "Quantidade", "Total", "Lançamentos", "Preço Médio", "Fornecedores"]],
+    head: [["Item", "Quantidade", "Unidade", "Total", "Preço Médio", "Lançamentos"]],
+    body: itemList.map((l) => [
+      l.nome,
+      l.qtd.toLocaleString("pt-BR", { maximumFractionDigits: 2 }),
+      l.unidade || "—",
+      formatBRL(l.total),
+      formatBRL(l.qtd > 0 ? l.total / l.qtd : 0),
+      String(l.lanc),
+    ]),
+    ...tableTheme(),
+  });
+  y = (doc as any).lastAutoTable.finalY + 6;
+
+  // Tabela agrupada por tag
+  y = ensureSpace(doc, y, 60, ctx, title);
+  y = sectionTitle(doc, y, "Agrupamento por Tag");
+  autoTable(doc, {
+    startY: y,
+    head: [["Tag", "Quantidade", "Unidades", "Total", "Lançamentos", "Fornecedores"]],
     body: list.map((l) => [
       `#${l.tag}`,
-      l.qtd.toFixed(2),
+      l.qtd.toLocaleString("pt-BR", { maximumFractionDigits: 2 }),
+      l.unidades.size > 0 ? Array.from(l.unidades).join(", ") : "—",
       formatBRL(l.total),
       String(l.lanc),
-      formatBRL(l.qtd > 0 ? l.total / l.qtd : 0),
       l.fornecedores.size > 0 ? Array.from(l.fornecedores).slice(0, 3).join(", ") : "—",
     ]),
     ...tableTheme(),
