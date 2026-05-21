@@ -131,6 +131,13 @@ function drawCover(doc: jsPDF, ctx: ReportContext, reportTitle: string) {
   doc.setFontSize(11);
   doc.text(ctx.obraName, MARGIN, 60 + titleLines.length * 11);
 
+  // Faixa de referência (mês/ano) — destaque executivo
+  const referencia = getReferenciaMes(ctx);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  setText(doc, AMBER);
+  doc.text(`Levantamento referente a: ${referencia}`, MARGIN, 60 + titleLines.length * 11 + 7);
+
   // Bloco de metadados
   const blockY = 120;
   setFill(doc, LIGHT);
@@ -139,7 +146,7 @@ function drawCover(doc: jsPDF, ctx: ReportContext, reportTitle: string) {
   const items: Array<[string, string]> = [
     ["Obra", ctx.obraName],
     ["Início da obra", ctx.obraInicio ? new Date(ctx.obraInicio).toLocaleDateString("pt-BR") : "—"],
-    ["Período do relatório", ctx.periodoLabel || "Todos os lançamentos"],
+    ["Mês de referência", referencia],
     ["Total de lançamentos", String(ctx.entries.length)],
     ["Emitido em", new Date().toLocaleString("pt-BR")],
     ["Tipo do relatório", reportTitle],
