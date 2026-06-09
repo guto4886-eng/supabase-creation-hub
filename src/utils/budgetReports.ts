@@ -622,8 +622,16 @@ async function reportFormularioOrcamento(data: ReportData) {
   doc.setFontSize(11);
   doc.setFont("helvetica", "bold");
   doc.text(`TOTAL GERAL: ${fmt(total)}`, MARGIN, cy + 2);
+  cy += 10;
 
-  const fy = cy + 22;
+  const ei = data.extraInfo || {};
+  const pw = doc.internal.pageSize.getWidth() - MARGIN * 2;
+  if (ei.validade) cy = drawWrappedSection(doc, "Validade da proposta:", ei.validade, MARGIN, cy, pw);
+  if (ei.formaPagamento) cy = drawWrappedSection(doc, "Forma de pagamento:", ei.formaPagamento, MARGIN, cy, pw);
+  if (ei.prazoExecucao) cy = drawWrappedSection(doc, "Prazo de execução:", ei.prazoExecucao, MARGIN, cy, pw);
+  if (ei.observacoes) cy = drawWrappedSection(doc, "Observações:", ei.observacoes, MARGIN, cy, pw);
+
+  const fy = ensureSpace(doc, cy + 15, 20);
   doc.setDrawColor(100);
   doc.line(MARGIN, fy, 85, fy);
   doc.line(120, fy, 195, fy);
