@@ -133,6 +133,14 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
   const [addingItem, setAddingItem] = useState(false);
   const [itemForm, setItemForm] = useState({ description: "", category: "", quantity: "1", unit: "un", unit_price: "0" });
   const [showImport, setShowImport] = useState(false);
+  const [extraInfoReport, setExtraInfoReport] = useState<string | null>(null);
+  const [extraInfo, setExtraInfo] = useState({
+    validade: "30 dias.",
+    formaPagamento: "",
+    prazoExecucao: "",
+    observacoes: "",
+    introducao: "",
+  });
   const [showSinapiSearch, setShowSinapiSearch] = useState(false);
   const [selectedPhase, setSelectedPhase] = useState<string | null>(null);
   const [expandedAbc, setExpandedAbc] = useState<string | null>(null);
