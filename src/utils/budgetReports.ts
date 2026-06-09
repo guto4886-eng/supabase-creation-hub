@@ -80,6 +80,32 @@ interface ReportData {
   planPeriods?: any[];
   planItems?: any[];
   userId: string;
+  extraInfo?: {
+    validade?: string;
+    formaPagamento?: string;
+    prazoExecucao?: string;
+    observacoes?: string;
+    introducao?: string;
+  };
+}
+
+/** Render multiline text inside the page, returning the new Y. */
+function drawWrappedSection(doc: jsPDF, title: string, text: string, x: number, y: number, maxWidth: number): number {
+  if (!text || !text.trim()) return y;
+  y = ensureSpace(doc, y, 12);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9);
+  doc.text(title, x, y);
+  y += 4;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  const lines = doc.splitTextToSize(text, maxWidth);
+  for (const ln of lines) {
+    y = ensureSpace(doc, y, 5);
+    doc.text(ln, x, y);
+    y += 4.5;
+  }
+  return y + 2;
 }
 
 function getPhases(items: BudgetItem[]) {
@@ -596,8 +622,16 @@ async function reportFormularioOrcamento(data: ReportData) {
   doc.setFontSize(11);
   doc.setFont("helvetica", "bold");
   doc.text(`TOTAL GERAL: ${fmt(total)}`, MARGIN, cy + 2);
+  cy += 10;
 
-  const fy = cy + 22;
+  const ei = data.extraInfo || {};
+  const pw = doc.internal.pageSize.getWidth() - MARGIN * 2;
+  if (ei.validade) cy = drawWrappedSection(doc, "Validade da proposta:", ei.validade, MARGIN, cy, pw);
+  if (ei.formaPagamento) cy = drawWrappedSection(doc, "Forma de pagamento:", ei.formaPagamento, MARGIN, cy, pw);
+  if (ei.prazoExecucao) cy = drawWrappedSection(doc, "Prazo de execução:", ei.prazoExecucao, MARGIN, cy, pw);
+  if (ei.observacoes) cy = drawWrappedSection(doc, "Observações:", ei.observacoes, MARGIN, cy, pw);
+
+  const fy = ensureSpace(doc, cy + 15, 20);
   doc.setDrawColor(100);
   doc.line(MARGIN, fy, 85, fy);
   doc.line(120, fy, 195, fy);
@@ -647,8 +681,15 @@ async function reportPrestacaoServico(data: ReportData) {
   });
 
   const tableEnd = (doc as any).lastAutoTable.finalY;
-  let fy = tableEnd + 25;
-  fy = ensureSpace(doc, fy, 15) === PAGE_TOP ? PAGE_TOP + 10 : fy;
+  let cy2 = tableEnd + 8;
+  const ei = data.extraInfo || {};
+  const pw = doc.internal.pageSize.getWidth() - MARGIN * 2;
+  if (ei.prazoExecucao) cy2 = drawWrappedSection(doc, "Prazo de execução do serviço:", ei.prazoExecucao, MARGIN, cy2, pw);
+  if (ei.formaPagamento) cy2 = drawWrappedSection(doc, "Forma de pagamento:", ei.formaPagamento, MARGIN, cy2, pw);
+  if (ei.validade) cy2 = drawWrappedSection(doc, "Validade da proposta:", ei.validade, MARGIN, cy2, pw);
+  if (ei.observacoes) cy2 = drawWrappedSection(doc, "Observações:", ei.observacoes, MARGIN, cy2, pw);
+
+  let fy = ensureSpace(doc, cy2 + 18, 15);
   doc.setDrawColor(100);
   doc.line(MARGIN, fy, 85, fy);
   doc.line(120, fy, 195, fy);
@@ -674,7 +715,11 @@ async function reportPropostaComercial(data: ReportData) {
   doc.text(`Data: ${new Date().toLocaleDateString("pt-BR")}`, MARGIN, cy); cy += 8;
 
   doc.text("Prezado(a) cliente,", MARGIN, cy); cy += 5;
-  doc.text("Apresentamos a seguir nossa proposta para os serviços e materiais abaixo discriminados:", MARGIN, cy); cy += 8;
+  const intro = data.extraInfo?.introducao?.trim()
+    || "Apresentamos a seguir nossa proposta para os serviços e materiais abaixo discriminados:";
+  const introLines = doc.splitTextToSize(intro, doc.internal.pageSize.getWidth() - MARGIN * 2);
+  for (const ln of introLines) { doc.text(ln, MARGIN, cy); cy += 4.5; }
+  cy += 4;
 
   const totalVenda = data.items.reduce((s, i) => {
     const bdi = i.bdi ?? 0;
@@ -701,13 +746,22 @@ async function reportPropostaComercial(data: ReportData) {
   });
 
   let fy = (doc as any).lastAutoTable.finalY + 8;
-  fy = ensureSpace(doc, fy, 35) === PAGE_TOP ? PAGE_TOP + 5 : fy;
-  doc.setFontSize(8);
-  doc.text("Condições de pagamento: A combinar.", MARGIN, fy);
-  doc.text("Prazo de validade da proposta: 30 dias.", MARGIN, fy + 4);
-  doc.text("Atenciosamente,", MARGIN, fy + 12);
+  const ei2 = data.extraInfo || {};
+  const pw2 = doc.internal.pageSize.getWidth() - MARGIN * 2;
+  const formaPg = ei2.formaPagamento?.trim() || "A combinar.";
+  const validade = ei2.validade?.trim() || "30 dias.";
+  const prazoExec = ei2.prazoExecucao?.trim();
+  fy = drawWrappedSection(doc, "Condições de pagamento:", formaPg, MARGIN, fy, pw2);
+  fy = drawWrappedSection(doc, "Validade da proposta:", validade, MARGIN, fy, pw2);
+  if (prazoExec) fy = drawWrappedSection(doc, "Prazo de execução:", prazoExec, MARGIN, fy, pw2);
+  if (ei2.observacoes) fy = drawWrappedSection(doc, "Observações:", ei2.observacoes, MARGIN, fy, pw2);
 
-  const sy = fy + 25;
+  fy = ensureSpace(doc, fy + 6, 20);
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "normal");
+  doc.text("Atenciosamente,", MARGIN, fy); fy += 12;
+
+  const sy = fy;
   doc.setDrawColor(100);
   doc.line(MARGIN, sy, 85, sy);
   doc.setFontSize(8);

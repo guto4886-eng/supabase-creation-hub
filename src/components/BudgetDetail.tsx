@@ -133,6 +133,14 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
   const [addingItem, setAddingItem] = useState(false);
   const [itemForm, setItemForm] = useState({ description: "", category: "", quantity: "1", unit: "un", unit_price: "0" });
   const [showImport, setShowImport] = useState(false);
+  const [extraInfoReport, setExtraInfoReport] = useState<string | null>(null);
+  const [extraInfo, setExtraInfo] = useState({
+    validade: "30 dias.",
+    formaPagamento: "",
+    prazoExecucao: "",
+    observacoes: "",
+    introducao: "",
+  });
   const [showSinapiSearch, setShowSinapiSearch] = useState(false);
   const [selectedPhase, setSelectedPhase] = useState<string | null>(null);
   const [expandedAbc, setExpandedAbc] = useState<string | null>(null);
@@ -489,6 +497,38 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
     aprovado: "text-green-600",
     rejeitado: "text-destructive",
   };
+
+  const runReport = async (item: string, extra?: any) => {
+    try {
+      toast.info(`Gerando "${item}"...`);
+      const allMeasIds = measurements.map((m: any) => m.id);
+      let allMI: any[] = [];
+      if (allMeasIds.length > 0) {
+        const { data: miData } = await supabase
+          .from("budget_measurement_items")
+          .select("*")
+          .in("measurement_id", allMeasIds);
+        allMI = miData || [];
+      }
+      await generateBudgetReport(item, {
+        budget,
+        items,
+        obra,
+        client,
+        company,
+        measurements: measurements as any[],
+        allMeasurementItems: allMI,
+        planPeriods: planPeriods as any[],
+        planItems: planItems as any[],
+        userId: user!.id,
+        extraInfo: extra,
+      });
+      toast.success(`Relatório "${item}" gerado com sucesso!`);
+    } catch (err: any) {
+      toast.error(`Erro: ${err?.message || "Falha ao gerar relatório"}`);
+    }
+  };
+
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
@@ -2664,34 +2704,12 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
               icon={FileText}
               items={RELATORIOS}
               onSelect={async (item) => {
-                try {
-                  toast.info(`Gerando "${item}"...`);
-                  // Fetch all measurement items across all measurements
-                  const allMeasIds = measurements.map((m: any) => m.id);
-                  let allMI: any[] = [];
-                  if (allMeasIds.length > 0) {
-                    const { data: miData } = await supabase
-                      .from("budget_measurement_items")
-                      .select("*")
-                      .in("measurement_id", allMeasIds);
-                    allMI = miData || [];
-                  }
-                  await generateBudgetReport(item, {
-                    budget,
-                    items,
-                    obra,
-                    client,
-                    company,
-                    measurements: measurements as any[],
-                    allMeasurementItems: allMI,
-                    planPeriods: planPeriods as any[],
-                    planItems: planItems as any[],
-                    userId: user!.id,
-                  });
-                  toast.success(`Relatório "${item}" gerado com sucesso!`);
-                } catch (err: any) {
-                  toast.error(`Erro: ${err?.message || "Falha ao gerar relatório"}`);
+                const needsExtra = ["Proposta comercial", "Prestação de serviço", "Formulário de orçamento"].includes(item);
+                if (needsExtra) {
+                  setExtraInfoReport(item);
+                  return;
                 }
+                await runReport(item);
               }}
             />
             <DropdownButton
@@ -2860,6 +2878,55 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
         {/* Import modal */}
         {showImport && (
           <BudgetImportModal budgetId={budgetId} onClose={() => setShowImport(false)} />
+        )}
+
+        {extraInfoReport && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4" onClick={() => setExtraInfoReport(null)}>
+            <div className="bg-card border border-border rounded-xl w-full max-w-2xl flex flex-col" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-muted rounded-t-xl">
+                <h3 className="text-base font-semibold text-foreground">Informações adicionais — {extraInfoReport}</h3>
+                <button onClick={() => setExtraInfoReport(null)} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
+              </div>
+              <div className="p-5 space-y-3 overflow-y-auto" style={{ maxHeight: "70vh" }}>
+                <p className="text-xs text-muted-foreground">Preencha os campos abaixo que devem aparecer no relatório. Deixe em branco para omitir.</p>
+                {extraInfoReport === "Proposta comercial" && (
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1">Texto de introdução</label>
+                    <textarea rows={2} value={extraInfo.introducao} onChange={(e) => setExtraInfo((p) => ({ ...p, introducao: e.target.value }))} placeholder="Apresentamos a seguir nossa proposta..." className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
+                  </div>
+                )}
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Validade da proposta</label>
+                  <input value={extraInfo.validade} onChange={(e) => setExtraInfo((p) => ({ ...p, validade: e.target.value }))} placeholder="Ex.: 30 dias" className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Forma de pagamento</label>
+                  <textarea rows={2} value={extraInfo.formaPagamento} onChange={(e) => setExtraInfo((p) => ({ ...p, formaPagamento: e.target.value }))} placeholder="Ex.: 30% entrada + 3 parcelas iguais via boleto" className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Prazo de execução</label>
+                  <textarea rows={2} value={extraInfo.prazoExecucao} onChange={(e) => setExtraInfo((p) => ({ ...p, prazoExecucao: e.target.value }))} placeholder="Ex.: 60 dias corridos após assinatura" className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Observações</label>
+                  <textarea rows={3} value={extraInfo.observacoes} onChange={(e) => setExtraInfo((p) => ({ ...p, observacoes: e.target.value }))} placeholder="Outras condições, garantias, exclusões..." className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 px-5 py-3 border-t border-border bg-muted rounded-b-xl">
+                <button onClick={() => setExtraInfoReport(null)} className="px-4 py-2 rounded-lg border border-border text-foreground hover:bg-background text-sm">Cancelar</button>
+                <button
+                  onClick={async () => {
+                    const name = extraInfoReport;
+                    setExtraInfoReport(null);
+                    await runReport(name!, extraInfo);
+                  }}
+                  className="px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 text-sm"
+                >
+                  Gerar relatório
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>
