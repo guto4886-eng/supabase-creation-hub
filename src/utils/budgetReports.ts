@@ -715,7 +715,11 @@ async function reportPropostaComercial(data: ReportData) {
   doc.text(`Data: ${new Date().toLocaleDateString("pt-BR")}`, MARGIN, cy); cy += 8;
 
   doc.text("Prezado(a) cliente,", MARGIN, cy); cy += 5;
-  doc.text("Apresentamos a seguir nossa proposta para os serviços e materiais abaixo discriminados:", MARGIN, cy); cy += 8;
+  const intro = data.extraInfo?.introducao?.trim()
+    || "Apresentamos a seguir nossa proposta para os serviços e materiais abaixo discriminados:";
+  const introLines = doc.splitTextToSize(intro, doc.internal.pageSize.getWidth() - MARGIN * 2);
+  for (const ln of introLines) { doc.text(ln, MARGIN, cy); cy += 4.5; }
+  cy += 4;
 
   const totalVenda = data.items.reduce((s, i) => {
     const bdi = i.bdi ?? 0;
