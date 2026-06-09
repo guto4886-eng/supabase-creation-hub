@@ -2664,34 +2664,12 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
               icon={FileText}
               items={RELATORIOS}
               onSelect={async (item) => {
-                try {
-                  toast.info(`Gerando "${item}"...`);
-                  // Fetch all measurement items across all measurements
-                  const allMeasIds = measurements.map((m: any) => m.id);
-                  let allMI: any[] = [];
-                  if (allMeasIds.length > 0) {
-                    const { data: miData } = await supabase
-                      .from("budget_measurement_items")
-                      .select("*")
-                      .in("measurement_id", allMeasIds);
-                    allMI = miData || [];
-                  }
-                  await generateBudgetReport(item, {
-                    budget,
-                    items,
-                    obra,
-                    client,
-                    company,
-                    measurements: measurements as any[],
-                    allMeasurementItems: allMI,
-                    planPeriods: planPeriods as any[],
-                    planItems: planItems as any[],
-                    userId: user!.id,
-                  });
-                  toast.success(`Relatório "${item}" gerado com sucesso!`);
-                } catch (err: any) {
-                  toast.error(`Erro: ${err?.message || "Falha ao gerar relatório"}`);
+                const needsExtra = ["Proposta comercial", "Prestação de serviço", "Formulário de orçamento"].includes(item);
+                if (needsExtra) {
+                  setExtraInfoReport(item);
+                  return;
                 }
+                await runReport(item);
               }}
             />
             <DropdownButton
