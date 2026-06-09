@@ -746,13 +746,22 @@ async function reportPropostaComercial(data: ReportData) {
   });
 
   let fy = (doc as any).lastAutoTable.finalY + 8;
-  fy = ensureSpace(doc, fy, 35) === PAGE_TOP ? PAGE_TOP + 5 : fy;
-  doc.setFontSize(8);
-  doc.text("Condições de pagamento: A combinar.", MARGIN, fy);
-  doc.text("Prazo de validade da proposta: 30 dias.", MARGIN, fy + 4);
-  doc.text("Atenciosamente,", MARGIN, fy + 12);
+  const ei2 = data.extraInfo || {};
+  const pw2 = doc.internal.pageSize.getWidth() - MARGIN * 2;
+  const formaPg = ei2.formaPagamento?.trim() || "A combinar.";
+  const validade = ei2.validade?.trim() || "30 dias.";
+  const prazoExec = ei2.prazoExecucao?.trim();
+  fy = drawWrappedSection(doc, "Condições de pagamento:", formaPg, MARGIN, fy, pw2);
+  fy = drawWrappedSection(doc, "Validade da proposta:", validade, MARGIN, fy, pw2);
+  if (prazoExec) fy = drawWrappedSection(doc, "Prazo de execução:", prazoExec, MARGIN, fy, pw2);
+  if (ei2.observacoes) fy = drawWrappedSection(doc, "Observações:", ei2.observacoes, MARGIN, fy, pw2);
 
-  const sy = fy + 25;
+  fy = ensureSpace(doc, fy + 6, 20);
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "normal");
+  doc.text("Atenciosamente,", MARGIN, fy); fy += 12;
+
+  const sy = fy;
   doc.setDrawColor(100);
   doc.line(MARGIN, sy, 85, sy);
   doc.setFontSize(8);
