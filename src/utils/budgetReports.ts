@@ -681,8 +681,15 @@ async function reportPrestacaoServico(data: ReportData) {
   });
 
   const tableEnd = (doc as any).lastAutoTable.finalY;
-  let fy = tableEnd + 25;
-  fy = ensureSpace(doc, fy, 15) === PAGE_TOP ? PAGE_TOP + 10 : fy;
+  let cy2 = tableEnd + 8;
+  const ei = data.extraInfo || {};
+  const pw = doc.internal.pageSize.getWidth() - MARGIN * 2;
+  if (ei.prazoExecucao) cy2 = drawWrappedSection(doc, "Prazo de execução do serviço:", ei.prazoExecucao, MARGIN, cy2, pw);
+  if (ei.formaPagamento) cy2 = drawWrappedSection(doc, "Forma de pagamento:", ei.formaPagamento, MARGIN, cy2, pw);
+  if (ei.validade) cy2 = drawWrappedSection(doc, "Validade da proposta:", ei.validade, MARGIN, cy2, pw);
+  if (ei.observacoes) cy2 = drawWrappedSection(doc, "Observações:", ei.observacoes, MARGIN, cy2, pw);
+
+  let fy = ensureSpace(doc, cy2 + 18, 15);
   doc.setDrawColor(100);
   doc.line(MARGIN, fy, 85, fy);
   doc.line(120, fy, 195, fy);
