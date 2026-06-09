@@ -80,6 +80,32 @@ interface ReportData {
   planPeriods?: any[];
   planItems?: any[];
   userId: string;
+  extraInfo?: {
+    validade?: string;
+    formaPagamento?: string;
+    prazoExecucao?: string;
+    observacoes?: string;
+    introducao?: string;
+  };
+}
+
+/** Render multiline text inside the page, returning the new Y. */
+function drawWrappedSection(doc: jsPDF, title: string, text: string, x: number, y: number, maxWidth: number): number {
+  if (!text || !text.trim()) return y;
+  y = ensureSpace(doc, y, 12);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9);
+  doc.text(title, x, y);
+  y += 4;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  const lines = doc.splitTextToSize(text, maxWidth);
+  for (const ln of lines) {
+    y = ensureSpace(doc, y, 5);
+    doc.text(ln, x, y);
+    y += 4.5;
+  }
+  return y + 2;
 }
 
 function getPhases(items: BudgetItem[]) {
