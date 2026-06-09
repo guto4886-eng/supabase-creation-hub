@@ -2879,6 +2879,55 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
         {showImport && (
           <BudgetImportModal budgetId={budgetId} onClose={() => setShowImport(false)} />
         )}
+
+        {extraInfoReport && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4" onClick={() => setExtraInfoReport(null)}>
+            <div className="bg-card border border-border rounded-xl w-full max-w-2xl flex flex-col" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-muted rounded-t-xl">
+                <h3 className="text-base font-semibold text-foreground">Informações adicionais — {extraInfoReport}</h3>
+                <button onClick={() => setExtraInfoReport(null)} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
+              </div>
+              <div className="p-5 space-y-3 overflow-y-auto" style={{ maxHeight: "70vh" }}>
+                <p className="text-xs text-muted-foreground">Preencha os campos abaixo que devem aparecer no relatório. Deixe em branco para omitir.</p>
+                {extraInfoReport === "Proposta comercial" && (
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1">Texto de introdução</label>
+                    <textarea rows={2} value={extraInfo.introducao} onChange={(e) => setExtraInfo((p) => ({ ...p, introducao: e.target.value }))} placeholder="Apresentamos a seguir nossa proposta..." className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
+                  </div>
+                )}
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Validade da proposta</label>
+                  <input value={extraInfo.validade} onChange={(e) => setExtraInfo((p) => ({ ...p, validade: e.target.value }))} placeholder="Ex.: 30 dias" className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Forma de pagamento</label>
+                  <textarea rows={2} value={extraInfo.formaPagamento} onChange={(e) => setExtraInfo((p) => ({ ...p, formaPagamento: e.target.value }))} placeholder="Ex.: 30% entrada + 3 parcelas iguais via boleto" className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Prazo de execução</label>
+                  <textarea rows={2} value={extraInfo.prazoExecucao} onChange={(e) => setExtraInfo((p) => ({ ...p, prazoExecucao: e.target.value }))} placeholder="Ex.: 60 dias corridos após assinatura" className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Observações</label>
+                  <textarea rows={3} value={extraInfo.observacoes} onChange={(e) => setExtraInfo((p) => ({ ...p, observacoes: e.target.value }))} placeholder="Outras condições, garantias, exclusões..." className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm" />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 px-5 py-3 border-t border-border bg-muted rounded-b-xl">
+                <button onClick={() => setExtraInfoReport(null)} className="px-4 py-2 rounded-lg border border-border text-foreground hover:bg-background text-sm">Cancelar</button>
+                <button
+                  onClick={async () => {
+                    const name = extraInfoReport;
+                    setExtraInfoReport(null);
+                    await runReport(name!, extraInfo);
+                  }}
+                  className="px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 text-sm"
+                >
+                  Gerar relatório
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
