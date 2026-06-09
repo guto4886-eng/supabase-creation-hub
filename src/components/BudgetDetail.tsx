@@ -498,6 +498,38 @@ export default function BudgetDetail({ budgetId, onClose }: BudgetDetailProps) {
     rejeitado: "text-destructive",
   };
 
+  const runReport = async (item: string, extra?: any) => {
+    try {
+      toast.info(`Gerando "${item}"...`);
+      const allMeasIds = measurements.map((m: any) => m.id);
+      let allMI: any[] = [];
+      if (allMeasIds.length > 0) {
+        const { data: miData } = await supabase
+          .from("budget_measurement_items")
+          .select("*")
+          .in("measurement_id", allMeasIds);
+        allMI = miData || [];
+      }
+      await generateBudgetReport(item, {
+        budget,
+        items,
+        obra,
+        client,
+        company,
+        measurements: measurements as any[],
+        allMeasurementItems: allMI,
+        planPeriods: planPeriods as any[],
+        planItems: planItems as any[],
+        userId: user!.id,
+        extraInfo: extra,
+      });
+      toast.success(`Relatório "${item}" gerado com sucesso!`);
+    } catch (err: any) {
+      toast.error(`Erro: ${err?.message || "Falha ao gerar relatório"}`);
+    }
+  };
+
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
       <div
