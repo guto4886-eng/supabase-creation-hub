@@ -55,6 +55,7 @@ type Settings = {
   alerta_estouro_pct: number;
   obra_publica: boolean;
   imagem_url: string | null;
+  orcamento_por_fase?: Record<string, number> | null;
 };
 
 type TabKey =
