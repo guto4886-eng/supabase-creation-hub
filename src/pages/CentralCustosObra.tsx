@@ -1417,7 +1417,7 @@ function AnalyticsTab({ entries, orcamentoPrevisto, gastoTotal, pctConsumido, sa
 }
 
 /* ============== RELATÓRIOS ============== */
-function RelatoriosTab({ entries, obra, orcamentoPrevisto, gastoTotal, phases = DEFAULT_PHASES, employees = [] }: any) {
+function RelatoriosTab({ entries, obra, orcamentoPrevisto, gastoTotal, phases = DEFAULT_PHASES, employees = [], orcamentoPorFase = {} }: any) {
   const porFase = useMemo(() => {
     const map: Record<string, number> = {};
     entries.forEach((e: Entry) => {
