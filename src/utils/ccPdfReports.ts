@@ -509,7 +509,7 @@ function autoInsightsByPhase(entries: Entry[], orcamentoPrevisto: number): strin
   const out: string[] = [];
   if (orcamentoPrevisto > 0 && totals[0]) {
     const pct = (totals[0].total / orcamentoPrevisto) * 100;
-    if (pct >= 50) out.push(`🟡 ${totals[0].nome} já consumiu ${pct.toFixed(0)}% do orçamento previsto.`);
+    if (pct >= 50) out.push(`[ATENCAO] ${totals[0].nome} ja consumiu ${pct.toFixed(0)}% do orcamento previsto.`);
   }
   // crescimento mensal por fase top1
   if (totals[0]) {
@@ -525,14 +525,14 @@ function autoInsightsByPhase(entries: Entry[], orcamentoPrevisto: number): strin
       const cur = monthly[keys[keys.length - 1]];
       if (prev > 0) {
         const g = ((cur - prev) / prev) * 100;
-        if (g >= 20) out.push(`🔴 Custos de ${totals[0].nome} cresceram ${g.toFixed(0)}% no último mês.`);
+        if (g >= 20) out.push(`[ALERTA] Custos de ${totals[0].nome} cresceram ${g.toFixed(0)}% no ultimo mes.`);
       }
     }
   }
   // fase com menor gasto
   const last = totals[totals.length - 1];
-  if (last && totals.length >= 3) out.push(`🟢 ${last.nome} é a fase com menor gasto até o momento.`);
-  if (out.length === 0) out.push("ℹ️ Sem alertas relevantes no período.");
+  if (last && totals.length >= 3) out.push(`[OK] ${last.nome} e a fase com menor gasto ate o momento.`);
+  if (out.length === 0) out.push("[INFO] Sem alertas relevantes no periodo.");
   return out;
 }
 
