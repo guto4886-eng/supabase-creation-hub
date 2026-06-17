@@ -35,6 +35,9 @@ export type ReportContext = {
   employees?: Employee[];
   phases?: Phase[];
   periodoLabel?: string;
+  /** Distribuição percentual do orçamento por fase (ex.: { "Fundação": 20, "Acabamento": 35 }).
+   *  Quando vazio, o relatório aplica rateio proporcional automático. */
+  orcamentoPorFase?: Record<string, number>;
 };
 
 // ============ Paleta institucional ============
@@ -1035,28 +1038,49 @@ export async function gerarPrevistoRealizado(ctx: ReportContext) {
 
   // Por fase
   y = ensureSpace(doc, y, 70, ctx, title);
-  y = sectionTitle(doc, y, "Comparativo por Fase", "Considerando rateio proporcional do orçamento");
-  const phases = ctx.phases || DEFAULT_PHASES;
+  const distribuicao = ctx.orcamentoPorFase || {};
+  const totalPct = Object.values(distribuicao).reduce((s, v) => s + Number(v || 0), 0);
+  const usaDistribuicao = totalPct > 0 && ctx.orcamentoPrevisto > 0;
+  y = sectionTitle(
+    doc,
+    y,
+    "Comparativo por Fase",
+    usaDistribuicao
+      ? "Distribuição definida pelo usuário"
+      : "Considerando rateio proporcional do orçamento"
+  );
   const byPhase: Record<string, number> = {};
   ctx.entries.forEach((e) => {
     const k = e.fase || "Sem fase";
     byPhase[k] = (byPhase[k] || 0) + Number(e.valor_total || 0);
   });
-  const phaseList = Object.entries(byPhase).map(([nome, total]) => ({ nome, total })).sort((a, b) => b.total - a.total);
-  const phasePrev = phaseList.length > 0 ? ctx.orcamentoPrevisto / phaseList.length : 0;
+  // União: fases com gastos + fases configuradas na distribuição
+  const nomesFases = new Set<string>([...Object.keys(byPhase), ...Object.keys(distribuicao)]);
+  const phaseList = Array.from(nomesFases)
+    .map((nome) => ({ nome, total: byPhase[nome] || 0 }))
+    .sort((a, b) => b.total - a.total);
+  const phasePrevRateado = phaseList.length > 0 ? ctx.orcamentoPrevisto / phaseList.length : 0;
+  const previstoDaFase = (nome: string) => {
+    if (usaDistribuicao) {
+      const pct = Number(distribuicao[nome] || 0);
+      return (ctx.orcamentoPrevisto * pct) / 100;
+    }
+    return phasePrevRateado;
+  };
   autoTable(doc, {
     startY: y,
-    head: [["Fase", "Previsto (rateado)", "Realizado", "Diferença", "% Consumido", "Status"]],
+    head: [["Fase", usaDistribuicao ? "Previsto (definido)" : "Previsto (rateado)", "Realizado", "Diferença", "% Consumido", "Status"]],
     body: phaseList.map((p) => {
-      const dif = phasePrev - p.total;
-      const pctP = phasePrev > 0 ? (p.total / phasePrev) * 100 : 0;
-      const status = pctP >= 100 ? "Estourou" : pctP >= 80 ? "Proximo" : "OK";
+      const prev = previstoDaFase(p.nome);
+      const dif = prev - p.total;
+      const pctP = prev > 0 ? (p.total / prev) * 100 : 0;
+      const status = prev <= 0 ? "Sem previsto" : pctP >= 100 ? "Estourou" : pctP >= 80 ? "Proximo" : "OK";
       return [
         p.nome,
-        formatBRL(phasePrev),
+        formatBRL(prev),
         formatBRL(p.total),
         formatBRL(dif),
-        `${pctP.toFixed(1)}%`,
+        prev > 0 ? `${pctP.toFixed(1)}%` : "—",
         status,
       ];
     }),

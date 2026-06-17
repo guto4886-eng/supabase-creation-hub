@@ -1,0 +1,1 @@
+ALTER TABLE public.cc_obra_settings ADD COLUMN IF NOT EXISTS orcamento_por_fase JSONB NOT NULL DEFAULT '{}'::jsonb;
