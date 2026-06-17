@@ -491,6 +491,7 @@ export type Database = {
           meta_margem: number | null
           obra_id: string
           obra_publica: boolean | null
+          orcamento_por_fase: Json
           orcamento_previsto: number | null
           updated_at: string
           user_id: string
@@ -503,6 +504,7 @@ export type Database = {
           meta_margem?: number | null
           obra_id: string
           obra_publica?: boolean | null
+          orcamento_por_fase?: Json
           orcamento_previsto?: number | null
           updated_at?: string
           user_id: string
@@ -515,6 +517,7 @@ export type Database = {
           meta_margem?: number | null
           obra_id?: string
           obra_publica?: boolean | null
+          orcamento_por_fase?: Json
           orcamento_previsto?: number | null
           updated_at?: string
           user_id?: string

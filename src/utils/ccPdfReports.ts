@@ -35,6 +35,9 @@ export type ReportContext = {
   employees?: Employee[];
   phases?: Phase[];
   periodoLabel?: string;
+  /** Distribuição percentual do orçamento por fase (ex.: { "Fundação": 20, "Acabamento": 35 }).
+   *  Quando vazio, o relatório aplica rateio proporcional automático. */
+  orcamentoPorFase?: Record<string, number>;
 };
 
 // ============ Paleta institucional ============
