@@ -1050,7 +1050,7 @@ export async function gerarPrevistoRealizado(ctx: ReportContext) {
     body: phaseList.map((p) => {
       const dif = phasePrev - p.total;
       const pctP = phasePrev > 0 ? (p.total / phasePrev) * 100 : 0;
-      const status = pctP >= 100 ? "🔴 Estourou" : pctP >= 80 ? "🟡 Próximo" : "🟢 OK";
+      const status = pctP >= 100 ? "Estourou" : pctP >= 80 ? "Proximo" : "OK";
       return [
         p.nome,
         formatBRL(phasePrev),
