@@ -1707,13 +1707,14 @@ function ArquivosTab({ obraId, userId }: any) {
 }
 
 /* ============== CONFIG ============== */
-function ConfigTab({ obraId, userId, settings, onSaved }: any) {
+function ConfigTab({ obraId, userId, settings, onSaved, phases = DEFAULT_PHASES, entries = [], orcamentoPrevisto = 0 }: any) {
   const [form, setForm] = useState<Settings>({
     orcamento_previsto: settings?.orcamento_previsto || 0,
     meta_margem: settings?.meta_margem || 0,
     alerta_estouro_pct: settings?.alerta_estouro_pct || 90,
     obra_publica: settings?.obra_publica || false,
     imagem_url: settings?.imagem_url || null,
+    orcamento_por_fase: (settings?.orcamento_por_fase as Record<string, number>) || {},
   });
   useEffect(() => {
     if (settings) setForm({
@@ -1722,44 +1723,148 @@ function ConfigTab({ obraId, userId, settings, onSaved }: any) {
       alerta_estouro_pct: settings.alerta_estouro_pct || 90,
       obra_publica: settings.obra_publica || false,
       imagem_url: settings.imagem_url || null,
+      orcamento_por_fase: (settings.orcamento_por_fase as Record<string, number>) || {},
     });
   }, [settings]);
+
+  // União: fases padrão/cadastradas + fases já usadas em lançamentos
+  const fasesEditaveis = useMemo<string[]>(() => {
+    const set = new Set<string>();
+    (phases as Phase[]).forEach((p) => set.add(p.nome));
+    (entries as Entry[]).forEach((e) => { if (e.fase) set.add(e.fase); });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, "pt-BR"));
+  }, [phases, entries]);
+
+  const distribuicao = form.orcamento_por_fase || {};
+  const totalPct = Object.values(distribuicao).reduce((s, v) => s + Number(v || 0), 0);
+  const distOk = totalPct === 0 || Math.abs(totalPct - 100) < 0.01;
+
+  const setPctFase = (nome: string, valor: string) => {
+    const next = { ...(form.orcamento_por_fase || {}) };
+    const num = valor === "" ? 0 : Number(valor);
+    if (!num || num <= 0) delete next[nome];
+    else next[nome] = num;
+    setForm({ ...form, orcamento_por_fase: next });
+  };
+
+  const distribuirIgualmente = () => {
+    if (fasesEditaveis.length === 0) return;
+    const pct = Number((100 / fasesEditaveis.length).toFixed(2));
+    const next: Record<string, number> = {};
+    fasesEditaveis.forEach((n) => { next[n] = pct; });
+    setForm({ ...form, orcamento_por_fase: next });
+  };
+
+  const limparDistribuicao = () => setForm({ ...form, orcamento_por_fase: {} });
+
   const save = async () => {
+    if (!distOk) return toast.error(`A soma das porcentagens deve ser 100% (atual: ${totalPct.toFixed(2)}%)`);
     const payload = { ...form, user_id: userId, obra_id: obraId };
     const { error } = await supabase.from("cc_obra_settings" as any).upsert(payload, { onConflict: "obra_id" });
     if (error) return toast.error(error.message);
     toast.success("Configurações salvas");
     onSaved();
   };
+
   const inputCls = "w-full h-10 px-3 rounded-lg border border-border bg-background text-sm";
+  const pctInputCls = "w-24 h-9 px-2 rounded-lg border border-border bg-background text-sm text-right tabular-nums";
+
   return (
-    <div className="max-w-2xl bg-card border border-border rounded-2xl p-6 space-y-4">
-      <h3 className="font-semibold">Configurações financeiras</h3>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div>
-          <label className="text-xs text-muted-foreground">Orçamento previsto</label>
-          <input type="number" step="0.01" className={inputCls} value={form.orcamento_previsto} onChange={(e) => setForm({ ...form, orcamento_previsto: Number(e.target.value) })} />
-        </div>
-        <div>
-          <label className="text-xs text-muted-foreground">Meta de margem (%)</label>
-          <input type="number" step="0.1" className={inputCls} value={form.meta_margem} onChange={(e) => setForm({ ...form, meta_margem: Number(e.target.value) })} />
-        </div>
-        <div>
-          <label className="text-xs text-muted-foreground">Alerta de estouro (%)</label>
-          <input type="number" className={inputCls} value={form.alerta_estouro_pct} onChange={(e) => setForm({ ...form, alerta_estouro_pct: Number(e.target.value) })} />
-        </div>
-        <div>
-          <label className="text-xs text-muted-foreground">Tipo</label>
-          <select className={inputCls} value={form.obra_publica ? "publica" : "privada"} onChange={(e) => setForm({ ...form, obra_publica: e.target.value === "publica" })}>
-            <option value="privada">Privada</option>
-            <option value="publica">Pública</option>
-          </select>
-        </div>
-        <div className="sm:col-span-2">
-          <label className="text-xs text-muted-foreground">URL da imagem (capa)</label>
-          <input className={inputCls} value={form.imagem_url || ""} onChange={(e) => setForm({ ...form, imagem_url: e.target.value })} placeholder="https://..." />
+    <div className="space-y-4">
+      <div className="max-w-2xl bg-card border border-border rounded-2xl p-6 space-y-4">
+        <h3 className="font-semibold">Configurações financeiras</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="text-xs text-muted-foreground">Orçamento previsto</label>
+            <input type="number" step="0.01" className={inputCls} value={form.orcamento_previsto} onChange={(e) => setForm({ ...form, orcamento_previsto: Number(e.target.value) })} />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground">Meta de margem (%)</label>
+            <input type="number" step="0.1" className={inputCls} value={form.meta_margem} onChange={(e) => setForm({ ...form, meta_margem: Number(e.target.value) })} />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground">Alerta de estouro (%)</label>
+            <input type="number" className={inputCls} value={form.alerta_estouro_pct} onChange={(e) => setForm({ ...form, alerta_estouro_pct: Number(e.target.value) })} />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground">Tipo</label>
+            <select className={inputCls} value={form.obra_publica ? "publica" : "privada"} onChange={(e) => setForm({ ...form, obra_publica: e.target.value === "publica" })}>
+              <option value="privada">Privada</option>
+              <option value="publica">Pública</option>
+            </select>
+          </div>
+          <div className="sm:col-span-2">
+            <label className="text-xs text-muted-foreground">URL da imagem (capa)</label>
+            <input className={inputCls} value={form.imagem_url || ""} onChange={(e) => setForm({ ...form, imagem_url: e.target.value })} placeholder="https://..." />
+          </div>
         </div>
       </div>
+
+      {/* Distribuição do orçamento por fase */}
+      <div className="max-w-3xl bg-card border border-border rounded-2xl p-6 space-y-4">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <h3 className="font-semibold">Distribuição do Orçamento por Fase</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Defina manualmente a porcentagem prevista de cada fase. Se deixar em branco, o sistema usa rateio proporcional automático nos relatórios.
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <button type="button" onClick={distribuirIgualmente} className="px-3 py-2 rounded-lg border border-border bg-background text-xs hover:bg-muted">
+              Distribuir igualmente
+            </button>
+            <button type="button" onClick={limparDistribuicao} className="px-3 py-2 rounded-lg border border-border bg-background text-xs hover:bg-muted">
+              Limpar
+            </button>
+          </div>
+        </div>
+
+        {fasesEditaveis.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nenhuma fase disponível. Cadastre fases ou registre lançamentos primeiro.</p>
+        ) : (
+          <div className="border border-border rounded-xl overflow-hidden">
+            <div className="grid grid-cols-[1fr_auto_auto] gap-2 px-3 py-2 bg-muted/40 text-xs font-medium text-muted-foreground">
+              <span>Fase</span>
+              <span className="text-right">% prevista</span>
+              <span className="text-right w-32">Valor previsto</span>
+            </div>
+            <div className="divide-y divide-border">
+              {fasesEditaveis.map((nome) => {
+                const pct = Number(distribuicao[nome] || 0);
+                const valor = (Number(form.orcamento_previsto) * pct) / 100;
+                return (
+                  <div key={nome} className="grid grid-cols-[1fr_auto_auto] gap-2 items-center px-3 py-2 text-sm">
+                    <span className="flex items-center gap-2">
+                      <span className="h-2.5 w-2.5 rounded-full" style={{ background: phaseColor(nome, phases) }} />
+                      {nome}
+                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.01"
+                      placeholder="0"
+                      value={distribuicao[nome] ?? ""}
+                      onChange={(e) => setPctFase(nome, e.target.value)}
+                      className={pctInputCls}
+                    />
+                    <span className="text-right w-32 tabular-nums text-muted-foreground">{formatBRL(valor)}</span>
+                  </div>
+                );
+              })}
+            </div>
+            <div className={`grid grid-cols-[1fr_auto_auto] gap-2 items-center px-3 py-2 text-sm font-semibold border-t border-border ${distOk ? "bg-emerald-500/5" : "bg-rose-500/10"}`}>
+              <span>Total</span>
+              <span className={`text-right w-24 tabular-nums ${distOk ? "" : "text-rose-600"}`}>{totalPct.toFixed(2)}%</span>
+              <span className="text-right w-32 tabular-nums">{formatBRL((Number(form.orcamento_previsto) * totalPct) / 100)}</span>
+            </div>
+          </div>
+        )}
+        {!distOk && (
+          <p className="text-xs text-rose-600">A soma das porcentagens deve totalizar exatamente 100% para salvar.</p>
+        )}
+      </div>
+
       <button onClick={save} className="px-5 py-2.5 rounded-lg bg-primary text-primary-foreground font-medium hover:opacity-90">Salvar</button>
     </div>
   );
