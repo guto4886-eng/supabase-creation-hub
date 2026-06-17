@@ -1460,6 +1460,7 @@ function RelatoriosTab({ entries, obra, orcamentoPrevisto, gastoTotal, phases = 
     entries: filtered as any,
     employees: employees as any,
     phases,
+    orcamentoPorFase,
     periodoLabel: fInicio || fFim
       ? `${fInicio ? new Date(fInicio + "T00:00:00").toLocaleDateString("pt-BR") : "..."} a ${fFim ? new Date(fFim + "T00:00:00").toLocaleDateString("pt-BR") : "..."}`
       : "Todos os lançamentos",
