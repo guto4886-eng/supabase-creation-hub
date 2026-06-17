@@ -682,7 +682,7 @@ async function reportPrestacaoServico(data: ReportData) {
     foot: [["", "", "", "", "TOTAL:", fmt(itemsToShow.reduce((s, i) => s + (i.total_price || 0), 0))]],
     styles: { fontSize: 7, cellPadding: 1.5 },
     headStyles: { fillColor: [52, 73, 94], textColor: 255, fontStyle: "bold" },
-    footStyles: { fillColor: [230, 230, 230], fontStyle: "bold" },
+    footStyles: { fillColor: [20, 40, 80], textColor: 255, fontStyle: "bold", fontSize: 10 },
     alternateRowStyles: { fillColor: [245, 245, 245] },
   });
 
