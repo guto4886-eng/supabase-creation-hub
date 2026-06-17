@@ -276,7 +276,7 @@ export default function CentralCustosObra() {
           )}
           {tab === "arquivos" && <ArquivosTab obraId={obraId} userId={user?.id || ""} />}
           {tab === "config" && (
-            <ConfigTab obraId={obraId} userId={user?.id || ""} settings={settings} onSaved={refresh} />
+            <ConfigTab obraId={obraId} userId={user?.id || ""} settings={settings} onSaved={refresh} phases={allPhases} entries={entries} orcamentoPrevisto={orcamentoPrevisto} />
           )}
         </motion.div>
       </AnimatePresence>
