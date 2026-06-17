@@ -145,7 +145,7 @@ function drawCover(doc: jsPDF, ctx: ReportContext, reportTitle: string) {
 
   const items: Array<[string, string]> = [
     ["Obra", ctx.obraName],
-    ["Início da obra", ctx.obraInicio ? new Date(ctx.obraInicio).toLocaleDateString("pt-BR") : "—"],
+    ["Início da obra", ctx.obraInicio ? new Date(ctx.obraInicio + "T00:00:00").toLocaleDateString("pt-BR") : "—"],
     ["Mês de referência", referencia],
     ["Total de lançamentos", String(ctx.entries.length)],
     ["Emitido em", new Date().toLocaleString("pt-BR")],

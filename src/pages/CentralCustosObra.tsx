@@ -192,8 +192,8 @@ export default function CentralCustosObra() {
             {(obra?.city || obra?.state) && (
               <span>{[obra?.city, obra?.state].filter(Boolean).join(" / ")}</span>
             )}
-            {obra?.start_date && <span>Início: {new Date(obra.start_date).toLocaleDateString("pt-BR")}</span>}
-            {obra?.expected_end_date && <span>Previsão: {new Date(obra.expected_end_date).toLocaleDateString("pt-BR")}</span>}
+            {obra?.start_date && <span>Início: {new Date(obra.start_date + "T00:00:00").toLocaleDateString("pt-BR")}</span>}
+            {obra?.expected_end_date && <span>Previsão: {new Date(obra.expected_end_date + "T00:00:00").toLocaleDateString("pt-BR")}</span>}
             <span
               className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
                 saude === "saudavel" ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
@@ -449,7 +449,7 @@ function VisaoGeralTab({
                     <div className="flex-1 min-w-0">
                       <p className="font-medium truncate">{e.nome_item}</p>
                       <p className="text-xs text-muted-foreground capitalize">
-                        {type?.label} • {new Date(e.data).toLocaleDateString("pt-BR")}
+                        {type?.label} • {new Date(e.data + "T00:00:00").toLocaleDateString("pt-BR")}
                       </p>
                     </div>
                     <span className="font-semibold tabular-nums text-sm">{formatBRL(e.valor_total)}</span>
@@ -770,7 +770,7 @@ function CustosTab({ entries, obraId, userId, onChanged, phases = DEFAULT_PHASES
                       ))}
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      {type?.label} • {new Date(e.data).toLocaleDateString("pt-BR")}
+                      {type?.label} • {new Date(e.data + "T00:00:00").toLocaleDateString("pt-BR")}
                       {e.quantidade ? ` • ${e.quantidade} ${e.unidade || ""}` : ""}
                       {e.fornecedor && ` • ${e.fornecedor}`}
                       {e.forma_pagamento && ` • ${e.forma_pagamento}`}
@@ -944,7 +944,7 @@ function CostDetailsModal({ entry, phases, onClose, onEdit, onDuplicate, onDelet
           <div className="h-11 w-11 rounded-xl bg-white/15 flex items-center justify-center text-xl" aria-hidden="true">{type?.icon}</div>
           <div className="flex-1 min-w-0">
             <h3 id={titleId} className="font-semibold truncate">{entry.nome_item}</h3>
-            <p className="text-xs opacity-80">{type?.label} • {new Date(entry.data).toLocaleDateString("pt-BR")}</p>
+            <p className="text-xs opacity-80">{type?.label} • {new Date(entry.data + "T00:00:00").toLocaleDateString("pt-BR")}</p>
           </div>
           <button
             ref={closeBtnRef}
@@ -972,7 +972,7 @@ function CostDetailsModal({ entry, phases, onClose, onEdit, onDuplicate, onDelet
           <Row label="Quantidade" value={`${entry.quantidade} ${entry.unidade || ""}`} />
           <Row label="Valor Unitário" value={formatBRL(entry.valor_unitario)} />
           <Row label="Valor Total" value={formatBRL(entry.valor_total)} />
-          <Row label="Data" value={new Date(entry.data).toLocaleDateString("pt-BR")} />
+          <Row label="Data" value={new Date(entry.data + "T00:00:00").toLocaleDateString("pt-BR")} />
           <Row label="Forma de Pagamento" value={entry.forma_pagamento} />
           <Row label="Fornecedor" value={entry.fornecedor} />
           <Row label="Tags" value={entry.tags?.length ? <div className="flex flex-wrap gap-1 justify-end">{entry.tags.map((t: string) => <span key={t} className="text-[10px] px-1.5 py-0.5 rounded-md bg-primary/10 text-primary">#{t}</span>)}</div> : null} />
