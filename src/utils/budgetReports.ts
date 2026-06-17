@@ -747,7 +747,7 @@ async function reportPropostaComercial(data: ReportData) {
     foot: [["", "", "", "", "TOTAL:", fmt(totalVenda)]],
     styles: { fontSize: 7, cellPadding: 1.5 },
     headStyles: { fillColor: [39, 174, 96], textColor: 255, fontStyle: "bold" },
-    footStyles: { fillColor: [230, 250, 230], fontStyle: "bold" },
+    footStyles: { fillColor: [20, 80, 40], textColor: 255, fontStyle: "bold", fontSize: 10 },
     alternateRowStyles: { fillColor: [245, 250, 245] },
   });
 
