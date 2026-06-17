@@ -272,7 +272,7 @@ export default function CentralCustosObra() {
             <AnalyticsTab entries={entries} orcamentoPrevisto={orcamentoPrevisto} gastoTotal={gastoTotal} pctConsumido={pctConsumido} saude={saude} phases={allPhases} />
           )}
           {tab === "relatorios" && (
-            <RelatoriosTab entries={entries} obra={obra} orcamentoPrevisto={orcamentoPrevisto} gastoTotal={gastoTotal} phases={allPhases} employees={employees} />
+            <RelatoriosTab entries={entries} obra={obra} orcamentoPrevisto={orcamentoPrevisto} gastoTotal={gastoTotal} phases={allPhases} employees={employees} orcamentoPorFase={(settings?.orcamento_por_fase as Record<string, number>) || {}} />
           )}
           {tab === "arquivos" && <ArquivosTab obraId={obraId} userId={user?.id || ""} />}
           {tab === "config" && (
