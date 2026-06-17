@@ -619,10 +619,16 @@ async function reportFormularioOrcamento(data: ReportData) {
 
   const total = data.items.reduce((s, i) => s + (i.total_price || 0), 0);
   cy = ensureSpace(doc, cy, 30);
-  doc.setFontSize(11);
+  const pageW = doc.internal.pageSize.getWidth();
+  const boxW = pageW - MARGIN * 2;
+  doc.setFillColor(20, 40, 80);
+  doc.rect(MARGIN, cy, boxW, 11, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(13);
   doc.setFont("helvetica", "bold");
-  doc.text(`TOTAL GERAL: ${fmt(total)}`, MARGIN, cy + 2);
-  cy += 10;
+  doc.text(`TOTAL GERAL: ${fmt(total)}`, MARGIN + boxW - 4, cy + 7.5, { align: "right" });
+  doc.setTextColor(0, 0, 0);
+  cy += 16;
 
   const ei = data.extraInfo || {};
   const pw = doc.internal.pageSize.getWidth() - MARGIN * 2;
